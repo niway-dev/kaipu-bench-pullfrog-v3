@@ -2607,6 +2607,8 @@
     "editHint": "El nombre y el color se guardan en la carpeta del espacio de trabajo, así que viajan con ella.",
     "edit": "Editar",
     "editNamed": "Editar {name}",
-    "editSavedOffline": "Guardado. {name} no está conectado, así que el cambio llegará a su carpeta cuando lo reconectes."
+    "editSavedOffline": "Guardado. {name} no está conectado, así que el cambio llegará a su carpeta cuando lo reconectes.",
+    "editNotWritable": "Kaipu no pudo escribir en la carpeta de este espacio de trabajo, así que no cambió nada.",
+    "editFailed": "Kaipu no pudo guardar los cambios."
   }
 }

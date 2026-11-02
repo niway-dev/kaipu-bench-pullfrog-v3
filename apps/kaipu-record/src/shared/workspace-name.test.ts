@@ -68,10 +68,16 @@ describe("newWorkspaceFolderName", () => {
   });
 
   it("replaces what no file system accepts in a folder name", () => {
-    expect(newWorkspaceFolderName('Acme/Q3: "plan"?')).toBe("Kaipu Record — Acme-Q3- -plan");
+    expect(newWorkspaceFolderName('Acme/Q3: "plan"?')).toBe("Kaipu Record — Acme-Q3- -plan-");
   });
 
   it("never ends with a dot or a space (Windows refuses those)", () => {
     expect(newWorkspaceFolderName("Work. ")).toBe("Kaipu Record — Work");
+  });
+
+  it("never ends in the prefix's own space, whatever the name is made of", () => {
+    expect(newWorkspaceFolderName("...")).toBe("Kaipu Record — workspace");
+    expect(newWorkspaceFolderName("?")).toBe("Kaipu Record — -");
+    expect(newWorkspaceFolderName("?").endsWith(" ")).toBe(false);
   });
 });

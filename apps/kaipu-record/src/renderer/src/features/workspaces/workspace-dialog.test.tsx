@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type {
   LocationCheck,
   WorkspaceEditRequest,
@@ -151,8 +151,10 @@ describe("New workspace dialog", () => {
     type("Wo");
     type("Work");
     expect(await screen.findByText(`${PARENT}/Kaipu Record — Work`)).toBeInTheDocument();
-    answerFirst({ path: `${PARENT}/Kaipu Record — Wo`, state: "not-empty" });
-    await Promise.resolve();
+    // Resolve inside act and let React flush: without the guard the stale path would render.
+    await act(async () => {
+      answerFirst({ path: `${PARENT}/Kaipu Record — Wo`, state: "not-empty" });
+    });
     expect(screen.queryByText(`${PARENT}/Kaipu Record — Wo`)).toBeNull();
     expect(createButton()).toBeEnabled();
   });
@@ -240,7 +242,9 @@ describe("Edit workspace dialog", () => {
     type("Acme Studio");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't write/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Kaipu couldn't write to this workspace's folder, so nothing changed.",
+    );
     expect(onSaved).not.toHaveBeenCalled();
   });
 });

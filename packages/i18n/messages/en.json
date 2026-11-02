@@ -2607,6 +2607,8 @@
     "editHint": "The name and color are saved in the workspace's folder, so they travel with it.",
     "edit": "Edit",
     "editNamed": "Edit {name}",
-    "editSavedOffline": "Saved. {name} isn't connected, so the change reaches its folder when you reconnect it."
+    "editSavedOffline": "Saved. {name} isn't connected, so the change reaches its folder when you reconnect it.",
+    "editNotWritable": "Kaipu couldn't write to this workspace's folder, so nothing changed.",
+    "editFailed": "Kaipu couldn't save the changes."
   }
 }

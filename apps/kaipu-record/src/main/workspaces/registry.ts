@@ -586,6 +586,8 @@ export class WorkspaceRegistry {
     }
     try {
       await this.update((key) => {
+        // Re-checked inside the write, like create: two edits cannot both take one name.
+        if (!validateWorkspaceName(name, key.entries, entry.id).ok) throw new NameTakenError();
         const target = key.entries.find((e) => e.id === entry.id);
         if (!target) return;
         target.name = name;
@@ -595,12 +597,15 @@ export class WorkspaceRegistry {
         if (savedToFolder) delete target.pendingIdentity;
         else target.pendingIdentity = true;
       });
-    } catch {
-      // The folder must not keep a change the registry refused.
+    } catch (error) {
+      // The folder must not keep a change the registry refused: the old file comes back, or,
+      // when there was none, the one just written goes.
       if (savedToFolder && previous.kind === "ok") {
         await writeIdentity(entry.path, previous.identity).catch(() => {});
+      } else if (savedToFolder && previous.kind === "absent") {
+        await removeIdentity(entry.path);
       }
-      return { ok: false, reason: "not-writable" };
+      return { ok: false, reason: error instanceof NameTakenError ? "name-taken" : "not-writable" };
     }
     return { ok: true, entry: this.get(entry.id) ?? entry, savedToFolder };
   }

@@ -199,7 +199,7 @@ export function WorkspaceDialog({
 
           {refusal && (
             <p className={styles.error} role="alert">
-              {refusalMessage(refusal, t)}
+              {refusalMessage(refusal, editing !== null, t)}
             </p>
           )}
         </div>
@@ -260,6 +260,7 @@ function LocationSummary({
 
 function refusalMessage(
   reason: WorkspaceCreateRefusal | WorkspaceEditRefusal,
+  editing: boolean,
   t: ReturnType<typeof useTranslations<"workspaces">>,
 ): string {
   switch (reason) {
@@ -274,8 +275,8 @@ function refusalMessage(
     case "unknown":
       return t("removeRefusedUnknown");
     case "not-writable":
-      return t("createNotWritable");
+      return t(editing ? "editNotWritable" : "createNotWritable");
     default:
-      return t("createFailed");
+      return t(editing ? "editFailed" : "createFailed");
   }
 }

@@ -41,10 +41,11 @@ export function validateWorkspaceName(
 }
 
 /**
- * `Kaipu Record — <name>`, with what no file system accepts replaced by a dash, and no dot,
- * space or dash left at the end (Windows refuses a trailing dot or space).
+ * `Kaipu Record — <name>`, with each run of what no file system accepts replaced by one dash,
+ * and no dot or space left at the end (Windows refuses those). A name with nothing else left
+ * ("...") becomes "workspace", so the folder name never ends in the prefix's own space.
  */
 export function newWorkspaceFolderName(name: string): string {
-  const safe = name.replace(/[\\/:*?"<>|]/g, "-").replace(/[. -]+$/g, "");
-  return `${WORKSPACE_FOLDER_PREFIX}${safe}`;
+  const safe = name.replace(/[\\/:*?"<>|]+/g, "-").replace(/[. ]+$/g, "");
+  return `${WORKSPACE_FOLDER_PREFIX}${safe || "workspace"}`;
 }

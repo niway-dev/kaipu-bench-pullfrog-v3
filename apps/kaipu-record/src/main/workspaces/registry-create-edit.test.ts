@@ -496,3 +496,46 @@ describe("edit workspace", () => {
     });
   });
 });
+
+describe("edit workspace: refused whole", () => {
+  it("puts the folder's identity back when the registry cannot be stored", async () => {
+    const registry = await WorkspaceRegistry.open(env());
+    const created = await registry.create({ name: "Work", color: "sky" });
+    if (!created.ok) throw new Error("create failed");
+    // Its identity.json is gone: the probe inside edit() writes it again under the old name,
+    // so the failed registry write must leave exactly that, never the refused new name.
+    const { rm: remove } = await import("node:fs/promises");
+    await remove(join(created.entry.path, ".kaipu"), { recursive: true });
+    // The preferences file becomes a directory: the registry write fails.
+    await rm(prefsFile());
+    await mkdir(prefsFile());
+
+    const result = await registry.edit(created.entry.id, { name: "Renamed" });
+
+    expect(result).toEqual({ ok: false, reason: "not-writable" });
+    expect(await readIdentity(created.entry.path)).toMatchObject({
+      kind: "ok",
+      identity: { name: "Work" },
+    });
+  });
+
+  it("two edits cannot both take one name", async () => {
+    const registry = await WorkspaceRegistry.open(env());
+    const a = await registry.create({ name: "A", color: "sky" });
+    const b = await registry.create({ name: "B", color: "lime" });
+    if (!a.ok || !b.ok) throw new Error("create failed");
+
+    const [first, second] = await Promise.all([
+      registry.edit(a.entry.id, { name: "Same" }),
+      registry.edit(b.entry.id, { name: "same" }),
+    ]);
+
+    expect([first.ok, second.ok].sort()).toEqual([false, true]);
+    expect(registry.entries().filter((e) => e.name.toLowerCase() === "same")).toHaveLength(1);
+    const loser = first.ok ? b : a;
+    // The refused edit left its folder's file as it was.
+    expect(await readIdentity(loser.entry.path)).toMatchObject({
+      identity: { name: loser.entry.name },
+    });
+  });
+});

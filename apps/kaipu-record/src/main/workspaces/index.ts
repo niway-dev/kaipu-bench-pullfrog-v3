@@ -261,9 +261,8 @@ async function addWorkspace(sender: Electron.WebContents): Promise<WorkspaceAddR
 async function createWorkspace(input: unknown): Promise<WorkspaceCreateResult> {
   const reg = requireRegistry();
   const { name, color } = (input ?? {}) as { name?: unknown; color?: unknown };
-  if (typeof name !== "string" || typeof color !== "string") {
-    return { ok: false, reason: "invalid-name" };
-  }
+  if (typeof name !== "string") return { ok: false, reason: "invalid-name" };
+  if (typeof color !== "string") return { ok: false, reason: "invalid-color" };
   const outcome = await reg.create({ name, color });
   if (!outcome.ok) return outcome;
   await reg.dismissHint();
