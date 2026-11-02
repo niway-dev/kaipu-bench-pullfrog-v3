@@ -132,3 +132,20 @@ per-pull-request limit. The release also prints the reasoning effort in every fo
 the other call sites of symbols the diff newly calls, and asks the model for a confidence on
 each finding. The engine itself has lived in `niway-dev/wachiman` since the `v1.2.1` pin
 (2026-10-31, commit `9ae51c18`); this ADR did not record that move until now.
+
+**2026-11-03.** The pin moves to `v1.5.0`. Three changes reach this repository:
+
+- **A per-pull-request limit now exists.** All automatic runs on one pull request share
+  `auto_budget_usd`, default $6, left unchanged here. At the limit the engine posts one notice and
+  stops; `@claude review` (`/wachi review`) is not limited by it.
+- **A merge of the base branch costs nothing when it brings none of the author's own lines.** A
+  file the author changed while resolving the merge is re-reviewed with only the author's rows,
+  not the code that came from `main`.
+- **Five data-path questions** (destructive steps, unreadable files treated as empty, overlapping
+  calls, unbounded waits, cached state written back) are added to a batch's prompt only when its
+  added lines show the pattern.
+
+Thread-reply runs, also new in `v1.5.0`, do not run here: this caller has no
+`pull_request_review_comment` trigger, and adding it is a separate decision. What the release is
+expected to change, with numbers, is registered in niway-dev/wachiman-benchmarks
+(`releases/v1.5.0/PREDICTIONS.md`).
