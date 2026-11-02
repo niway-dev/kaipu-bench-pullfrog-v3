@@ -12,6 +12,7 @@ export function toWorkspaceView(
   entry: WorkspaceEntry,
   availability: Availability,
   itemCount: number | null,
+  device: string | null = null,
 ): WorkspaceView {
   return {
     id: entry.id,
@@ -23,5 +24,6 @@ export function toWorkspaceView(
     state: availability.state,
     ...(availability.state === "unavailable" ? { reason: availability.reason } : {}),
     itemCount: availability.state === "available" ? itemCount : null,
+    device: availability.state === "available" ? device : null,
   };
 }

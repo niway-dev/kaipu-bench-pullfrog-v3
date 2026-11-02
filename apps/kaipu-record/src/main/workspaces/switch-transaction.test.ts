@@ -68,6 +68,11 @@ describe("switchWorkspace", () => {
       reason: "exporting",
     });
     expect(exporting.active()).toBe("ws-a");
+
+    // A group move holds the switch from its first item to its last (ADR 0033, decision 14).
+    const moving = setup({ busy: () => "moving" });
+    expect(await switchWorkspace(moving.deps, "ws-b")).toEqual({ ok: false, reason: "moving" });
+    expect(moving.log).toEqual([]);
   });
 
   it("is refused when a recording started while the windows were preparing", async () => {

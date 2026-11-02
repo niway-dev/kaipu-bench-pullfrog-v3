@@ -1,4 +1,4 @@
-import { extname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import {
   app,
   BrowserWindow,
@@ -29,7 +29,9 @@ import { loadDeviceId, VaultTagRepository, type TagRepository } from "./tag-repo
 import { isTagColor } from "@kaipu/domain/constants";
 import { saveGif } from "./gif-save";
 import { importVideoFiles, type ImportVideoDeps } from "./import-video";
-import { createDragCopy } from "./drag-copies";
+import { createDragCopy, dragRoot } from "./drag-copies";
+import { dragLedger } from "./drag-ledger";
+import { withItemLock } from "./item-lock";
 import { friendlyDragName } from "./drag-name";
 import { activeWorkspace, ownsLegacyCloud, workspaceGate } from "../workspaces";
 import { registerVideoEditSessionHandlers } from "./video-edit-session";
@@ -229,10 +231,13 @@ export function registerLibraryVaultHandlers(deps: {
           throw new Error("rename: invalid assetId");
         }
         if (typeof title !== "string") throw new Error("rename: invalid title");
-        const result = await currentVault().renameItem({ id, assetId }, title.trim(), {
-          isBusy: deps.isExportActive,
-          isEditing: (itemId, assetId) => editorSessions.isOpen(itemId, assetId),
-        });
+        // Under the item lock: a rename never interleaves with a move of the same item.
+        const result = await withItemLock(activeWorkspace().id, id, () =>
+          currentVault().renameItem({ id, assetId }, title.trim(), {
+            isBusy: deps.isExportActive,
+            isEditing: (itemId, assetId) => editorSessions.isOpen(itemId, assetId),
+          }),
+        );
         if (result.file === "renamed") broadcastLibraryChanged();
         return result;
       },
@@ -284,7 +289,9 @@ export function registerLibraryVaultHandlers(deps: {
     currentVault().backfill(id, meta),
   );
   // remove() deletes every companion, the edit session and its assets included.
-  handleVault(IPC_CHANNELS.deleteLocalRecording, (id: string) => currentVault().remove(id));
+  handleVault(IPC_CHANNELS.deleteLocalRecording, (id: string) =>
+    withItemLock(activeWorkspace().id, id, () => currentVault().remove(id)),
+  );
   ipcMain.handle(
     IPC_CHANNELS.revealLocalRecording,
     scoped(async (id: string) => shell.showItemInFolder(await currentVault().filePath(id))),
@@ -314,6 +321,10 @@ export function registerLibraryVaultHandlers(deps: {
           typeof name === "string" && name.length > 0
             ? await createDragCopy(vault.directory, file, friendlyDragName(name, extname(file)))
             : file;
+        // A move of this item waits 10 s after a drag, and removes its drag folder (ADR 0033).
+        const workspaceId = activeWorkspace().id;
+        const inDragRoot = dragFile.startsWith(dragRoot(vault.directory));
+        dragLedger.record({ workspaceId, itemId: id, dir: inDragRoot ? dirname(dragFile) : null });
         event.sender.startDrag({ file: dragFile, icon: icon.resize({ width: 96 }) });
       })
       .catch((error) => console.error("file drag failed", error));

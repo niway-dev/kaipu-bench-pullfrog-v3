@@ -16,7 +16,8 @@ import { atomicWriteFile } from "./atomic-write";
 import { LibraryVault } from "./library-vault";
 import { vaultActivity } from "./vault-activity";
 import { vaultDirectory } from "./vault-location";
-import { workspaceGate } from "../workspaces";
+import { activeWorkspace, workspaceGate } from "../workspaces";
+import { ItemMovedError, withItemLock } from "./item-lock";
 
 // ── Path helpers ─────────────────────────────────────────────────────────────
 
@@ -168,6 +169,25 @@ export async function saveSession(id: string, payload: SavePayload): Promise<voi
   }
 }
 
+/**
+ * `saveSession` under the item's lock (ADR 0033, decision 12): the JSON, the assets and the
+ * prune pass are one critical section against a move of the same item. A save that waited
+ * behind a move finds no media here any more and writes nothing (`ItemMovedError`), so it
+ * can never recreate source assets or leave a partial project.
+ */
+export function saveSessionLocked(
+  workspaceId: string,
+  id: string,
+  payload: SavePayload,
+): Promise<void> {
+  return withItemLock(workspaceId, id, async () => {
+    if (!(await new LibraryVault(vaultDirectory().path).hasMedia(id))) {
+      throw new ItemMovedError(id);
+    }
+    await saveSession(id, payload);
+  });
+}
+
 export async function loadSession(id: string): Promise<LoadResult | null> {
   const sp = sessionPath(id);
   let sessionJson: string;
@@ -238,7 +258,9 @@ export function registerVideoEditSessionHandlers(): void {
       exported?: boolean,
     ) =>
       workspaceGate().run(stamp, () =>
-        vaultActivity.run("editor", () => saveSession(id, { sessionJson, assets, exported })),
+        vaultActivity.run("editor", () =>
+          saveSessionLocked(activeWorkspace().id, id, { sessionJson, assets, exported }),
+        ),
       ),
   );
 

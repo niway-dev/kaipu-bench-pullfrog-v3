@@ -33,6 +33,9 @@ import type {
 } from "./library-reconcile";
 import type {
   LocationCheck,
+  MoveItemsRequest,
+  MoveItemsResult,
+  MoveProgress,
   WorkspaceAddResult,
   WorkspaceCreateResult,
   WorkspaceEditRequest,
@@ -161,13 +164,29 @@ export interface WorkspacesBridge {
   list(): Promise<WorkspacesState>;
   /** The workspace this window's stamp names, read synchronously (null until it is known). */
   activeId(): string | null;
-  /** Folder picker, then adopt or initialize the folder and switch to it ("Use an existing folder"). */
-  add(): Promise<WorkspaceAddResult>;
+  /**
+   * Folder picker, then adopt or initialize the folder and switch to it ("Use an existing
+   * folder"). `activate: false` keeps it inactive ("Move to ▸ New workspace…").
+   */
+  add(options?: { activate?: boolean }): Promise<WorkspaceAddResult>;
   /**
    * New workspace: a new folder `Kaipu Record — <name>` next to the Default workspace's, with
-   * only Kaipu's files in it, then a switch to it.
+   * only Kaipu's files in it, then a switch to it (unless `activate` is false).
    */
-  create(input: { name: string; color: TagColor }): Promise<WorkspaceCreateResult>;
+  create(input: {
+    name: string;
+    color: TagColor;
+    activate?: boolean;
+  }): Promise<WorkspaceCreateResult>;
+  /**
+   * Move items of the active workspace to `targetId`, one after another (ADR 0033). Stamped:
+   * refused when the window's workspace is no longer the active one.
+   */
+  moveItems(request: MoveItemsRequest): Promise<MoveItemsResult>;
+  /** Stop a group move: the move in flight finishes, no further one starts. */
+  cancelMove(): Promise<void>;
+  /** "Moving 3 of 12" while a group this window started runs. Returns an unsubscribe. */
+  onMoveProgress(callback: (progress: MoveProgress) => void): () => void;
   /** Where `create` would put the folder, and whether it can be used. */
   checkLocation(name: string): Promise<LocationCheck>;
   /** Rename and/or recolor; written to the registry and to the folder's identity. */

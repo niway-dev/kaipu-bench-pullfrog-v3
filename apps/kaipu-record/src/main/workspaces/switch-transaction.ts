@@ -1,4 +1,8 @@
-import type { WorkspaceStamp, WorkspaceSwitchResult } from "@shared/types/workspaces";
+import type {
+  WorkspaceBusy,
+  WorkspaceStamp,
+  WorkspaceSwitchResult,
+} from "@shared/types/workspaces";
 import type { WorkspaceGate } from "./gate";
 import type { Availability } from "./registry";
 
@@ -10,7 +14,7 @@ export interface SwitchDeps {
   /** Probes the target folder; resolves its id afterwards (a pending entry may adopt one). */
   availability(id: string): Promise<{ availability: Availability; id: string }>;
   /** What is writing into the active workspace right now, if anything (the LOCKED state). */
-  busy(): "recording" | "exporting" | null;
+  busy(): WorkspaceBusy | null;
   /**
    * Ask every window to flush pending saves, resolve unsaved editors (Save, Discard or
    * Cancel) and close what belongs to the old workspace. False when one cancelled or timed out.
@@ -44,7 +48,7 @@ export async function switchWorkspace(
   if (!deps.isKnown(id)) return { ok: false, reason: "unknown" };
   if (id === deps.activeId()) return { ok: true };
   const busy = deps.busy();
-  if (busy) return { ok: false, reason: busy === "recording" ? "recording" : "exporting" };
+  if (busy) return { ok: false, reason: busy };
   if (inFlight) return { ok: false, reason: "cancelled" };
   inFlight = true;
   try {
@@ -60,7 +64,7 @@ export async function switchWorkspace(
     const late = deps.busy();
     if (late) {
       deps.abortWindows();
-      return { ok: false, reason: late === "recording" ? "recording" : "exporting" };
+      return { ok: false, reason: late };
     }
 
     await deps.gate.close();

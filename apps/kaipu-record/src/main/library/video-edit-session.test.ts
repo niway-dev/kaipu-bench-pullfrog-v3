@@ -8,7 +8,13 @@ vi.mock("./vault-location", () => ({
   vaultDirectory: () => ({ path: state.dir, isCustom: false }),
 }));
 
-import { deleteVideoEditSession, loadSession, saveSession } from "./video-edit-session";
+import {
+  deleteVideoEditSession,
+  loadSession,
+  saveSession,
+  saveSessionLocked,
+} from "./video-edit-session";
+import { ItemMovedError, withItemLock } from "./item-lock";
 
 function bytesOf(text: string): ArrayBuffer {
   return new TextEncoder().encode(text).buffer as ArrayBuffer;
@@ -24,6 +30,26 @@ describe("video-edit-session", () => {
 
   afterEach(async () => {
     await rm(vaultDir, { recursive: true, force: true });
+  });
+
+  it("a save queued behind a move of the item writes nothing and says item-moved (ADR 0033)", async () => {
+    await mkdir(join(vaultDir, ".kaipu"), { recursive: true });
+    await writeFile(join(vaultDir, "rec-1.mp4"), "video");
+    let release!: () => void;
+    // The move holds the item lock and takes the media away.
+    const move = withItemLock("ws", "rec-1", async () => {
+      await new Promise<void>((resolve) => (release = resolve));
+      await rm(join(vaultDir, "rec-1.mp4"));
+    });
+    const save = saveSessionLocked("ws", "rec-1", {
+      sessionJson: '{"version":1}',
+      assets: [{ assetId: "asset-a", bytes: bytesOf("png") }],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    release();
+    await move;
+    await expect(save).rejects.toBeInstanceOf(ItemMovedError);
+    expect(await readdir(join(vaultDir, ".kaipu"))).toEqual([]);
   });
 
   it("round-trips a session with no assets", async () => {

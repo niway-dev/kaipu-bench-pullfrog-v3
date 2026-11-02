@@ -21,11 +21,16 @@ export type WorkspaceUnavailableReason =
   /** Another workspace's identity is in that folder. */
   | "different";
 
+/** What locks the switcher (and the "Move to" menus). */
+export type WorkspaceBusy = "recording" | "exporting" | "moving";
+
 /** Why a switch did not happen. */
 export type WorkspaceSwitchRefusal =
   /** A recording or an export is writing into the active workspace (the LOCKED state). */
   | "recording"
   | "exporting"
+  /** Items are being moved to another workspace (ADR 0033, decision 14). */
+  | "moving"
   /** The target is not connected. */
   | "unavailable"
   /** A window said no (Cancel on an unsaved editor) or did not answer in time. */
@@ -48,6 +53,11 @@ export interface WorkspaceView {
   reason?: WorkspaceUnavailableReason;
   /** Local item count, only for the active workspace (null when it was not listed). */
   itemCount: number | null;
+  /**
+   * The volume the folder is on (`stat.dev`), for an available workspace: a move between two
+   * workspaces on the same one is instant, otherwise it copies. Null when not connected.
+   */
+  device: string | null;
 }
 
 /** `workspaces:list` (and the `workspaces:changed` broadcast). */
@@ -56,8 +66,8 @@ export interface WorkspacesState {
   generation: number;
   /** The one-time "New: workspaces" hint was dismissed (or a workspace was added). */
   hintDismissed: boolean;
-  /** A recording or export is running: switching is locked. */
-  busy: "recording" | "exporting" | null;
+  /** A recording, an export or a move is running: switching is locked. */
+  busy: WorkspaceBusy | null;
   /** preferences.json did not parse: the app runs as before and changes nothing on disk. */
   readOnly: boolean;
   workspaces: WorkspaceView[];
