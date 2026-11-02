@@ -11,17 +11,19 @@
 }
 
 .card {
-  --toast-accent: var(--accent-primary, #f6055c);
-  --toast-ring: var(--accent-primary-ring, rgba(246, 5, 92, 0.4));
-  --toast-tint: var(--accent-primary-tint, rgba(246, 5, 92, 0.12));
-  --toast-bg: var(--bg-modal, #131315);
-  --toast-surface: var(--bg-card, #171719);
-  --toast-line: var(--border-light, #32323a);
-  --toast-track: var(--border, #26262a);
+  /* Literals, not theme tokens: the window runs `applyTheme`, and the light theme would turn
+     the surfaces white under this card's light text. The dark token values, by hand. */
+  --toast-accent: #f6055c;
+  --toast-ring: rgba(246, 5, 92, 0.4);
+  --toast-tint: rgba(246, 5, 92, 0.12);
+  --toast-bg: #131315;
+  --toast-surface: #171719;
+  --toast-line: #32323a;
+  --toast-track: #26262a;
   --toast-text: #e5e5e7;
   --toast-muted: #8a8a92;
-  --toast-ok: var(--accent-green, #22c55e);
-  --toast-warn: var(--accent-red, #ef4444);
+  --toast-ok: #22c55e;
+  --toast-warn: #ef4444;
 
   width: 280px;
   padding: 6px;
@@ -107,8 +109,8 @@
   gap: 7px;
   height: 34px;
   padding: 0 15px;
-  font-size: var(--font-size-base, 13px);
-  font-weight: var(--font-weight-semibold, 600);
+  font-size: 13px;
+  font-weight: 600;
   color: #fff;
   background: var(--toast-accent);
   border-radius: 999px;
@@ -165,7 +167,7 @@
   padding: 0 8px;
   font-family: inherit;
   font-size: 11px;
-  font-weight: var(--font-weight-semibold, 600);
+  font-weight: 600;
   white-space: nowrap;
   color: var(--toast-text);
   background: rgba(19, 19, 21, 0.86);
