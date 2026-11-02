@@ -37,12 +37,14 @@ bun .claude/skills/ui-shots/shots.mjs <html-file-or-url> <out-dir> [options] [st
 
 Steps (default `full`); add ` as <name>` to name the PNG:
 
-| Step                  | Writes                                                                                                                                                      |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `full`                | `full.png`, the whole page                                                                                                                                  |
-| `el:<selector>`       | one element                                                                                                                                                 |
-| `hover:<selector>`    | `<name>-rest.png` and `<name>-hover.png`                                                                                                                    |
-| `hoverctx:<selector>` | same, but the shot is the element's parent (the hover shot is clipped to what is on screen, so a parent taller than the viewport loses its off-screen part) |
+| Step                  | Writes                                     |
+| --------------------- | ------------------------------------------ |
+| `full`                | `full.png`, the whole page                 |
+| `el:<selector>`       | one element                                |
+| `hover:<selector>`    | `<name>-rest.png` and `<name>-hover.png`   |
+| `hoverctx:<selector>` | same, but the shot is the element's parent |
+
+Both hover steps take the hover shot as a clip of what is on screen (so nothing scrolls between the hover and the shot): for a subject taller than the viewport, `-hover.png` keeps only its visible part while `-rest.png` is the whole subject.
 
 Options: `--viewport=1440x720` (use the owner's window size for layout bugs), `--scale=2`, `--wait=300` (ms to let the UI settle before every shot, hover or not), `--css=<file|text>` (extra CSS after the freeze), `--no-freeze`.
 
