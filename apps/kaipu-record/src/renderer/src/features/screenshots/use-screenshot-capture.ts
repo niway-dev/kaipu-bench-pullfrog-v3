@@ -64,6 +64,8 @@ export function useScreenshotCapture(): {
           width: shot.width,
           height: shot.height,
           title: screenshotTitle(),
+          // The settings the capture started with travel to the editor (ADR 0034).
+          policy: shot.policy,
         };
         openCapture(source);
       }

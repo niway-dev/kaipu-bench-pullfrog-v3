@@ -445,6 +445,7 @@ describe("createCaptureHandler", () => {
         saved: { id: "screenshot-1", assetId: "asset-1" },
         copied: true,
         workspace: { id: "ws-work", name: "Work" },
+        policy: { workspaceId: "ws-work", screenshotCopy: "manual" },
       });
     });
 
@@ -461,6 +462,109 @@ describe("createCaptureHandler", () => {
       expect(takeLastQuietCapture()?.workspaceId).toBe("ws-work");
     });
 
+    describe("the capture keeps the settings it started with (ADR 0034, decision 4)", () => {
+      it("reads the workspace and the copy mode once, at the start, and answers with them", async () => {
+        prefs = { copy: "auto" };
+        const { handler } = setup(shot("capture"));
+        const out = await handler({ mode: "frame" });
+        expect(out).toMatchObject({
+          kind: "captured",
+          policy: { workspaceId: "ws-work", screenshotCopy: "auto" },
+        });
+      });
+
+      it("a switch and a Settings edit while the overlay is open change nothing about this capture", async () => {
+        prefs = { copy: "auto" };
+        let activeNow = { id: "ws-work", name: "Work" };
+        const workspace = vi.fn(() => activeNow);
+        const saveToVault = vi.fn(async (_png: Buffer, _title: string, _workspaceId?: string) => ({
+          id: "s",
+          assetId: "a",
+        }));
+        const copyToClipboard = vi.fn();
+        const onQuietCapture = vi.fn();
+        const handler = createCaptureHandler({
+          platform: "darwin",
+          // The user picks the area; meanwhile the app switches to Personal, where the copy
+          // mode is "manual", and the user flips the setting too.
+          provider: {
+            capture: async ({ mode }) => {
+              activeNow = { id: "ws-personal", name: "Personal" };
+              prefs = { copy: "manual" };
+              return { kind: "captured", png: Buffer.from([1]), mode, action: "copy" };
+            },
+            supports: () => true,
+            supportedModes: () => [],
+          },
+          overlay,
+          windows: { beforeCapture: vi.fn(), afterCapture: vi.fn(), reveal: vi.fn() },
+          measure: () => ({ width: 3, height: 2 }),
+          displayCount: () => 1,
+          track: vi.fn(),
+          rememberMode: vi.fn(),
+          settings: () => prefs,
+          saveToVault,
+          copyToClipboard,
+          thumbnail: () => "t",
+          onQuietCapture,
+          workspace,
+        });
+        const out = await handler({ mode: "frame" });
+        expect(saveToVault.mock.calls[0]![2]).toBe("ws-work");
+        expect(onQuietCapture).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workspace: { id: "ws-work", name: "Work" },
+            policy: { workspaceId: "ws-work", screenshotCopy: "auto" },
+          }),
+        );
+        expect(out).toMatchObject({
+          policy: { workspaceId: "ws-work", screenshotCopy: "auto" },
+        });
+        expect(workspace).toHaveBeenCalledOnce();
+      });
+
+      it("the in-memory editor after a failed save gets the policy, not a fresh read", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        prefs = { copy: "auto" };
+        const { handler, saveToVault } = setup(shot("capture"));
+        saveToVault.mockRejectedValueOnce(new Error("disk full"));
+        const out = await handler({ mode: "frame" });
+        prefs = { copy: "manual" };
+        expect(out).toMatchObject({
+          kind: "captured",
+          after: "editor",
+          saved: null,
+          policy: { workspaceId: "ws-work", screenshotCopy: "auto" },
+        });
+      });
+
+      it("the retained bytes carry the policy for the toast's Save and Annotate", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        prefs = { copy: "auto" };
+        const { handler, saveToVault } = setup(shot("copy"));
+        saveToVault.mockRejectedValueOnce(new Error("disk full"));
+        await handler({ mode: "frame" });
+        prefs = { copy: "manual" };
+        expect(takeLastQuietCapture()?.policy).toEqual({
+          workspaceId: "ws-work",
+          screenshotCopy: "auto",
+        });
+      });
+
+      it("opens the editor and copies nothing when the settings could not be read at the start", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        const { handler, copyToClipboard } = setup(shot("capture"));
+        prefs = new Proxy(prefs, {
+          get() {
+            throw new Error("settings unavailable");
+          },
+        });
+        const out = await handler({ mode: "frame" });
+        expect(out).toMatchObject({ kind: "captured", after: "editor", policy: null });
+        expect(copyToClipboard).not.toHaveBeenCalled();
+      });
+    });
+
     it("Copy whose save fails still copies and keeps the bytes once for Edit", async () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       const { handler, saveToVault, onQuietCapture } = setup(shot("copy"));
@@ -474,6 +578,7 @@ describe("createCaptureHandler", () => {
         height: 2,
         mode: "window",
         workspaceId: "ws-work",
+        policy: { workspaceId: "ws-work", screenshotCopy: "manual" },
       });
       expect(takeLastQuietCapture()).toBeNull();
     });

@@ -27,7 +27,7 @@ import {
   updateAppSettings,
 } from "../infrastructure/settings-store";
 import { scopedAdmitted, screenshotFilePath } from "../library";
-import { activeWorkspace } from "../workspaces";
+import { activeWorkspace, refreshActiveWorkspaceSettings } from "../workspaces";
 import { saveCaptureToWorkspace, saveEditedScreenshot } from "./screenshot-save";
 import { vaultActivity } from "../library/vault-activity";
 import type { CaptureToastShowRequest } from "./capture-toast-window";
@@ -186,7 +186,12 @@ export function registerScreenshotHandlers(
   // hides or any pixel is grabbed, held through the vault write. The hotkey goes through
   // this same channel (the renderer invokes it).
   ipcMain.handle(IPC_CHANNELS.screenshotCapture, (_event, request) =>
-    vaultActivity.run("screenshot", () => handleCapture(request)),
+    vaultActivity.run("screenshot", async () => {
+      // The folder's settings file is read again as the capture starts, so one a sync changed
+      // since is not applied unasked (ADR 0034, decision 8). Never throws, never waits long.
+      await refreshActiveWorkspaceSettings().catch(() => {});
+      return handleCapture(request);
+    }),
   );
   ipcMain.handle(IPC_CHANNELS.screenshotSupportedModes, () => provider.supportedModes());
 

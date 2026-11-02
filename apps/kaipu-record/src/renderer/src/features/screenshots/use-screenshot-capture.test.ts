@@ -63,6 +63,7 @@ describe("useScreenshotCapture", () => {
       width: 10,
       height: 5,
       mode: "frame",
+      policy: null,
     });
     const { result } = renderHook(() => useScreenshotCapture());
     await act(() => result.current.capture());
@@ -91,11 +92,18 @@ describe("useScreenshotCapture", () => {
       width: 10,
       height: 5,
       mode: "frame",
+      policy: { workspaceId: "ws-work", screenshotCopy: "auto" },
     });
     const { result } = renderHook(() => useScreenshotCapture());
     await act(() => result.current.capture());
     expect(openCapture).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "blob", width: 10, height: 5 }),
+      expect.objectContaining({
+        kind: "blob",
+        width: 10,
+        height: 5,
+        // The editor takes its auto actions from the policy the capture started with.
+        policy: { workspaceId: "ws-work", screenshotCopy: "auto" },
+      }),
     );
     expect(openScreenshot).not.toHaveBeenCalled();
     expect(api.revealAfterCapture).toHaveBeenCalled();
@@ -111,6 +119,7 @@ describe("useScreenshotCapture", () => {
       width: 10,
       height: 5,
       mode: "frame",
+      policy: null,
     });
     const { result } = renderHook(() => useScreenshotCapture());
     await act(() => result.current.capture());

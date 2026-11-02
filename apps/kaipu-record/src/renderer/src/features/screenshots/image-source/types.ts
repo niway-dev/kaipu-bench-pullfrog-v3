@@ -5,6 +5,8 @@
  * new reader + a new union member, with the editor untouched.
  */
 
+import type { CapturePolicy } from "@shared/types/screenshot-capture";
+
 /** Properties every image source carries, regardless of where its bytes live. */
 export interface ImageSourceBase {
   /** Natural pixel size when known (a fresh capture has it; a re-opened item may not). */
@@ -33,6 +35,12 @@ export type ImageSource =
        * editor runs no auto action for it.
        */
       origin?: "capture" | "paste" | "quiet";
+      /**
+       * A capture's own settings (ADR 0034, decision 4): the copy mode in force in the
+       * workspace it started in. The editor takes its auto actions from here and never reads
+       * the setting for a capture, so a switch or a Settings edit in between changes nothing.
+       */
+      policy?: CapturePolicy | null;
     })
   | (ImageSourceBase & {
       kind: "local";

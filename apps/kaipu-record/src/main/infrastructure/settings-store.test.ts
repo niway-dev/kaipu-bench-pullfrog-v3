@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { IPC_CHANNELS } from "@shared/types/ipc";
@@ -13,6 +13,10 @@ const mockState = vi.hoisted(() => ({
   setActivationPolicy: vi.fn(),
   dockShow: vi.fn(),
   setLoginItemSettings: vi.fn(),
+  windows: [] as Array<{
+    isDestroyed(): boolean;
+    webContents: { send(channel: string, payload: unknown): void };
+  }>,
 }));
 
 vi.mock("electron", () => ({
@@ -27,7 +31,7 @@ vi.mock("electron", () => ({
       mockState.handlers.set(channel, fn);
     },
   },
-  BrowserWindow: { getAllWindows: () => [] },
+  BrowserWindow: { getAllWindows: () => mockState.windows },
 }));
 
 type Store = typeof import("./settings-store");
@@ -233,5 +237,108 @@ describe("side effects run only for the settings they follow", () => {
     // The same value written again (a new object) is not a change.
     updateSettings({ shortcuts: { ...shortcuts } });
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("effective settings of the active workspace (ADR 0034)", () => {
+  const sent: Array<{ channel: string; payload: AppSettings }> = [];
+
+  beforeEach(async () => {
+    mockState.userDataDir = await mkdtemp(join(tmpdir(), "kaipu-settings-"));
+    mockState.handlers.clear();
+    mockState.windows.length = 0;
+    sent.length = 0;
+    mockState.windows.push({
+      isDestroyed: () => false,
+      webContents: {
+        send: (channel: string, payload: AppSettings) => sent.push({ channel, payload }),
+      },
+    });
+    setPlatform("darwin");
+  });
+
+  afterEach(async () => {
+    setPlatform(realPlatform);
+    await rm(mockState.userDataDir, { recursive: true, force: true });
+  });
+
+  function getSettings(): AppSettings {
+    const handler = mockState.handlers.get(IPC_CHANNELS.getSettings);
+    if (!handler) throw new Error("getSettings handler not registered");
+    return handler({}) as AppSettings;
+  }
+
+  it("settings:get returns the override over the All value", async () => {
+    const store = await loadStore();
+    store.registerSettings();
+    store.updateAppSettings({ screenshotCopy: "auto" });
+    store.setOverridesSource(() => ({ screenshotCopy: "manual" }));
+    store.notifyOverridesChanged();
+    expect(getSettings().screenshotCopy).toBe("manual");
+    expect(store.getAppSettings().screenshotCopy).toBe("manual");
+    expect(store.getAllLevelSettings().screenshotCopy).toBe("auto");
+  });
+
+  it("the settings:update response, the broadcast and a keyed listener carry the effective value, not the All one", async () => {
+    const store = await loadStore();
+    store.registerSettings();
+    store.updateAppSettings({ screenshotCopy: "auto" });
+    store.setOverridesSource(() => ({ screenshotCopy: "manual" }));
+    store.notifyOverridesChanged();
+    sent.length = 0;
+    const heard = vi.fn();
+    store.onSettingsKeysChanged(["screenshotCopy"], heard);
+
+    // An unrelated update returns the Work value, so a renderer cache cannot flip back to "auto".
+    expect(updateSettings({ theme: "light" }).screenshotCopy).toBe("manual");
+    expect(sent.at(-1)?.channel).toBe(IPC_CHANNELS.settingsChanged);
+    expect(sent.at(-1)?.payload.screenshotCopy).toBe("manual");
+    expect(heard).not.toHaveBeenCalled();
+
+    // The All level is still "auto".
+    expect(store.getAllLevelSettings().screenshotCopy).toBe("auto");
+  });
+
+  it("a switch recomputes the effective settings, broadcasts them and wakes a keyed listener", async () => {
+    const store = await loadStore();
+    store.registerSettings();
+    let overrides: Record<string, unknown> = { screenshotCopy: "manual" };
+    store.setOverridesSource(() => overrides as never);
+    store.notifyOverridesChanged();
+    const heard = vi.fn();
+    store.onSettingsKeysChanged(["screenshotCopy"], heard);
+    sent.length = 0;
+
+    overrides = {}; // the other workspace overrides nothing
+    store.notifyOverridesChanged();
+    expect(getSettings().screenshotCopy).toBe("auto");
+    expect(sent.at(-1)?.payload.screenshotCopy).toBe("auto");
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(heard.mock.calls[0]?.[0].screenshotCopy).toBe("auto");
+  });
+
+  it("never writes an override into settings.json", async () => {
+    const store = await loadStore();
+    store.registerSettings();
+    store.setOverridesSource(() => ({ screenshotCopy: "manual", showBrandBadge: true }));
+    store.notifyOverridesChanged();
+    updateSettings({ theme: "light" });
+    const onDisk = JSON.parse(
+      await readFile(join(mockState.userDataDir, "settings.json"), "utf-8"),
+    ) as AppSettings;
+    expect(onDisk.theme).toBe("light");
+    expect(onDisk.screenshotCopy).toBe("auto");
+    expect(onDisk.showBrandBadge).toBe(false);
+  });
+
+  it("settings:update of an overridable key writes the All level and keeps the override visible", async () => {
+    const store = await loadStore();
+    store.registerSettings();
+    store.setOverridesSource(() => ({ screenshotCopy: "manual" }));
+    store.notifyOverridesChanged();
+    const result = updateSettings({ screenshotCopy: "auto", exportQuality: "maximum" });
+    expect(result.screenshotCopy).toBe("manual");
+    expect(result.exportQuality).toBe("maximum");
+    expect(store.getAllLevelSettings().screenshotCopy).toBe("auto");
   });
 });

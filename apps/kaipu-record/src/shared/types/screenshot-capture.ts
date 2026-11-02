@@ -5,6 +5,8 @@
  * workspace package.
  */
 
+import type { ScreenshotCopyMode } from "./ipc";
+
 export const CAPTURE_MODES = ["frame", "window", "screen"] as const; // pill order = keys 1-3
 export type CaptureMode = (typeof CAPTURE_MODES)[number];
 
@@ -85,6 +87,11 @@ export type CaptureResult =
       mode: CaptureMode;
       saved: SavedScreenshotRef | null;
       copied: boolean;
+      /**
+       * The workspace and copy mode the capture started with. The in-memory editor opened
+       * after a failed save takes its auto actions from it and never reads the setting.
+       */
+      policy: CapturePolicy | null;
     }
   | { kind: "cancelled" }
   | { kind: "unsupported"; mode: CaptureMode; platform: NodeJS.Platform };
@@ -235,6 +242,20 @@ export interface CaptureToastPayload {
   copied: boolean;
   /** The workspace the capture started in: the toast says "Saved to <name>" (a label only). */
   workspace?: CaptureWorkspace | null;
+  /** The settings the capture started with; the toast's Save and Annotate use it. */
+  policy?: CapturePolicy | null;
+}
+
+/**
+ * The settings a screenshot started with (ADR 0034, decision 4): its workspace and the copy
+ * mode in force there. It travels with the capture (result, kept bytes, toast, editor source)
+ * and nothing re-reads the setting later, so a switch or an edit between the shot and the
+ * editor changes nothing about what the editor copies.
+ */
+export interface CapturePolicy {
+  /** Null for a handler built without workspaces (tests). */
+  workspaceId: string | null;
+  screenshotCopy: ScreenshotCopyMode;
 }
 
 /** The workspace a capture is bound to when it starts (ADR 0032, decision 9). */

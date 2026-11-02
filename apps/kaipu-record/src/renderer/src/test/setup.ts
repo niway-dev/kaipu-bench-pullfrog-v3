@@ -175,6 +175,22 @@ window.electronAPI = {
   setExportActive: () => {},
   beginExport: async () => {},
   onExportCommand: () => () => {},
+  settingsScope: {
+    getScoped: async (scope) => ({
+      scope,
+      all: STUB_SETTINGS,
+      overrides: {},
+      effective: STUB_SETTINGS,
+      folder: "none",
+      pending: null,
+      folderSha256: null,
+      overriddenIn: {},
+    }),
+    setOverride: async () => ({ ok: true, settings: STUB_SETTINGS }),
+    resetOverrides: async () => ({ ok: true, settings: STUB_SETTINGS }),
+    copyToAll: async () => ({ ok: true, settings: STUB_SETTINGS, keptOwn: [] }),
+    resolvePending: async () => ({ ok: true, settings: STUB_SETTINGS }),
+  },
   workspaces: {
     activeId: () => null,
     list: async () => ({

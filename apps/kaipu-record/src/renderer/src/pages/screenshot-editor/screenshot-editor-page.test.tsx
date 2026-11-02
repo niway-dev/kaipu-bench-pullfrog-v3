@@ -163,13 +163,50 @@ describe("ScreenshotEditorPage — save races", () => {
     await waitFor(() => expect(saveCalls()).toHaveLength(2));
   });
 
-  it("auto-saves when settings resolve after the image loaded (SHOT-B8)", async () => {
-    const s = deferred<Settings>();
-    mount(CAPTURE, () => s.promise);
+  it("auto-saves a capture as soon as the image loaded, without waiting for any setting (SHOT-B8)", async () => {
+    mount(CAPTURE);
     await loadImage();
-    expect(saveCalls()).toHaveLength(0);
-    await act(async () => s.resolve({ ...base, screenshotCopy: "manual" }));
     await waitFor(() => expect(saveCalls()).toHaveLength(1));
+  });
+
+  describe("a capture keeps the settings it started with (ADR 0034, decision 4)", () => {
+    const policy = (screenshotCopy: "auto" | "manual") => ({
+      workspaceId: "ws-work",
+      screenshotCopy,
+    });
+
+    it("copies from the capture's policy even when the setting is manual by now", async () => {
+      // The user's Settings say "manual" when the editor opens, but the capture started with
+      // "auto" in the workspace it was taken in.
+      const getSettings = vi.fn(async () => ({ ...base, screenshotCopy: "manual" as const }));
+      mount({ ...CAPTURE, policy: policy("auto") }, getSettings);
+      await loadImage();
+      await waitFor(() => expect(window.electronAPI.copyImageToClipboard).toHaveBeenCalled());
+    });
+
+    it("does not copy when the capture started with manual, even if the setting is auto by now", async () => {
+      const getSettings = vi.fn(async () => ({ ...base, screenshotCopy: "auto" as const }));
+      mount({ ...CAPTURE, policy: policy("manual") }, getSettings);
+      await loadImage();
+      await waitFor(() => expect(saveCalls()).toHaveLength(1));
+      expect(window.electronAPI.copyImageToClipboard).not.toHaveBeenCalled();
+    });
+
+    it("never reads the setting for a capture source", async () => {
+      const getSettings = vi.fn(async () => ({ ...base, screenshotCopy: "auto" as const }));
+      mount({ ...CAPTURE, policy: policy("manual") }, getSettings);
+      await loadImage();
+      await waitFor(() => expect(saveCalls()).toHaveLength(1));
+      expect(getSettings).not.toHaveBeenCalled();
+    });
+
+    it("a capture without a policy copies nothing on its own", async () => {
+      const getSettings = vi.fn(async () => ({ ...base, screenshotCopy: "auto" as const }));
+      mount(CAPTURE, getSettings);
+      await loadImage();
+      await waitFor(() => expect(saveCalls()).toHaveLength(1));
+      expect(window.electronAPI.copyImageToClipboard).not.toHaveBeenCalled();
+    });
   });
 
   it("hides Discard after a manual Save copy (SHOT-B4)", async () => {

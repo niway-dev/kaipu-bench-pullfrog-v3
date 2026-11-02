@@ -18,7 +18,14 @@ import type {
   WorkspaceSwitchResult,
   WorkspaceView,
 } from "@shared/types/workspaces";
-import { getAppSettings } from "../infrastructure/settings-store";
+import {
+  getAllLevelSettings,
+  getAppSettings,
+  notifyOverridesChanged,
+  setOverridesSource,
+  updateAppSettings,
+} from "../infrastructure/settings-store";
+import { isOverridableKey, type OverridableKey } from "@shared/settings-scope";
 import { dragLedger } from "../library/drag-ledger";
 import { LibraryVault } from "../library/library-vault";
 import { loadDeviceId } from "../library/tag-repository";
@@ -29,6 +36,8 @@ import { uuidv7 } from "../library/tag-repository";
 import { defaultVaultDirectory, forgetCachedPreferences } from "../library/vault-location";
 import { StaleWorkspaceError, WorkspaceGate } from "./gate";
 import { WorkspaceRegistry, type WorkspaceEntry } from "./registry";
+import { MachineSettingsStore } from "./settings-overrides";
+import { WorkspaceSettings } from "./workspace-settings";
 import { PrepareRequests } from "./prepare-windows";
 import { switchWorkspace } from "./switch-transaction";
 import { APP_TITLE, composeWindowTitle } from "./window-title";
@@ -45,6 +54,7 @@ const PREPARE_TIMEOUT_MS = 120_000;
 
 let registry: WorkspaceRegistry | null = null;
 let gate: WorkspaceGate | null = null;
+let workspaceSettings: WorkspaceSettings | null = null;
 
 export interface WorkspaceHost {
   /** What is writing into the active workspace (the switch lock). A move is added here. */
@@ -83,6 +93,7 @@ export async function initWorkspaces(): Promise<void> {
     onPreferencesWritten: forgetCachedPreferences,
   });
   gate = new WorkspaceGate(registry.active().id);
+  await initWorkspaceSettings(registry);
   // The preload reads the stamp once, synchronously, before the page's scripts run, so it
   // is answered from here, before any window can exist.
   ipcMain.on(IPC_CHANNELS.workspacesStampSync, (event) => {
@@ -93,6 +104,47 @@ export async function initWorkspaces(): Promise<void> {
   }
   // A move the app died in is finished before anything lists either workspace.
   await healPendingMoves();
+}
+
+/**
+ * Per-workspace setting overrides (ADR 0034): the module that owns the two override files, wired
+ * to the registry and to the settings store, which resolves the effective settings from it.
+ * The active workspace's folder file is read once here, at app start.
+ */
+async function initWorkspaceSettings(reg: WorkspaceRegistry): Promise<void> {
+  const machine = await MachineSettingsStore.open(
+    join(app.getPath("userData"), "workspace-settings.json"),
+  );
+  const settings = new WorkspaceSettings({
+    machine,
+    workspaces: () => reg.entries().map(({ id, name, path }) => ({ id, name, path })),
+    activeId: () => reg.active().id,
+    isAvailable: async (id) => (await reg.availability(id)).availability.state === "available",
+    getAll: getAllLevelSettings,
+    writeAll: (patch) => {
+      updateAppSettings(patch);
+    },
+    effective: getAppSettings,
+    changed: notifyOverridesChanged,
+    now: () => Date.now(),
+  });
+  workspaceSettings = settings;
+  setOverridesSource(() => settings.activeOverrides());
+  await settings.refresh(reg.active().id);
+}
+
+function requireWorkspaceSettings(): WorkspaceSettings {
+  if (!workspaceSettings) throw new Error("workspaces: settings not initialized");
+  return workspaceSettings;
+}
+
+/**
+ * Read the active workspace's folder overrides again. A capture calls this as it starts, so a
+ * file a sync changed since the last read is inactive for this capture and not applied unasked
+ * (ADR 0034, decision 8). A read that fails leaves the overrides inactive.
+ */
+export async function refreshActiveWorkspaceSettings(): Promise<void> {
+  await workspaceSettings?.refresh(requireRegistry().active().id);
 }
 
 function movesJournalDir(): string {
@@ -252,6 +304,7 @@ export async function requireCaptureWorkspace(): Promise<WorkspaceEntry> {
   const { availability, id } = await reg.availability(active.id);
   if (workspaceGate().adopt(active.id, id, reg.active().id)) void broadcastState();
   if (availability.state !== "available") throw new WorkspaceNotConnectedError(active.name);
+  await refreshActiveWorkspaceSettings();
   return reg.active();
 }
 
@@ -346,8 +399,15 @@ async function runSwitch(id: string): Promise<WorkspaceSwitchResult> {
       prepareWindows: () => prepareRequests.prepare(BrowserWindow.getAllWindows()),
       abortWindows: () => sendToAll(IPC_CHANNELS.workspacesPrepareAbort),
       dropPendingCaptures: () => host?.dropPendingCaptures(),
-      persistActive: (target) => reg.setActive(target),
+      persistActive: async (target) => {
+        await reg.setActive(target);
+        // The target's overrides are read before the switch is certain, so the effective
+        // settings are ready the moment it commits. A read that fails leaves them inactive.
+        await workspaceSettings?.refresh(target);
+      },
       afterCommit: () => {
+        // The new workspace's effective settings reach every window and every main listener.
+        notifyOverridesChanged();
         refreshTitles();
         void broadcastState();
         host?.broadcastLibraryChanged();
@@ -398,6 +458,8 @@ async function addWorkspace(
   // Adding a workspace answers the "New: workspaces" hint too.
   await reg.dismissHint();
   const { availability } = await reg.availability(outcome.entry.id);
+  // An adopted folder may bring its own settings file: read it now, so it shows as pending.
+  await workspaceSettings?.refresh(outcome.entry.id);
   // Then make it the active one, through the same transaction as any other switch. A
   // refusal (a recording running) leaves it registered and inactive. "Move to ▸ New
   // workspace…" keeps it inactive: the item goes there, the user stays here.
@@ -454,8 +516,52 @@ async function editWorkspace(input: unknown): Promise<WorkspaceEditResult> {
   };
 }
 
+function overridableKeys(value: unknown): OverridableKey[] | null {
+  if (!Array.isArray(value) || !value.every(isOverridableKey)) return null;
+  return value;
+}
+
+/** `settings:*` channels for the other levels (ADR 0034). The generic ones stay in settings-store. */
+function registerSettingsScopeHandlers(): void {
+  ipcMain.handle(IPC_CHANNELS.settingsGetScoped, (_event, scope: unknown) =>
+    requireWorkspaceSettings().getScoped(typeof scope === "string" ? scope : "all"),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.settingsSetOverride,
+    (_event, workspaceId: unknown, key: unknown, value: unknown) =>
+      typeof workspaceId === "string" && isOverridableKey(key)
+        ? requireWorkspaceSettings().setOverride(workspaceId, key, value ?? null)
+        : { ok: false, reason: "not-overridable" },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.settingsResetOverrides,
+    (_event, workspaceId: unknown, keys: unknown) => {
+      const checked = overridableKeys(keys);
+      return typeof workspaceId === "string" && checked
+        ? requireWorkspaceSettings().resetOverrides(workspaceId, checked)
+        : { ok: false, reason: "not-overridable" };
+    },
+  );
+  ipcMain.handle(IPC_CHANNELS.settingsCopyToAll, (_event, workspaceId: unknown, keys: unknown) => {
+    const checked = overridableKeys(keys);
+    return typeof workspaceId === "string" && checked
+      ? requireWorkspaceSettings().copyToAll(workspaceId, checked)
+      : { ok: false, reason: "not-overridable" };
+  });
+  ipcMain.handle(
+    IPC_CHANNELS.settingsResolvePending,
+    (_event, workspaceId: unknown, decision: unknown, sha256: unknown) =>
+      typeof workspaceId === "string" &&
+      (decision === "use" || decision === "ignore") &&
+      typeof sha256 === "string"
+        ? requireWorkspaceSettings().resolvePending(workspaceId, decision, sha256)
+        : { ok: false, reason: "nothing-pending" },
+  );
+}
+
 export function registerWorkspaceHandlers(deps: WorkspaceHost): void {
   host = deps;
+  registerSettingsScopeHandlers();
   ipcMain.handle(IPC_CHANNELS.workspacesList, () => listState());
   ipcMain.handle(IPC_CHANNELS.workspacesSwitch, (_event, id: unknown) =>
     typeof id === "string" ? runSwitch(id) : { ok: false, reason: "unknown" },

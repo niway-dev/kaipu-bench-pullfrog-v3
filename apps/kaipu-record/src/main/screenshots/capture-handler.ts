@@ -5,6 +5,7 @@ import {
   type CaptureIntent,
   type CaptureMode,
   type CaptureResult,
+  type CapturePolicy,
   type CaptureToastPayload,
   type CaptureWorkspace,
   type RecordingRatio,
@@ -59,7 +60,11 @@ interface CaptureHandlerDeps {
    * and then cancelling (Esc) leaves the previous mode untouched (spec failure 10).
    */
   rememberMode(mode: CaptureMode): void;
-  /** The current copy preference, read per capture. */
+  /**
+   * The effective copy preference of the active workspace. Read ONCE, when the capture
+   * starts, and bound to it as its policy (ADR 0034, decision 4): a switch or a Settings
+   * edit while the overlay is open changes nothing about this capture.
+   */
   settings(): { copy: ScreenshotCopyMode };
   /**
    * The vault write the `screenshot:save` handler uses (`manual: false`); resolves the new
@@ -154,6 +159,7 @@ export function createCaptureHandler(
     // A new capture frees the previous quiet capture's bytes.
     clearLastQuietCapture();
     const workspace = readWorkspace(deps);
+    const policy = readPolicy(deps, workspace);
     let result: ProviderResult = { kind: "cancelled" };
     let answer: CaptureResult = { kind: "cancelled" };
     let failed = false;
@@ -167,7 +173,7 @@ export function createCaptureHandler(
         // Before the policy: a quiet save that fails and falls back to the editor still
         // remembers the mode the user captured in.
         remember(deps, result.mode);
-        answer = await finish(deps, result, workspace);
+        answer = await finish(deps, result, workspace, policy);
       } else if (result.kind === "record") {
         // A recording target, not a screenshot: no save, no mode memory, no analytics here.
         const { displayId, rect, start, ratio } = result;
@@ -215,6 +221,22 @@ function readWorkspace(deps: CaptureHandlerDeps): CaptureWorkspace | null {
   }
 }
 
+/**
+ * The settings this capture starts with. A throw leaves no policy and the capture falls back to
+ * the editor (`finish`), where nothing is copied behind the user's back.
+ */
+function readPolicy(
+  deps: CaptureHandlerDeps,
+  workspace: CaptureWorkspace | null,
+): CapturePolicy | null {
+  try {
+    return { workspaceId: workspace?.id ?? null, screenshotCopy: deps.settings().copy };
+  } catch (error) {
+    console.error("screenshot capture: settings unknown", error);
+    return null;
+  }
+}
+
 /** Remembering the mode is a convenience: a throw never blocks the shot from reaching the user. */
 function remember(deps: CaptureHandlerDeps, mode: CaptureMode): void {
   try {
@@ -234,6 +256,7 @@ async function finish(
   deps: CaptureHandlerDeps,
   shot: Captured,
   workspace: CaptureWorkspace | null,
+  policy: CapturePolicy | null,
 ): Promise<CaptureResult> {
   const { png } = shot;
   const { width, height } = deps.measure(png);
@@ -255,17 +278,15 @@ async function finish(
     mode: shot.mode,
     saved,
     copied,
+    policy,
   });
   // The in-memory editor runs its own auto actions, so main copies nothing for it.
   const toEditor = (): CaptureResult => answer("editor", null, false);
 
-  let decision;
-  try {
-    decision = decideAfterCapture(shot.action, deps.settings().copy);
-  } catch (error) {
-    console.error("screenshot after-capture settings failed", error);
-    return toEditor();
-  }
+  // No policy (the settings could not be read when the capture started): the editor opens, and
+  // copies nothing on its own.
+  if (!policy) return toEditor();
+  const decision = decideAfterCapture(shot.action, policy.screenshotCopy);
 
   let saved: SavedScreenshotRef | null = null;
   try {
@@ -298,6 +319,7 @@ async function finish(
       height,
       mode: shot.mode,
       workspaceId: workspace?.id ?? null,
+      policy,
     });
   }
   try {
@@ -309,6 +331,7 @@ async function finish(
       saved,
       copied,
       workspace,
+      policy,
     });
   } catch (error) {
     // A broken toast must never turn a finished capture into an error.
