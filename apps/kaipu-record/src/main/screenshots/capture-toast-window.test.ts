@@ -114,7 +114,7 @@ function setup(
   options: {
     kept?: QuietCapture | null;
     save?: () => Promise<{ id: string }>;
-    copySaved?: (id: string) => Promise<void>;
+    readSaved?: (id: string) => Promise<Buffer>;
   } = {},
 ) {
   const windows: FakeWindow[] = [];
@@ -154,7 +154,7 @@ function setup(
     openSaved: vi.fn(),
     openQuietCapture: vi.fn(),
     revealSaved: vi.fn(async (_id: string) => {}),
-    copySaved: vi.fn(options.copySaved ?? (async (_id: string) => {})),
+    readSaved: vi.fn(options.readSaved ?? (async (_id: string) => Buffer.from([7, 7, 7]))),
     copyBytes: vi.fn((_png: Buffer) => {}),
   };
   const toast = new CaptureToastWindow(deps);
@@ -547,8 +547,8 @@ describe("CaptureToastWindow", () => {
       ready();
       act("copy");
       await vi.waitFor(() => expect(shown()).toHaveLength(2));
-      expect(deps.copySaved).toHaveBeenCalledWith("screenshot-1");
-      expect(deps.copyBytes).not.toHaveBeenCalled();
+      expect(deps.readSaved).toHaveBeenCalledWith("screenshot-1");
+      expect(deps.copyBytes).toHaveBeenCalledWith(Buffer.from([7, 7, 7]));
       expect(shown()[1]).toEqual({ ...SAVED, copied: true });
     });
 
@@ -566,32 +566,35 @@ describe("CaptureToastWindow", () => {
     it("a failed copy leaves the card as it was", async () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       const { toast, deps, ready, act, shown } = setup({
-        copySaved: async () => {
+        readSaved: async () => {
           throw new Error("file gone");
         },
       });
       toast.show({ ...SAVED, displayId: 1 });
       ready();
       act("copy");
-      await vi.waitFor(() => expect(deps.copySaved).toHaveBeenCalled());
+      await vi.waitFor(() => expect(deps.readSaved).toHaveBeenCalled());
       await Promise.resolve();
       expect(shown()).toEqual([SAVED]);
+      expect(deps.copyBytes).not.toHaveBeenCalled();
     });
 
-    it("a copy that finishes after a newer capture never repaints the newer card", async () => {
-      let finish = (): void => {};
-      const { toast, ready, act, shown } = setup({
-        copySaved: () => new Promise<void>((resolve) => (finish = resolve)),
+    it("a copy whose read ends after a newer capture writes nothing and repaints nothing", async () => {
+      let finish = (_png: Buffer): void => {};
+      const { toast, deps, ready, act, shown } = setup({
+        readSaved: () => new Promise<Buffer>((resolve) => (finish = resolve)),
       });
       toast.show({ ...SAVED, displayId: 1 });
       ready();
       act("copy");
       const next = { ...SAVED, saved: { id: "screenshot-2" } };
       toast.show({ ...next, displayId: 1 });
-      finish();
+      finish(Buffer.from([1]));
       await Promise.resolve();
       await Promise.resolve();
       expect(shown()).toEqual([SAVED, next]);
+      // The newer capture may have copied its own shot: the old one must not replace it.
+      expect(deps.copyBytes).not.toHaveBeenCalled();
     });
   });
 
@@ -605,6 +608,19 @@ describe("CaptureToastWindow", () => {
       expect(timerMessages().at(-1)).toEqual({ remainingMs: null });
       hover(false);
       expect(timerMessages().at(-1)).toEqual({ remainingMs: TOAST_AUTO_HIDE_MS });
+    });
+
+    it("a new shot under a resting pointer gets a full, frozen bar", () => {
+      const { toast, ready, hover, timerMessages } = setup();
+      toast.show({ ...SAVED, displayId: 1 });
+      ready();
+      hover(true);
+      const before = timerMessages().length;
+      toast.show({ ...COPIED, displayId: 1 });
+      expect(timerMessages().slice(before)).toEqual([
+        { remainingMs: TOAST_AUTO_HIDE_MS },
+        { remainingMs: null },
+      ]);
     });
 
     it("sends nothing before the renderer is ready", () => {

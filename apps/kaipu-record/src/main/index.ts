@@ -740,13 +740,15 @@ async function revealSavedScreenshot(id: string): Promise<void> {
   shell.showItemInFolder(path);
 }
 
-/** The preview card's Copy on a saved shot: its file as it is now, onto the clipboard. */
-async function copySavedScreenshot(id: string): Promise<void> {
-  const png = await vaultActivity.run("library", async () =>
-    readFile(await currentVault().filePath(id)),
-  );
+/** The preview card's Copy on a saved shot: its file as it is now. */
+function readSavedScreenshot(id: string): Promise<Buffer> {
+  return vaultActivity.run("library", async () => readFile(await currentVault().filePath(id)));
+}
+
+/** PNG bytes onto the clipboard; throws on bytes that are not an image. */
+function copyPngToClipboard(png: Buffer): void {
   const image = nativeImage.createFromBuffer(png);
-  if (image.isEmpty()) throw new Error(`screenshot ${id} is not a readable image`);
+  if (image.isEmpty()) throw new Error("screenshot bytes are not a readable image");
   clipboard.writeImage(image);
 }
 
@@ -993,8 +995,8 @@ app.whenReady().then(async () => {
     openSaved: openSavedScreenshot,
     openQuietCapture,
     revealSaved: revealSavedScreenshot,
-    copySaved: copySavedScreenshot,
-    copyBytes: (png) => clipboard.writeImage(nativeImage.createFromBuffer(png)),
+    readSaved: readSavedScreenshot,
+    copyBytes: copyPngToClipboard,
   });
   captureToast = toast;
   registerWorkspaceHandlers({

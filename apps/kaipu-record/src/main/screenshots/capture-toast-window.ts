@@ -76,9 +76,9 @@ export interface CaptureToastDeps {
   openQuietCapture(capture: QuietCapture): void;
   /** Show a saved item's file in Finder / Explorer. */
   revealSaved(id: string): Promise<void>;
-  /** Put a saved item's current file on the clipboard; rejects when it cannot be read. */
-  copySaved(id: string): Promise<void>;
-  /** Put a copy-only capture's kept bytes on the clipboard. */
+  /** A saved item's current file; rejects when it cannot be read. */
+  readSaved(id: string): Promise<Buffer>;
+  /** Put PNG bytes on the clipboard. */
   copyBytes(png: Buffer): void;
 }
 
@@ -135,7 +135,7 @@ export class CaptureToastWindow {
       if (!this.isOwnSender(event.sender)) return;
       this.rendererReady = true;
       this.present();
-      // The card is on screen only now: the 6 s count from here, not from `show`.
+      // The card is on screen only now: the auto-hide counts from here, not from `show`.
       if (this.payload) this.restartTimer();
     });
     deps.ipc.on(IPC_CHANNELS.screenshotToastHover, (event, payload) => {
@@ -157,7 +157,7 @@ export class CaptureToastWindow {
   }
 
   /**
-   * Show `request` on its display (re-targeting an open toast) and restart the 6 s: from now
+   * Show `request` on its display (re-targeting an open card) and restart the auto-hide: from now
    * when the renderer is up, else from when it reports ready. A pointer resting on the card
    * keeps holding it through the re-target.
    */
@@ -174,8 +174,11 @@ export class CaptureToastWindow {
     this.paused = this.pointerInside;
     this.ensureWindow();
     this.present();
-    if (this.rendererReady) this.restartTimer();
-    else this.stopTimer();
+    if (this.rendererReady) {
+      // A new shot under a resting pointer: a full bar, frozen, not the last card's leftover.
+      if (this.paused) this.sendTimer({ remainingMs: TOAST_AUTO_HIDE_MS });
+      this.restartTimer();
+    } else this.stopTimer();
   }
 
   /** The pointer is over the card: hold the auto-hide. */
@@ -184,7 +187,7 @@ export class CaptureToastWindow {
     this.stopTimer();
   }
 
-  /** The pointer left the card: a full 6 s again. */
+  /** The pointer left the card: the full auto-hide time again. */
   resume(): void {
     // An Edit waiting on the Save holds the card until the write ends.
     if (!this.payload || this.annotateAfterSave === this.generation) return;
@@ -193,7 +196,7 @@ export class CaptureToastWindow {
   }
 
   /**
-   * Hide the toast. The kept copy-only bytes stay: only a new capture, Annotate or a Save that
+   * Hide the card. The kept copy-only bytes stay: only a new capture, Edit or a Save that
    * reached the vault frees them. An Edit waiting on a Save is dropped with the card.
    */
   dismiss(): void {
@@ -259,23 +262,26 @@ export class CaptureToastWindow {
   /**
    * Copy from the card: a saved shot's file as it is now (read by id at press time, so a rename
    * or an edit since is followed), else the kept copy-only bytes (peeked, so Edit and Save keep
-   * working). The card then reads Copied; a newer card is never repainted by a late copy.
+   * working). The card then reads Copied. A read that ends after a newer capture writes
+   * nothing: that capture may have put its own shot on the clipboard.
    */
   private async copy(payload: CaptureToastPayload): Promise<void> {
     const generation = this.generation;
     try {
+      let png: Buffer;
       if (payload.saved) {
-        await this.deps.copySaved(payload.saved.id);
+        png = await this.deps.readSaved(payload.saved.id);
       } else {
         const kept = this.deps.peekQuietCapture();
         if (!kept) return;
-        this.deps.copyBytes(kept.capture.png);
+        png = kept.capture.png;
       }
+      if (generation !== this.generation || !this.payload) return;
+      this.deps.copyBytes(png);
     } catch (error) {
       console.error("screenshot toast copy failed", error);
       return;
     }
-    if (generation !== this.generation || !this.payload) return;
     this.payload = { ...this.payload, copied: true };
     this.send(this.payload);
   }
@@ -311,7 +317,7 @@ export class CaptureToastWindow {
       }
     } catch (error) {
       console.error("screenshot toast save failed", error);
-      // Nothing was taken, so there is nothing to put back. An Annotate that waited gets the
+      // Nothing was taken, so there is nothing to put back. An Edit that waited gets the
       // bytes, if they are still this capture's (a capture that started since owns the store).
       if (generation !== this.generation || this.annotateAfterSave !== generation) return;
       if (this.deps.peekQuietCapture()?.sequence !== kept.sequence) return;
@@ -440,7 +446,7 @@ export type CaptureToastAppDeps = Pick<
   | "openSaved"
   | "openQuietCapture"
   | "revealSaved"
-  | "copySaved"
+  | "readSaved"
   | "copyBytes"
 >;
 
