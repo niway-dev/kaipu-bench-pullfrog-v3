@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { ExternalLink, PenLine, Save, X } from "lucide-react";
+import { Check, CircleAlert, Copy, FolderOpen, PenLine, X } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
-import type { CaptureMode, CaptureToastPayload } from "@shared/types/screenshot-capture";
+import type {
+  CaptureMode,
+  CaptureToastPayload,
+  CaptureToastTimer,
+} from "@shared/types/screenshot-capture";
 import type { CaptureToastBridge } from "@shared/types/electron-api";
+import { previewCardSize } from "@shared/capture-preview-layout";
 import { detectKeyPlatform, type KeyPlatform } from "../overlay/overlay-keys";
 import styles from "./capture-toast.module.css";
-
-/** Shown in the footer; main owns the real timer (`TOAST_AUTO_HIDE_MS`). */
-const AUTO_HIDE_SECONDS = 6;
 
 const MODE_KEY = {
   frame: "modeFrame",
@@ -22,10 +24,22 @@ interface CaptureToastProps {
 }
 
 /**
- * Root of the capture toast window (`?window=capture-toast`), shown by main after a quiet
- * capture: what happened, the size and mode, Annotate, and Open in Library or Save to
- * Library. It only renders main's payload and reports presses; main runs every action
- * and owns the 6 s auto-hide, which the pointer pauses while it is over the card.
+ * The bar's state: each running timer from main is a new `run` (the animation restarts from
+ * full over `durationMs`); a stopped timer freezes the current run where it is.
+ */
+interface BarState {
+  run: number;
+  durationMs: number;
+  running: boolean;
+}
+
+/**
+ * Root of the capture preview card's window (`?window=capture-toast`, ADR 0042), shown by main
+ * after every capture. The screenshot is the card. At rest it shows whether the shot was saved
+ * and copied; on hover those states become buttons (Saved reveals the file, Save retries a
+ * failed write, Copy copies) next to Edit and Close. A click on the image is Edit too. The card
+ * only renders main's payload and reports presses and hover; main runs every action and owns
+ * the auto-hide, which the bar at the bottom mirrors (`screenshot:toast-timer`).
  */
 export function CaptureToast({
   api = window.electronAPI.captureToast,
@@ -33,89 +47,140 @@ export function CaptureToast({
 }: CaptureToastProps): React.JSX.Element | null {
   const t = useTranslations("screenshots");
   const [payload, setPayload] = useState<CaptureToastPayload | null>(null);
+  const [bar, setBar] = useState<BarState>({ run: 0, durationMs: 0, running: false });
   const platform = platformProp ?? detectKeyPlatform();
 
   useEffect(() => {
-    const unsubscribe = api.onShow(setPayload);
+    const unsubscribeShow = api.onShow(setPayload);
+    const unsubscribeTimer = api.onTimer(({ remainingMs }: CaptureToastTimer) =>
+      setBar((previous) =>
+        remainingMs === null
+          ? { ...previous, running: false }
+          : { run: previous.run + 1, durationMs: remainingMs, running: true },
+      ),
+    );
     // After subscribing: main sends the current payload in answer.
     api.ready();
-    return unsubscribe;
+    return () => {
+      unsubscribeShow();
+      unsubscribeTimer();
+    };
   }, [api]);
 
   if (!payload) return null;
 
-  const meta = [
-    t("toast.meta", {
-      width: payload.width,
-      height: payload.height,
-      mode: t(MODE_KEY[payload.mode]),
-    }),
-    ...(payload.copied
-      ? [t("toast.pasteWith", { key: platform === "mac" ? "⌘V" : "Ctrl+V" })]
-      : []),
-  ].join(" · ");
-  // Where the shot landed, by workspace name (spec decision 13). A label only: the toast
-  // offers no way to move it.
+  const { imageHeight } = previewCardSize(payload.width, payload.height);
   const workspace = payload.workspace?.name ?? null;
-  const footer = payload.saved
-    ? payload.copied
-      ? workspace
-        ? t("toast.footerAlsoSavedTo", { seconds: AUTO_HIDE_SECONDS, name: workspace })
-        : t("toast.footerAlsoSaved", { seconds: AUTO_HIDE_SECONDS })
-      : t("toast.footer", { seconds: AUTO_HIDE_SECONDS })
-    : t("toast.footerNotSaved", { seconds: AUTO_HIDE_SECONDS });
+  const pasteKey = platform === "mac" ? "⌘V" : "Ctrl+V";
+  const fileApp = platform === "mac" ? "Finder" : "Explorer";
 
   return (
-    <div
-      role="status"
-      aria-label={t("toast.label")}
-      className={styles.card}
-      onPointerEnter={() => api.hover(true)}
-      onPointerLeave={() => api.hover(false)}
-    >
-      <div className={styles.head}>
-        <img className={styles.thumbnail} src={payload.thumbnail} alt="" draggable={false} />
-        <div className={styles.text}>
-          <p className={styles.title}>
-            {payload.copied
-              ? t("toast.copiedTitle")
-              : workspace
-                ? t("toast.savedToWorkspace", { name: workspace })
-                : t("toast.savedTitle")}
-          </p>
-          <p className={styles.meta}>{meta}</p>
-        </div>
-        <button
-          type="button"
-          className={styles.close}
-          aria-label={t("toast.dismiss")}
-          onClick={() => api.action("dismiss")}
-        >
-          <X size={14} aria-hidden />
-        </button>
-      </div>
-      <div className={styles.actions}>
-        <button type="button" className={styles.primary} onClick={() => api.action("annotate")}>
-          <PenLine size={14} aria-hidden />
-          {t("toast.edit")}
-        </button>
-        {payload.saved ? (
+    <div className={styles.frame}>
+      <div
+        role="status"
+        aria-label={t("toast.label")}
+        className={styles.card}
+        onPointerEnter={() => api.hover(true)}
+        onPointerLeave={() => api.hover(false)}
+      >
+        <div className={styles.shot} style={{ height: imageHeight }}>
           <button
             type="button"
-            className={styles.secondary}
-            onClick={() => api.action("open-library")}
+            className={styles.image}
+            aria-label={t("toast.editImage")}
+            onClick={() => api.action("edit")}
           >
-            <ExternalLink size={14} aria-hidden />
-            {t("toast.openInLibrary")}
+            <img src={payload.thumbnail} alt="" draggable={false} />
+            <span className={styles.edit} aria-hidden>
+              <PenLine size={14} strokeWidth={2.2} />
+              {t("toast.edit")}
+            </span>
           </button>
-        ) : (
-          <button type="button" className={styles.secondary} onClick={() => api.action("save")}>
-            <Save size={14} aria-hidden />
-            {workspace ? t("toast.saveToWorkspace", { name: workspace }) : t("toast.saveToLibrary")}
+          <button
+            type="button"
+            className={styles.close}
+            aria-label={t("toast.dismiss")}
+            onClick={() => api.action("dismiss")}
+          >
+            <X size={14} strokeWidth={2.4} aria-hidden />
           </button>
-        )}
+          <div className={styles.pills}>
+            {payload.saved ? (
+              <button
+                type="button"
+                className={styles.pill}
+                aria-label={t("toast.revealIn", { app: fileApp })}
+                onClick={() => api.action("reveal")}
+              >
+                <Check className={styles.ok} data-rest="" size={12} strokeWidth={3} aria-hidden />
+                <FolderOpen
+                  className={styles.ok}
+                  data-hover=""
+                  size={12}
+                  strokeWidth={2.2}
+                  aria-hidden
+                />
+                {t("toast.saved")}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.pill}
+                aria-label={
+                  workspace ? t("toast.saveTo", { name: workspace }) : t("toast.saveToLibrary")
+                }
+                onClick={() => api.action("save")}
+              >
+                <CircleAlert className={styles.warn} size={12} strokeWidth={2.4} aria-hidden />
+                {t("toast.save")}
+              </button>
+            )}
+            {payload.copied ? (
+              <button
+                type="button"
+                className={styles.pill}
+                aria-label={t("toast.copyAgain")}
+                onClick={() => api.action("copy")}
+              >
+                <Check className={styles.ok} size={12} strokeWidth={3} aria-hidden />
+                <span data-rest="">{t("toast.copiedWith", { key: pasteKey })}</span>
+                <span data-hover="">{t("toast.copied")}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.pill}
+                data-hover-only=""
+                aria-label={t("toast.copyAria")}
+                onClick={() => api.action("copy")}
+              >
+                <Copy size={12} strokeWidth={2.2} aria-hidden />
+                {t("toast.copy")}
+              </button>
+            )}
+          </div>
+        </div>
+        <p className={styles.meta}>
+          <span>
+            {t("toast.meta", {
+              width: payload.width,
+              height: payload.height,
+              mode: t(MODE_KEY[payload.mode]),
+            })}
+          </span>
+          <span className={styles.where}>
+            {payload.saved ? (workspace ?? "") : t("toast.notSaved")}
+          </span>
+        </p>
+        <div className={styles.bar} aria-hidden>
+          <i
+            key={bar.run}
+            data-run={bar.run > 0 ? "true" : "false"}
+            data-running={bar.running ? "true" : "false"}
+            style={{ animationDuration: `${bar.durationMs}ms` }}
+          />
+        </div>
       </div>
-      <p className={styles.footer}>{footer}</p>
     </div>
   );
 }
