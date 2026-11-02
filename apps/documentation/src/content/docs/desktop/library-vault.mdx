@@ -184,7 +184,7 @@ Items that existed before ADR 0035 keep their old names, and the folder can drif
 
 The file name is the only link between a file and its record (the same stem). Nothing is paired by inode, hash or date, and nothing is deleted.
 
-- A banner in the Library and on Home appears when the scan finds drift; Settings → Files has the same action. A dialog lists the findings, and "Fix all" runs one pass. There is no folder watcher and no startup migration.
+- A banner in the Library and on Home appears when the scan finds drift; Settings → Files has the same action. A dialog groups the findings by what happens to them (renamed, added, set aside, left as they are), and "Fix all" runs one pass. Every fixable finding starts ticked; the user can untick a file or a whole group, and the run receives those paths as `skip` (NIW2-598): they are left as they are in every step, are not reported as failed, and show up again on the next scan. A finding that appears only after the scan the user saw is still fixed. There is no folder watcher and no startup migration.
 - **The scan never writes.** `scanVault` (`library/vault-reconcile.ts`) only reads; it answers `busy` during a recording or export and `maintenance` while a fix runs.
 - Idempotence is the contract: a scan after a complete fix returns only the listed findings and anything that stayed locked.
 

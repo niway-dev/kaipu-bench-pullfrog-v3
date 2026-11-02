@@ -54,6 +54,8 @@ export interface ReconcileFixOptions {
   onProgress?: (progress: ReconcileProgress) => void;
   /** The item is open in the video editor: its file keeps its name (C2). */
   isEditing?: (id: string, assetId: string) => boolean;
+  /** Paths the user unticked: left as they are this run. */
+  skip?: ReadonlySet<string>;
 }
 
 const errorMessage = (error: unknown): string =>
@@ -131,6 +133,7 @@ export class LibraryService {
       const report = await fixVault(this.deps.vaultDir(), {
         cloud: await this.cloudIds(),
         isEditing: options.isEditing,
+        skip: options.skip,
         now: this.now,
         onProgress: (done, total) => options.onProgress?.({ phase: "fixing", done, total }),
       });

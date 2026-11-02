@@ -824,6 +824,11 @@ export interface FixOptions {
   retry?: RetryPolicy;
   now?: () => number;
   onProgress?: (done: number, total: number) => void;
+  /**
+   * Paths the user unticked in the dialog (a finding's `path`): left as they are this run,
+   * in every step. A finding that appears only after the scan the user saw is still fixed.
+   */
+  skip?: ReadonlySet<string>;
 }
 
 interface Planned {
@@ -842,6 +847,15 @@ interface Planned {
  * 3. Scan again and rename from that inventory, in planner order (N10).
  * 4. Scan again: anything fixable left is reported, never retried in a loop.
  */
+/**
+ * The paths "Check and fix files" leaves alone, from the renderer: only strings count, so a
+ * malformed payload skips nothing rather than failing the run.
+ */
+export function skipPaths(value: unknown): ReadonlySet<string> {
+  if (!Array.isArray(value)) return new Set();
+  return new Set(value.filter((path): path is string => typeof path === "string"));
+}
+
 export async function fixVault(directory: string, options: FixOptions): Promise<ReconcileReport> {
   const now = options.now ?? Date.now;
   const vault = new LibraryVault(directory);
@@ -900,9 +914,10 @@ export async function fixVault(directory: string, options: FixOptions): Promise<
   // 2. The first actions.
   const first = (await scanVault({ directory, cloud: options.cloud })).findings;
   for (const finding of first) report.counts[finding.kind] = (report.counts[finding.kind] ?? 0) + 1;
-  const actions = first.filter((f) => f.fixable && f.kind !== "name-mismatch");
+  const skipped = (finding: ScanFinding): boolean => options.skip?.has(finding.path) ?? false;
+  const actions = first.filter((f) => f.fixable && f.kind !== "name-mismatch" && !skipped(f));
   let done = 0;
-  let total = first.filter((f) => f.fixable).length;
+  let total = first.filter((f) => f.fixable && !skipped(f)).length;
   const step = (): void => options.onProgress?.(++done, Math.max(total, done));
   options.onProgress?.(0, total);
 
@@ -958,7 +973,7 @@ export async function fixVault(directory: string, options: FixOptions): Promise<
       .filter((f) => ["stale-auto-title", "untitled-legacy", "missing-sidecar"].includes(f.kind))
       .map((f) => f.stem),
   );
-  const renames = second.filter((f) => f.kind === "name-mismatch");
+  const renames = second.filter((f) => f.kind === "name-mismatch" && !skipped(f));
   total = done + renames.length;
   const plan: Planned[] = renames.map((finding) => ({
     finding,
@@ -987,6 +1002,7 @@ export async function fixVault(directory: string, options: FixOptions): Promise<
   const explained = new Set([
     ...report.kept.map((k) => k.path),
     ...report.failed.map((f) => f.path),
+    ...(options.skip ?? []),
   ]);
   for (const finding of third) {
     if (!finding.fixable || explained.has(finding.path)) continue;

@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { defaultCaptureName } from "@shared/default-capture-name";
 import { LibraryVault } from "./library-vault";
-import { fixVault, resumeOrphanManifests, scanVault } from "./vault-reconcile";
+import { fixVault, resumeOrphanManifests, scanVault, skipPaths } from "./vault-reconcile";
 import { listFiles, makeVault, sidecar, snapshot } from "./vault-reconcile.test-helpers";
 
 /** From the n-th call on, every `rename` fails: a crash (or a dead drive) at that point. */
@@ -234,6 +234,40 @@ describe("fixVault — kept, not forced", () => {
     const next = await fix();
     expect(next.fixed).toBe(1);
     expect(await readdir(directory)).toContain("New.mp4");
+  });
+});
+
+describe("fixVault — unticked findings (NIW2-598)", () => {
+  it("reads the renderer's skip list defensively: a malformed payload skips nothing", () => {
+    expect([...skipPaths(undefined)]).toEqual([]);
+    expect([...skipPaths("old.mp4")]).toEqual([]);
+    expect([...skipPaths({ 0: "old.mp4" })]).toEqual([]);
+    expect([...skipPaths(["a.mp4", 1, null, "b.png"])]).toEqual(["a.mp4", "b.png"]);
+  });
+
+  it("leaves every skipped path as it is, fixes the rest, and counts nothing skipped as failed", async () => {
+    directory = await makeVault({
+      "old.mp4": "v",
+      ".kaipu/old.json": sidecar({ assetId: "s1", title: "New" }),
+      "other.mp4": "w",
+      ".kaipu/other.json": sidecar({ assetId: "s2", title: "Other title" }),
+      "loose.png": "p",
+      ".kaipu/gone.json": sidecar({ assetId: "s3", title: "Gone" }),
+    });
+    const before = await fixable();
+    const byKind = (kind: string) => before.filter((f) => f.kind === kind).map((f) => f.path);
+    expect(byKind("name-mismatch").sort()).toEqual(["old.mp4", "other.mp4"]);
+    const skip = new Set(["old.mp4", ...byKind("missing-sidecar"), ...byKind("missing-media")]);
+
+    const report = await fix("unknown", { skip });
+    expect(report.failed).toEqual([]);
+    expect(report.fixed).toBe(1);
+    expect(report.movedToOrphans).toBe(0);
+    const files = await readdir(directory);
+    expect(files).toEqual(expect.arrayContaining(["old.mp4", "Other title.mp4", "loose.png"]));
+    expect(await readdir(join(directory, ".kaipu"))).toContain("gone.json");
+    // Whatever was skipped is still there for the next press.
+    expect((await fixable()).map((f) => f.path).sort()).toEqual([...skip].sort());
   });
 });
 

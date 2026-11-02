@@ -191,7 +191,7 @@ const kaipuApi: KaipuElectronAPI = {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.libraryChanged, listener);
   },
   reconcileScan: () => scopedInvoke(IPC_CHANNELS.libraryReconcileScan),
-  reconcileFix: () => scopedInvoke(IPC_CHANNELS.libraryReconcileFix),
+  reconcileFix: (skip?: string[]) => scopedInvoke(IPC_CHANNELS.libraryReconcileFix, skip ?? []),
   reconcileCancel: () => ipcRenderer.invoke(IPC_CHANNELS.libraryReconcileCancel),
   onReconcileProgress: (callback) => {
     const listener = (_e: IpcRendererEvent, progress: ReconcileProgress): void =>

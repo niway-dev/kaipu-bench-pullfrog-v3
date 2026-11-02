@@ -34,6 +34,7 @@ import { friendlyDragName } from "./drag-name";
 import { activeWorkspace, ownsLegacyCloud, workspaceGate } from "../workspaces";
 import { registerVideoEditSessionHandlers } from "./video-edit-session";
 import { MaintenanceError, vaultActivity, type ActivityKind } from "./vault-activity";
+import { skipPaths } from "./vault-reconcile";
 
 function broadcast(channel: string, ...args: unknown[]): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -191,7 +192,7 @@ export function registerLibraryVaultHandlers(deps: {
   let reconcileWait: AbortController | null = null;
   ipcMain.handle(
     IPC_CHANNELS.libraryReconcileFix,
-    scoped(async (): Promise<ReconcileFixResult> => {
+    scoped(async (skip?: unknown): Promise<ReconcileFixResult> => {
       // A second call (another window, a double trigger) must not take the running run's cancel
       // handle: it is answered here and leaves the slot alone.
       if (reconcileWait) return { status: "already-running" };
@@ -202,6 +203,7 @@ export function registerLibraryVaultHandlers(deps: {
           signal: wait.signal,
           onProgress: (progress) => broadcast(IPC_CHANNELS.libraryReconcileProgress, progress),
           isEditing: (id, assetId) => editorSessions.isOpen(id, assetId),
+          skip: skipPaths(skip),
         });
         if (result.status === "done") broadcastLibraryChanged();
         return result;

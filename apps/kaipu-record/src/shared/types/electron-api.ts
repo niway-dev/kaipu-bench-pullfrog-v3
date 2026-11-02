@@ -362,8 +362,11 @@ export interface KaipuElectronAPI {
   onLibraryChanged(callback: () => void): () => void;
   /** NIW2-561: scan the vault for drift ("Check and fix files"). Never writes. */
   reconcileScan(): Promise<ReconcileScanResult>;
-  /** NIW2-561: "Fix all", in maintenance mode. */
-  reconcileFix(): Promise<ReconcileFixResult>;
+  /**
+   * NIW2-561: "Fix all", in maintenance mode. `skip` (NIW2-598) lists the finding paths the
+   * user unticked; they are left as they are this run.
+   */
+  reconcileFix(skip?: string[]): Promise<ReconcileFixResult>;
   /** NIW2-561: stop waiting for the vault to be idle; no effect once files are being fixed. */
   reconcileCancel(): Promise<void>;
   onReconcileProgress(callback: (progress: ReconcileProgress) => void): () => void;

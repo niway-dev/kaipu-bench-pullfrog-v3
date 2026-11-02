@@ -1,4 +1,18 @@
-import { FileText, Film, FolderSync, Image as ImageIcon } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronDown,
+  CircleAlert,
+  FilePlus2,
+  FileText,
+  Film,
+  FolderSync,
+  Image as ImageIcon,
+  Info,
+  PenLine,
+  ShieldCheck,
+  Unlink,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations, type Translator } from "@kaipu/i18n";
 import {
   ModalActions,
@@ -12,15 +26,13 @@ import type { ReconcileFinding, ReconcileScanResult } from "@shared/types/librar
 import {
   cancelWaiting,
   closeReconcileDialog,
+  setFixing,
   fixAll,
   openReconcileDialog,
   useReconcile,
   type ReconcileRun,
 } from "./reconcile-store";
 import styles from "./reconcile.module.css";
-
-/** Rows rendered per table; a vault with hundreds of findings shows "…and N more". */
-const MAX_ROWS = 200;
 
 type LibraryT = Translator<"library">;
 
@@ -89,56 +101,229 @@ export function describeFinding(finding: ReconcileFinding, t: LibraryT): Finding
 
 const ICONS = { video: Film, image: ImageIcon, record: FileText } as const;
 
-function FindingTable({
-  heading,
-  columns,
-  findings,
+/**
+ * The dialog groups findings by what happens to them, so each group can say why once
+ * instead of repeating a note on every row. Every kind belongs to exactly one group.
+ */
+type GroupId = "rename" | "adopt" | "gone" | "listed";
+
+const GROUP_OF: Record<ReconcileFinding["kind"], GroupId> = {
+  "stale-auto-title": "rename",
+  "untitled-legacy": "rename",
+  "name-mismatch": "rename",
+  "missing-sidecar": "adopt",
+  "missing-media": "gone",
+  "orphan-companion": "gone",
+  "stem-conflict": "listed",
+  "shared-companion": "listed",
+  "duplicate-identity": "listed",
+  "unreadable-record": "listed",
+  "not-recognized": "listed",
+  "unreadable-orphan-run": "listed",
+};
+
+const GROUPS = [
+  {
+    id: "rename",
+    icon: PenLine,
+    title: "reconcileGroupRenameTitle",
+    action: "reconcileGroupRenameAction",
+    what: "reconcileGroupRenameWhat",
+  },
+  {
+    id: "adopt",
+    icon: FilePlus2,
+    title: "reconcileGroupAdoptTitle",
+    action: "reconcileGroupAdoptAction",
+    what: "reconcileGroupAdoptWhat",
+  },
+  {
+    id: "gone",
+    icon: Unlink,
+    title: "reconcileGroupGoneTitle",
+    action: "reconcileGroupGoneAction",
+    what: "reconcileGroupGoneWhat",
+  },
+  {
+    id: "listed",
+    icon: CircleAlert,
+    title: "reconcileGroupListedTitle",
+    action: "reconcileGroupListedAction",
+    what: "reconcileGroupListedWhat",
+  },
+] as const;
+
+const TONE_CLASS: Record<GroupId, string | undefined> = {
+  rename: styles.toneRename,
+  adopt: styles.toneAdopt,
+  gone: styles.toneGone,
+  listed: styles.toneListed,
+};
+
+/** A native checkbox that can also show "some" (a group with unticked files). */
+function Check({
+  checked,
+  partial = false,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  partial?: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+}): React.JSX.Element {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = partial;
+  }, [partial]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className={styles.check}
+      checked={checked}
+      aria-label={label}
+      onChange={(event) => onChange(event.target.checked)}
+    />
+  );
+}
+
+function FindingItem({
+  finding,
+  selectable,
+  fixing,
   t,
 }: {
-  heading: string;
-  columns: [string, string];
-  findings: ReconcileFinding[];
+  finding: ReconcileFinding;
+  /** Fixable findings carry a checkbox; listed ones are never touched. */
+  selectable: boolean;
+  fixing: boolean;
   t: LibraryT;
-}): React.JSX.Element | null {
-  if (findings.length === 0) return null;
+}) {
+  const row = describeFinding(finding, t);
+  const Icon = ICONS[row.icon];
+  const renamed = row.renamedTo !== undefined;
   return (
-    <section className={styles.group}>
-      <h3 className={styles.groupHeading}>{heading}</h3>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th scope="col" className={styles.nowCell}>
-              {columns[0]}
-            </th>
-            <th scope="col" aria-hidden className={styles.arrowCell} />
-            <th scope="col">{columns[1]}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {findings.slice(0, MAX_ROWS).map((finding) => {
-            const row = describeFinding(finding, t);
-            const Icon = ICONS[row.icon];
-            return (
-              <tr key={`${finding.kind}:${finding.path}`}>
-                <td className={styles.nowCell}>
-                  <span className={styles.name}>
-                    <Icon size={13} strokeWidth={1.8} aria-hidden className={styles.icon} />
-                    {row.now}
-                  </span>
-                </td>
-                <td aria-hidden className={styles.arrowCell}>
-                  {row.renamedTo !== undefined && "→"}
-                </td>
-                <td className={row.renamedTo !== undefined ? styles.afterCell : styles.noteCell}>
-                  {row.renamedTo ?? row.note}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {findings.length > MAX_ROWS && (
-        <p className={styles.more}>{t("reconcileMore", { count: findings.length - MAX_ROWS })}</p>
+    <li className={`${styles.row} ${selectable && !fixing ? styles.rowOff : ""}`}>
+      {selectable && (
+        <Check
+          checked={fixing}
+          label={
+            row.renamedTo !== undefined
+              ? t("reconcileFixRename", { name: row.now, newName: row.renamedTo })
+              : t("reconcileFixThis", { name: row.now })
+          }
+          onChange={(checked) => setFixing([finding.path], checked)}
+        />
+      )}
+      <Icon size={13} strokeWidth={1.8} aria-hidden className={styles.rowIcon} />
+      <span className={styles.rowNow} title={row.now}>
+        {row.now}
+      </span>
+      {renamed ? (
+        <>
+          <ArrowRight
+            size={12}
+            strokeWidth={2}
+            aria-label={t("reconcileRenamedTo")}
+            className={styles.rowArrow}
+          />
+          <span className={styles.rowAfter} title={row.renamedTo}>
+            {row.renamedTo}
+          </span>
+        </>
+      ) : (
+        <span className={styles.rowNote} title={row.note}>
+          {row.note}
+        </span>
+      )}
+    </li>
+  );
+}
+
+function FindingGroup({
+  group,
+  findings,
+  open,
+  onToggle,
+  skipped,
+  t,
+}: {
+  group: (typeof GROUPS)[number];
+  findings: ReconcileFinding[];
+  open: boolean;
+  onToggle: () => void;
+  skipped: ReadonlySet<string>;
+  t: LibraryT;
+}): React.JSX.Element {
+  const Icon = group.icon;
+  const selectable = group.id !== "listed";
+  const off = selectable ? findings.filter((f) => skipped.has(f.path)).length : 0;
+  const on = findings.length - off;
+  const bodyId = `reconcile-group-${group.id}`;
+  return (
+    <section
+      className={`${styles.group} ${TONE_CLASS[group.id] ?? ""}`}
+      data-group={group.id}
+      data-open={open || undefined}
+    >
+      <div className={styles.groupHeader}>
+        {selectable && (
+          <Check
+            checked={on > 0}
+            partial={on > 0 && off > 0}
+            label={t("reconcileFixGroup", { group: t(group.title) })}
+            onChange={(checked) =>
+              setFixing(
+                findings.map((f) => f.path),
+                checked,
+              )
+            }
+          />
+        )}
+        <button
+          type="button"
+          className={styles.groupToggle}
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={onToggle}
+        >
+          <span className={styles.groupIcon} aria-hidden>
+            <Icon size={16} strokeWidth={1.8} />
+          </span>
+          <span className={`${styles.groupText} ${selectable && on === 0 ? styles.groupOff : ""}`}>
+            <span className={styles.groupTitleLine}>
+              <span className={styles.groupTitle}>{t(group.title)}</span>
+              <span className={styles.groupCount}>
+                {off > 0
+                  ? t("reconcileGroupCountPartial", { on, count: findings.length })
+                  : t("reconcileGroupCount", { count: findings.length })}
+              </span>
+            </span>
+            <span className={styles.groupAction}>{t(group.action)}</span>
+          </span>
+          <ChevronDown size={14} strokeWidth={2} aria-hidden className={styles.chevron} />
+        </button>
+      </div>
+      {open && (
+        <div className={styles.groupBody} id={bodyId}>
+          <p className={styles.groupWhat}>
+            <Info size={13} strokeWidth={2} aria-hidden className={styles.groupWhatIcon} />
+            {t(group.what)}
+          </p>
+          {/* Every finding gets a row (and its own checkbox): the list scrolls, nothing is cut. */}
+          <ul className={styles.rows}>
+            {findings.map((finding) => (
+              <FindingItem
+                key={`${finding.kind}:${finding.path}`}
+                finding={finding}
+                selectable={selectable}
+                fixing={!skipped.has(finding.path)}
+                t={t}
+              />
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );
@@ -146,36 +331,58 @@ function FindingTable({
 
 function Findings({
   findings,
+  skipped,
   t,
 }: {
   findings: ReconcileFinding[];
+  skipped: ReadonlySet<string>;
   t: LibraryT;
 }): React.JSX.Element {
-  const fixable = findings.filter((f) => f.fixable);
-  const listed = findings.filter((f) => !f.fixable);
+  const byGroup = new Map<GroupId, ReconcileFinding[]>();
+  for (const finding of findings) {
+    const id = GROUP_OF[finding.kind];
+    const bucket = byGroup.get(id);
+    if (bucket) bucket.push(finding);
+    else byGroup.set(id, [finding]);
+  }
+  const present = GROUPS.filter((group) => byGroup.has(group.id));
+  // One group open at a time, so a long one never pushes the others out of the dialog.
+  const [openId, setOpenId] = useState<GroupId | null>(present[0]?.id ?? null);
   return (
     <div className={styles.findings}>
-      <FindingTable
-        heading={t("reconcileFixableHeading", { count: fixable.length })}
-        columns={[t("reconcileColumnNow"), t("reconcileColumnAfter")]}
-        findings={fixable}
-        t={t}
-      />
-      <FindingTable
-        heading={t("reconcileListedHeading", { count: listed.length })}
-        columns={[t("reconcileColumnFile"), t("reconcileColumnWhy")]}
-        findings={listed}
-        t={t}
-      />
+      {present.map((group) => (
+        <FindingGroup
+          key={group.id}
+          group={group}
+          findings={byGroup.get(group.id)!}
+          open={openId === group.id}
+          onToggle={() => setOpenId(openId === group.id ? null : group.id)}
+          skipped={skipped}
+          t={t}
+        />
+      ))}
     </div>
+  );
+}
+
+function SafetyNote({ t }: { t: LibraryT }): React.JSX.Element {
+  return (
+    <p className={styles.safety}>
+      <ShieldCheck size={15} strokeWidth={1.9} aria-hidden className={styles.safetyIcon} />
+      <span>
+        <strong>{t("reconcileSafeTitle")}</strong> {t("reconcileSafeBody")}
+      </span>
+    </p>
   );
 }
 
 function ScanBody({
   scan,
+  skipped,
   t,
 }: {
   scan: ReconcileScanResult | null;
+  skipped: ReadonlySet<string>;
   t: LibraryT;
 }): React.JSX.Element {
   if (!scan) return <ModalText>{t("reconcileScanning")}</ModalText>;
@@ -191,10 +398,14 @@ function ScanBody({
     case "error":
       return <ModalText>{t("reconcileScanError", { message: scan.message })}</ModalText>;
     case "ok":
-      return scan.findings.length === 0 ? (
-        <ModalText>{t("reconcileEverythingMatches")}</ModalText>
-      ) : (
-        <Findings findings={scan.findings} t={t} />
+      if (scan.findings.length === 0) {
+        return <ModalText>{t("reconcileEverythingMatches")}</ModalText>;
+      }
+      return (
+        <>
+          <SafetyNote t={t} />
+          <Findings findings={scan.findings} skipped={skipped} t={t} />
+        </>
       );
   }
 }
@@ -224,7 +435,12 @@ function RunBody({ run, t }: { run: Exclude<ReconcileRun, { phase: "idle" }>; t:
   if (run.phase === "fixing") {
     return (
       <div className={styles.progress}>
-        <ModalText>{t("reconcileFixing", { done: run.done, total: run.total })}</ModalText>
+        <div className={styles.progressLine}>
+          <span>{t("reconcileFixing", { done: run.done, total: run.total })}</span>
+          <span className={styles.progressPercent} aria-hidden>
+            {Math.round((run.done / Math.max(run.total, 1)) * 100)}%
+          </span>
+        </div>
         <progress max={Math.max(run.total, 1)} value={run.done} className={styles.bar} />
       </div>
     );
@@ -245,11 +461,45 @@ function RunBody({ run, t }: { run: Exclude<ReconcileRun, { phase: "idle" }>; t:
       return null;
     case "done": {
       const { report } = result;
+      const tiles = [
+        {
+          key: "fixed",
+          label: t("reconcileTileFixed"),
+          value: report.fixed,
+          tone: styles.toneAdopt,
+        },
+        {
+          key: "moved",
+          label: t("reconcileTileMoved"),
+          value: report.movedToOrphans,
+          tone: styles.toneGone,
+        },
+        {
+          key: "kept",
+          label: t("reconcileTileKept"),
+          value: report.kept.length,
+          tone: styles.toneListed,
+        },
+        {
+          key: "failed",
+          label: t("reconcileTileFailed"),
+          value: report.failed.length,
+          tone: styles.toneFailed,
+        },
+      ].filter((tile) => tile.key === "fixed" || tile.key === "moved" || tile.value > 0);
       return (
-        <div className={styles.findings}>
+        <div className={styles.report}>
           <ModalText>
             {t("reconcileDone", { fixed: report.fixed, moved: report.movedToOrphans })}
           </ModalText>
+          <ul className={styles.tiles} aria-hidden>
+            {tiles.map((tile) => (
+              <li key={tile.key} className={`${styles.tile} ${tile.tone ?? ""}`}>
+                <span className={styles.tileValue}>{tile.value}</span>
+                <span className={styles.tileLabel}>{tile.label}</span>
+              </li>
+            ))}
+          </ul>
           {report.kept.length > 0 && (
             <ModalText>{t("reconcileKept", { count: report.kept.length })}</ModalText>
           )}
@@ -265,11 +515,16 @@ function RunBody({ run, t }: { run: Exclude<ReconcileRun, { phase: "idle" }>; t:
 /** The "Check and fix files" dialog, mounted once in the app shell. */
 export function ReconcileDialogHost(): React.JSX.Element | null {
   const t = useTranslations("library");
-  const { dialogOpen, scan, scanning, run } = useReconcile();
+  const { dialogOpen, scan, scanning, run, skipped } = useReconcile();
   if (!dialogOpen) return null;
   const fixing = run.phase === "fixing";
   const canFix =
     run.phase === "idle" && !scanning && scan?.status === "ok" && scan.fixableCount > 0;
+  const listShown =
+    run.phase === "idle" && !scanning && scan?.status === "ok" && scan.findings.length > 0;
+  const selected = canFix
+    ? scan.findings.filter((f) => f.fixable && !skipped.has(f.path)).length
+    : 0;
   return (
     // Non-dismissible only while files are being fixed.
     <ModalOverlay
@@ -278,17 +533,41 @@ export function ReconcileDialogHost(): React.JSX.Element | null {
       size="wide"
     >
       <div className={styles.sheet}>
-        <ModalIcon tone="accent">
-          <FolderSync size={20} strokeWidth={1.8} />
-        </ModalIcon>
-        <ModalTitle id="reconcile-dialog-title">{t("reconcileTitle")}</ModalTitle>
-        {run.phase === "idle" ? (
-          <>
-            <ModalText>{t("reconcileIntro")}</ModalText>
-            <ScanBody scan={scanning ? null : scan} t={t} />
-          </>
-        ) : (
-          <RunBody run={run} t={t} />
+        {/* Icon beside the title, as in the design: the list gets the height instead. */}
+        <header className={styles.header}>
+          <ModalIcon tone="accent">
+            <FolderSync size={20} strokeWidth={1.8} />
+          </ModalIcon>
+          <div className={styles.headerText}>
+            <ModalTitle id="reconcile-dialog-title">{t("reconcileTitle")}</ModalTitle>
+            {/* The intro describes a finished scan, so it only shows above an actual list. */}
+            {listShown && (
+              <p className={styles.intro}>
+                {t(scan.fixableCount > 0 ? "reconcileIntro" : "reconcileIntroListedOnly")}
+              </p>
+            )}
+          </div>
+        </header>
+        <div className={styles.body}>
+          {run.phase === "idle" ? (
+            <ScanBody scan={scanning ? null : scan} skipped={skipped} t={t} />
+          ) : (
+            <RunBody run={run} t={t} />
+          )}
+        </div>
+        {canFix && (
+          <p className={styles.summary}>
+            {selected === scan.fixableCount
+              ? t("reconcileSummary", {
+                  fixable: scan.fixableCount,
+                  listed: scan.findings.length - scan.fixableCount,
+                })
+              : t("reconcileSummarySelected", {
+                  selected,
+                  fixable: scan.fixableCount,
+                  untouched: scan.findings.length - selected,
+                })}
+          </p>
         )}
         <ModalActions>
           {run.phase === "waiting" && (
@@ -308,8 +587,10 @@ export function ReconcileDialogHost(): React.JSX.Element | null {
             </ModalButton>
           )}
           {canFix && (
-            <ModalButton variant="primary" onClick={() => void fixAll()}>
-              {t("reconcileFixAll")}
+            <ModalButton variant="primary" disabled={selected === 0} onClick={() => void fixAll()}>
+              {selected === scan.fixableCount
+                ? t("reconcileFixAll")
+                : t("reconcileFixSelected", { count: selected })}
             </ModalButton>
           )}
         </ModalActions>
