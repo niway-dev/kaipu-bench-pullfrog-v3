@@ -3,8 +3,12 @@
  * its color from the tag palette (`--tag`, tag-palette.css) through `data-color`.
  */
 
+/* The bar and, until it is dismissed, the hint sit side by side in the header row. */
 .anchor {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -108,38 +112,41 @@
 }
 
 /*
- * ── The one-time hint (decision 19): no backdrop, never blocks a click elsewhere ──
- * It floats over the top of the page, where the item page keeps its Rename pencil. With
- * pointer events on, the card swallowed that click until the hint was dismissed (the
- * release-candidate E2E for 0.16.0 timed out on it). Only "Got it" takes clicks; the rest
- * of the card lets them through to whatever sits under it.
+ * ── The one-time hint (decision 19): no backdrop, never covers anything, never blocks a click ──
+ * It lives in the header row, right of the bar, not floating under it. A floating card sat
+ * over the top of the page, where the item page keeps its Rename pencil: it hid the pencil and
+ * swallowed its click (the 0.16.0 release-candidate E2E timed out on it). In the row, the
+ * header's flex layout keeps it off everything; when the row is narrow the text truncates
+ * first ("Got it" never does), and the bar keeps its width.
  */
 
 .hint {
-  pointer-events: none;
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 40;
   display: flex;
+  /* Shrinks long before the bar does. */
+  flex: 0 100 auto;
   align-items: center;
-  gap: 12px;
-  width: max-content;
-  max-width: 360px;
-  padding: 9px 12px;
+  gap: 8px;
+  min-width: 0;
+  max-width: 420px;
+  height: 30px;
+  padding: 0 4px 0 12px;
   border: 1px solid color-mix(in srgb, var(--accent-primary) 45%, transparent);
   border-radius: var(--radius-md);
-  background: var(--bg-modal);
-  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.55);
+  background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-card));
   color: var(--text-primary);
   font-size: var(--font-size-sm);
-  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.hintText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hintDismiss {
-  pointer-events: auto;
   flex-shrink: 0;
-  padding: 4px 8px;
+  padding: 3px 8px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
