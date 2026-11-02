@@ -10,6 +10,7 @@ import { presetForPath } from "@shared/window-size";
 import { EnvBadge } from "./env-badge";
 import { ReconcileDialogHost } from "@renderer/features/library/reconcile/reconcile-dialog";
 import { WorkspaceSwitcher } from "@renderer/features/workspaces/workspace-switcher";
+import { setHeaderEndElement } from "@renderer/features/workspaces/header-slot";
 import styles from "./app-shell.module.css";
 
 /**
@@ -54,6 +55,7 @@ export function AppShell(): React.JSX.Element {
               header row right of the rail). Moving it is moving this line. */}
           <header className={styles.header}>
             <WorkspaceSwitcher />
+            <div className={styles.headerEnd} ref={setHeaderEndElement} />
           </header>
           <main className={styles.content}>
             <Outlet />

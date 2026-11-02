@@ -33,6 +33,13 @@
   background: var(--bg-app);
 }
 
+/* The right end of the header: a page that belongs to an item puts its "IN · Work ▾" chip here. */
+.headerEnd {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
 .content {
   flex: 1;
   overflow-y: auto;

@@ -291,7 +291,12 @@ export function WorkspacesSettingsPage(): React.JSX.Element {
         />
       </Section>
       <div className={styles.workspacesActions}>
-        <Button variant="outline" size="sm" disabled={state?.readOnly} onClick={openCreateDialog}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={state?.readOnly}
+          onClick={() => openCreateDialog()}
+        >
           {tw("addAction")}
         </Button>
       </div>

@@ -90,3 +90,21 @@ export function registerSwitchFlush(flush: () => Promise<void>): () => void {
 export function switchFlushers(): Iterable<() => Promise<void>> {
   return [...flushers];
 }
+
+/** Closes the page that holds an item, flushing and asking like a switch does (set by the router). */
+let itemPageCloser: (() => Promise<boolean>) | null = null;
+
+export function registerItemPageCloser(close: () => Promise<boolean>): () => void {
+  itemPageCloser = close;
+  return () => {
+    if (itemPageCloser === close) itemPageCloser = null;
+  };
+}
+
+/**
+ * Flush the open editor's saves and close it, before its item moves to another workspace.
+ * Resolves false when the user kept editing (the move does not happen).
+ */
+export function closeItemPage(): Promise<boolean> {
+  return itemPageCloser ? itemPageCloser() : Promise.resolve(true);
+}

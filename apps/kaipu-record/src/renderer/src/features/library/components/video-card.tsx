@@ -13,6 +13,7 @@ import { EditBadge } from "./edit-badge";
 import { cx } from "@renderer/ui/cx";
 import type { DestinationId } from "@renderer/features/prepare/destinations";
 import { DestinationTag } from "@renderer/features/prepare/components/destination-tag";
+import { SelectCheck, type ItemSelection } from "./select-check";
 import styles from "./video-card.module.css";
 
 const CARD_TAGS_SHOWN = 3;
@@ -36,6 +37,10 @@ interface VideoCardProps {
   tags?: readonly TagSummary[];
   /** A copy made for a destination: its poster says where it is going ("For YouTube"). */
   destination?: DestinationId | null;
+  /** The "⋯" menu (Move to ▸), shown with the other actions. */
+  moveMenu?: React.ReactNode;
+  /** Select mode: a click toggles the checkbox instead of opening the item. */
+  selection?: ItemSelection;
 }
 
 export function VideoCard({
@@ -50,6 +55,8 @@ export function VideoCard({
   justReady = false,
   tags = [],
   destination = null,
+  moveMenu,
+  selection,
 }: VideoCardProps): React.JSX.Element {
   const t = useTranslations("library");
   // A few tags always visible under the title, the rest as "+N".
@@ -58,22 +65,32 @@ export function VideoCard({
   // NIW2-579: an imported video says so in the metadata line, not as a capture pill.
   const imported = video.capture?.mode === "import";
 
+  const activate = (range: boolean): void => {
+    if (!selection) return onNavigate();
+    if (selection.disabledReason === null) selection.onToggle(range);
+  };
+
   return (
     <div
       className={styles.card}
-      data-selected={selected}
+      data-selected={selected || selection?.checked}
       data-just-ready={justReady}
-      onClick={onNavigate}
+      onClick={(e) => activate(e.shiftKey)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onNavigate();
+          activate(e.shiftKey);
         }
       }}
     >
       <div className={styles.poster}>
+        {selection && (
+          <span className={styles.selectCheck}>
+            <SelectCheck selection={selection} />
+          </span>
+        )}
         {video.thumbnailUrl ? (
           <img src={video.thumbnailUrl} alt="" className={styles.posterImage} />
         ) : (
@@ -136,6 +153,7 @@ export function VideoCard({
                 <Send size={14} strokeWidth={1.8} />
               </button>
             )}
+            {moveMenu}
             {video.id !== null && (
               <button
                 className={cx(styles.action, styles.delete)}

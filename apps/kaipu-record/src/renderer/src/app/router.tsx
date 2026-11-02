@@ -32,7 +32,11 @@ import {
 } from "@renderer/pages/editor/editor-routes";
 import { AuthPage } from "@renderer/pages/auth/auth-page";
 import { ROUTES } from "@shared/routes";
-import { prepareForSwitch, switchFlushers } from "@renderer/features/workspaces/prepare-switch";
+import {
+  prepareForSwitch,
+  registerItemPageCloser,
+  switchFlushers,
+} from "@renderer/features/workspaces/prepare-switch";
 
 /**
  * Route tree for the app.
@@ -122,5 +126,7 @@ export function AppRouter(): React.JSX.Element {
     () => window.electronAPI.workspaces.onPrepare(() => prepareForSwitch(router, switchFlushers())),
     [],
   );
+  // "Move to" from an editor closes it the same way first (ADR 0033, decision 12).
+  useEffect(() => registerItemPageCloser(() => prepareForSwitch(router, switchFlushers())), []);
   return <RouterProvider router={router} />;
 }

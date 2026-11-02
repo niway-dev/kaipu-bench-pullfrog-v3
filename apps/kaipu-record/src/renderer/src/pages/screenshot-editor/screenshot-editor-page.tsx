@@ -57,6 +57,7 @@ import { useTransientValue } from "@renderer/ui/use-transient-value";
 import { useCompactRow } from "@renderer/ui/use-compact-row";
 import { isMaintenanceError } from "@renderer/features/library/vault-errors";
 import { showToast } from "@renderer/ui/toast-store";
+import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
 import styles from "./screenshot-editor-page.module.css";
 
 const ZOOM_MIN = 0.5;
@@ -545,6 +546,8 @@ export function ScreenshotEditor({ source }: { source: ImageSource }): React.JSX
 
   return (
     <div className={styles.editor}>
+      {/* "IN · Work ▾" once the shot is saved in a workspace (ADR 0033). */}
+      <ItemWorkspaceChip assetId={savedId ? (savedAssetIdRef.current ?? null) : null} />
       <div
         ref={toolbarRef}
         className={styles.toolbar}

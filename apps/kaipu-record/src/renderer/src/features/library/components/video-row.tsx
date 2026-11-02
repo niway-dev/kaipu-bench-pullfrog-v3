@@ -10,6 +10,7 @@ import { KindBadge } from "./kind-badge";
 import { MasterTag } from "./master-tag";
 import { EditBadge } from "./edit-badge";
 import { cx } from "@renderer/ui/cx";
+import { SelectCheck, type ItemSelection } from "./select-check";
 import styles from "./video-row.module.css";
 
 interface VideoRowProps {
@@ -28,6 +29,10 @@ interface VideoRowProps {
   selected?: boolean;
   /** The item's tags, resolved from the registry (name + color). */
   tags?: readonly TagSummary[];
+  /** The "⋯" menu (Move to ▸), shown with the other actions. */
+  moveMenu?: React.ReactNode;
+  /** Select mode: a click toggles the checkbox instead of opening the item. */
+  selection?: ItemSelection;
 }
 
 const ROW_TAGS_SHOWN = 4;
@@ -43,24 +48,31 @@ export function VideoRow({
   onTags,
   selected = false,
   tags = [],
+  moveMenu,
+  selection,
 }: VideoRowProps): React.JSX.Element {
   const t = useTranslations("library");
   const rowTags = tags.slice(0, ROW_TAGS_SHOWN);
+  const activate = (range: boolean): void => {
+    if (!selection) return onNavigate();
+    if (selection.disabledReason === null) selection.onToggle(range);
+  };
 
   return (
     <div
       className={cx(styles.row, !isLast && styles.divided)}
-      data-selected={selected}
-      onClick={onNavigate}
+      data-selected={selected || selection?.checked}
+      onClick={(e) => activate(e.shiftKey)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onNavigate();
+          activate(e.shiftKey);
         }
       }}
     >
+      {selection && <SelectCheck selection={selection} />}
       <div className={styles.poster}>
         {video.thumbnailUrl ? (
           <img src={video.thumbnailUrl} alt="" className={styles.posterImage} />
@@ -122,6 +134,7 @@ export function VideoRow({
             <Send size={15} strokeWidth={1.8} />
           </button>
         )}
+        {moveMenu}
         {video.id !== null && (
           <button
             className={cx(styles.action, styles.delete)}

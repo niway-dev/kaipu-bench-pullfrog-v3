@@ -20,6 +20,7 @@ const view = (id: string, name: string, color: WorkspaceView["color"]): Workspac
   volume: null,
   state: "available",
   itemCount: 1,
+  device: "1",
 });
 const DEFAULT = view("ws-default", "Default workspace", "kaipu");
 const ACME = view("ws-acme", "Client Acme", "sky");
