@@ -52,6 +52,13 @@ export interface WorkspaceEntry {
    * next time it is reached, instead of the folder's older file overwriting it.
    */
   pendingIdentity?: true;
+  /**
+   * The one-time brand-color upgrade is cached here but not yet in the folder (it was not
+   * connected). Unlike `pendingIdentity` it does not own the folder: when the folder is back
+   * it is written only if the folder still holds the old Default and rose; a folder that
+   * changed meanwhile (on another Mac) is adopted and the upgrade is dropped.
+   */
+  pendingColorUpgrade?: true;
 }
 
 export interface WorkspacesKey {
@@ -115,6 +122,7 @@ function parseEntry(value: unknown): WorkspaceEntry | null {
     addedAt: typeof record["addedAt"] === "number" ? record["addedAt"] : 0,
     ...(record["pendingInit"] === true ? { pendingInit: true as const } : {}),
     ...(record["pendingIdentity"] === true ? { pendingIdentity: true as const } : {}),
+    ...(record["pendingColorUpgrade"] === true ? { pendingColorUpgrade: true as const } : {}),
   };
 }
 
@@ -189,6 +197,11 @@ class NameTakenError extends Error {}
 const LOCK = "workspaces:registry";
 /** Serializes `update`, so one update's rollback never discards another's change. */
 const UPDATE_LOCK = "workspaces:registry:update";
+
+/** The identity the one-time brand-color upgrade starts from: the migrated Default, in rose. */
+function isOldDefault(identity: WorkspaceIdentity): boolean {
+  return identity.name === DEFAULT_WORKSPACE_NAME && identity.color === "rose";
+}
 
 function samePath(a: string, b: string): boolean {
   return resolve(a) === resolve(b);
@@ -408,9 +421,10 @@ export class WorkspaceRegistry {
   /**
    * The one-time upgrade (part 1b): a "Default workspace" that part 1 migrated as rose takes
    * Kaipu's brand color. The marker is stored first, in the same write, so it runs once; the
-   * folder's identity.json follows through the `pendingIdentity` path, which also covers a
-   * folder that is not connected right now. A name or color the user already changed, here or
-   * on another Mac, is left as it is.
+   * folder's identity.json follows through `pendingColorUpgrade`, which also covers a folder
+   * that is not connected right now: when it is back, the file is written only if it still
+   * holds the old Default and rose. A name or color the user already changed, here or on
+   * another Mac, is left as it is.
    */
   private async upgradeDefaultColor(): Promise<void> {
     const owner = this.get(this.key.legacyCloudOwnerId);
@@ -432,7 +446,7 @@ export class WorkspaceRegistry {
         key.kaipuColorApplied = true;
         if (owner && upgrade) {
           owner.color = DEFAULT_WORKSPACE_COLOR;
-          owner.pendingIdentity = true;
+          owner.pendingColorUpgrade = true;
         }
       });
     } catch (error) {
@@ -568,7 +582,8 @@ export class WorkspaceRegistry {
       return {
         ok: true,
         entry: before,
-        savedToFolder: !before.pendingIdentity && !before.pendingInit,
+        savedToFolder:
+          !before.pendingIdentity && !before.pendingColorUpgrade && !before.pendingInit,
       };
     }
 
@@ -610,6 +625,8 @@ export class WorkspaceRegistry {
         target.color = color;
         if (initials) target.initials = initials;
         delete target.pendingInit;
+        // An edit owns the folder's identity from here, so a deferred upgrade has nothing left to decide.
+        delete target.pendingColorUpgrade;
         if (savedToFolder) delete target.pendingIdentity;
         else target.pendingIdentity = true;
       });
@@ -652,23 +669,39 @@ export class WorkspaceRegistry {
               color: entry.color,
               ...(entry.initials ? { initials: entry.initials } : {}),
             });
-            await this.refresh(() => void delete entry.pendingIdentity);
+            await this.refresh(() => {
+              delete entry.pendingIdentity;
+              delete entry.pendingColorUpgrade;
+            });
           } catch {
             // stays pending; the next probe tries again
           }
           return { availability: { state: "available" }, id };
         }
-        // The folder's file wins: the entry only caches it (renamed on another Mac).
+        if (entry.pendingColorUpgrade && !this.readOnly && isOldDefault(identity.identity)) {
+          // Nobody touched the folder since the upgrade was cached: the file takes the new color.
+          try {
+            await writeIdentity(entry.path, { ...identity.identity, color: entry.color });
+            await this.refresh(() => void delete entry.pendingColorUpgrade);
+          } catch {
+            // stays pending; the next probe tries again
+          }
+          return { availability: { state: "available" }, id };
+        }
+        // The folder's file wins: the entry only caches it (renamed on another Mac). That also
+        // drops a deferred color upgrade when the folder changed while it was away.
         const fresh = entryFromIdentity(identity.identity, entry.path, entry.addedAt);
         const stale =
           entry.pendingInit ||
           fresh.name !== entry.name ||
           fresh.color !== entry.color ||
-          fresh.initials !== entry.initials;
+          fresh.initials !== entry.initials ||
+          entry.pendingColorUpgrade;
         if (stale) {
           await this.refresh(() => {
             delete entry.pendingInit;
             delete entry.pendingIdentity;
+            delete entry.pendingColorUpgrade;
             delete entry.initials;
             Object.assign(entry, fresh);
           });
@@ -700,10 +733,11 @@ export class WorkspaceRegistry {
           ...(entry.initials ? { initials: entry.initials } : {}),
           createdAt: entry.addedAt,
         });
-        if (entry.pendingInit || entry.pendingIdentity) {
+        if (entry.pendingInit || entry.pendingIdentity || entry.pendingColorUpgrade) {
           await this.refresh(() => {
             delete entry.pendingInit;
             delete entry.pendingIdentity;
+            delete entry.pendingColorUpgrade;
           });
         }
       } catch {
