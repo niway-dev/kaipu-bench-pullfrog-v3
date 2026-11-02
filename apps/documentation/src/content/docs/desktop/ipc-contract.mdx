@@ -144,32 +144,37 @@ After a capture main **always writes the vault first**, then applies the after-c
 `copied` says whether the clipboard got it, and `png` is an empty `ArrayBuffer` (the bytes never
 cross IPC):
 
-- **Capture** (`after: "editor"`): main also copies when `screenshotCopy` is `auto`. The renderer
-  opens `/editor/image/:assetId` on the saved item, then reveals the window.
-- **Copy** (`after: "quiet"`): main always copies and shows the capture toast. The renderer opens no
-  editor and does not reveal the window: main already restored the pre-capture visibility.
+- **Capture** (`after: "quiet"`, [ADR 0042](/architecture/decisions/0042-capture-ends-in-the-preview-card/)):
+  main also copies when `screenshotCopy` is `auto`, then shows the capture preview card.
+- **Copy** (`after: "quiet"`): main always copies and shows the card.
+
+In both cases the renderer opens no editor and does not reveal the window: main already restored the
+pre-capture visibility. The editor opens from the card's Edit.
 
 There is no "save automatically" preference any more: every capture is in the Library, so the image
 editor saves edits over that item on its own and never asks before leaving (only a pasted image, or
 a capture whose vault write failed, still asks). A failed vault write is the only time the bytes cross
-IPC: Capture answers `after: "editor"` with `saved: null` and the bytes, and the in-memory editor
-retries the save; Copy still copies and keeps the bytes in main (`takeLastQuietCapture()`) for the
-toast's Edit until the next capture starts. If a Copy manages neither to save nor to copy, main
-answers `after: "editor"` with the bytes instead of losing the shot. Every screenshot vault write
+IPC: a capture that still reached the clipboard keeps the bytes in main (`takeLastQuietCapture()`)
+for the card's Edit and Save until the next capture starts. A capture that managed neither to save
+nor to copy answers `after: "editor"` with the bytes instead of losing the shot, and the in-memory
+editor retries the save. Every screenshot vault write
 broadcasts `library:changed`, so an editor already open on another item can resolve the new one.
 
-After a quiet capture main shows the **capture toast** (`main/screenshots/capture-toast-window.ts`,
+After a quiet capture main shows the **capture preview card** (`main/screenshots/capture-toast-window.ts`,
 `?window=capture-toast`, `t` in the tables): one frameless, non-focusable, always-on-top window,
-380 × 150 DIP, at the top-right of the work area of the display the shot came from, 18 DIP in. It
+sized to the shot (`previewCardSize` in `shared/capture-preview-layout.ts`: a 280 DIP card plus
+16 DIP of transparent room), with the card 18 DIP in from the top-right of the work area of the
+display the shot came from. It
 appears only after `afterCapture` has restored the windows (`beforeCapture` hides the main window
 with `BrowserWindow.hide()`, never `app.hide()`), so it shows while that window stays hidden and
 never brings it forward; a main window that was visible comes back with `showInactive()`, so the
 app the user was in keeps the focus. `beforeCapture` also dismisses the previous toast, and the
 toast window is content-protected, so it is never in the next shot. A new capture re-targets the
-same window and restarts its 6 s auto-hide, counted from when the toast renderer is ready; the
-pointer over the card pauses it. Edit and Open in Library ask the main window through
-`screenshot:open-saved` or `screenshot:open-quiet-capture`; the renderer navigates, then calls
-`revealAfterCapture()`, as on the editor path.
+same window and restarts its 10 s auto-hide, counted from when the card renderer is ready; the
+pointer over the card pauses it, and `screenshot:toast-timer` mirrors it for the card's bar. Edit
+asks the main window through `screenshot:open-saved` or `screenshot:open-quiet-capture`; the
+renderer navigates, then calls `revealAfterCapture()`. Reveal, Copy and Save run in main and keep
+the card up.
 
 Payloads of the capture channels (`CaptureMode` is `"frame" | "window" | "screen"`, the pill order; types live in
 `src/shared/types/screenshot-capture.ts`). `o` is a capture overlay window, one per display.
