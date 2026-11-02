@@ -538,6 +538,26 @@ export class LibraryVault {
   }
 
   /**
+   * Reserve a stem for an item that arrives whole from another workspace (ADR 0033): `stem`,
+   * else `stem (2)`, `stem (3)` … (the collision tail ADR 0035 recognizes), and write `record`
+   * as its sidecar, all under NAMES_LOCK. From this moment the stem is taken and the record is
+   * durable before any media can land, so `describe()` never mints a new identity for it.
+   */
+  async reserveIncoming(stem: string, record: Sidecar): Promise<string> {
+    return withLock(NAMES_LOCK, async () => {
+      const { id } = await this.firstCandidate(stem, async (candidate) =>
+        (await this.stemState(candidate)) === "free" ? { id: candidate, mode: "free" } : null,
+      );
+      await mkdir(this.metaDirectory(), { recursive: true });
+      await atomicWriteFile(
+        this.sidecarPath(id),
+        JSON.stringify({ ...record, sidecarVersion: 2 }, null, 2),
+      );
+      return id;
+    });
+  }
+
+  /**
    * Give back a stem `reserve` took: its companions go, only while its record still carries
    * the reservation's identity. Never touches a media file.
    */

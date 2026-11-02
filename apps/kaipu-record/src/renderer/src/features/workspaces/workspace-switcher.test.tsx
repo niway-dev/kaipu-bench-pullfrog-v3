@@ -15,6 +15,7 @@ const DEFAULT: WorkspaceView = {
   volume: null,
   state: "available",
   itemCount: 128,
+  device: "1",
 };
 const PERSONAL: WorkspaceView = {
   ...DEFAULT,
@@ -24,6 +25,7 @@ const PERSONAL: WorkspaceView = {
   initials: "P",
   path: "/Users/me/Movies/Personal",
   itemCount: 17,
+  device: "1",
 };
 const ARCHIVE: WorkspaceView = {
   ...DEFAULT,
@@ -36,6 +38,7 @@ const ARCHIVE: WorkspaceView = {
   state: "unavailable",
   reason: "missing",
   itemCount: null,
+  device: "1",
 };
 
 function state(overrides: Partial<WorkspacesState> = {}): WorkspacesState {

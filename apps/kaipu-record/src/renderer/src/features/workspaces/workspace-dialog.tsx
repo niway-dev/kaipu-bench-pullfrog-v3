@@ -28,6 +28,8 @@ export interface WorkspaceDialogProps {
   state: WorkspacesState;
   /** The workspace being edited, or null for "New workspace". */
   editing: WorkspaceView | null;
+  /** False for "Move to ▸ New workspace…": created inactive, the user stays where they are. */
+  activate?: boolean;
   onClose(): void;
   /** "Use an existing folder…": the folder-picker flow, for Google Drive or OneDrive folders. */
   onUseExisting(): void;
@@ -49,6 +51,7 @@ const USABLE: ReadonlySet<LocationCheck["state"]> = new Set(["free", "empty"]);
 export function WorkspaceDialog({
   state,
   editing,
+  activate = true,
   onClose,
   onUseExisting,
   onCreated,
@@ -123,7 +126,11 @@ export function WorkspaceDialog({
         if (result.ok) onSaved(result);
         else setRefusal(result.reason);
       } else {
-        const result = await window.electronAPI.workspaces.create({ name: validName, color });
+        const result = await window.electronAPI.workspaces.create({
+          name: validName,
+          color,
+          ...(activate ? {} : { activate: false }),
+        });
         if (result.ok) onCreated(result);
         else setRefusal(result.reason);
       }

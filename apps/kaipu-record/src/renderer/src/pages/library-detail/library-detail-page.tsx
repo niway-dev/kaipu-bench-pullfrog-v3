@@ -54,6 +54,7 @@ import type { EditingState, RemoveLocalCopyResult } from "@shared/types/library-
 import { Button } from "@kaipu/ui";
 import { Badge } from "@kaipu/ui";
 import { useTranslations, type Messages } from "@kaipu/i18n";
+import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
 import styles from "./library-detail-page.module.css";
 
 type LibraryMessageKey = keyof Messages["library"];
@@ -270,6 +271,9 @@ export function LibraryDetailPage(): React.JSX.Element {
 
   return (
     <div className={styles.page}>
+      {/* "IN · Work ▾": the item's workspace, and Move to (spec decision 13, ADR 0033). A
+          cloud-only item has nothing local to move. */}
+      <ItemWorkspaceChip assetId={video.id !== null ? video.assetId : null} closes="page" />
       {/* The title owns the top row (owner feedback on Export v3): it shares it only with the
           way back and the master tag, never with the actions, so adding a button can't
           truncate it. */}

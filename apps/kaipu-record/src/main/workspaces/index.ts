@@ -1,9 +1,13 @@
+import { stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { createMainTranslator } from "@kaipu/i18n/main";
 import { IPC_CHANNELS } from "@shared/types";
 import type {
   LocationCheck,
+  MoveItemRef,
+  MoveItemsResult,
+  WorkspaceBusy,
   WorkspaceAddResult,
   WorkspaceCreateResult,
   WorkspaceEditResult,
@@ -16,7 +20,12 @@ import type {
   WorkspaceView,
 } from "@shared/types/workspaces";
 import { getAppSettings } from "../infrastructure/settings-store";
+import { dragLedger } from "../library/drag-ledger";
 import { LibraryVault } from "../library/library-vault";
+import { loadDeviceId } from "../library/tag-repository";
+import { vaultActivity } from "../library/vault-activity";
+import { refusalOfError, runMoveGroup } from "./move-group";
+import { healMoves, moveItem, type MoveSide } from "./move-item";
 import { uuidv7 } from "../library/tag-repository";
 import { defaultVaultDirectory, forgetCachedPreferences } from "../library/vault-location";
 import { StaleWorkspaceError, WorkspaceGate } from "./gate";
@@ -40,7 +49,7 @@ let registry: WorkspaceRegistry | null = null;
 let gate: WorkspaceGate | null = null;
 
 export interface WorkspaceHost {
-  /** What is writing into the active workspace (the switch lock). */
+  /** What is writing into the active workspace (the switch lock). A move is added here. */
   busy(): "recording" | "exporting" | null;
   /** Dismiss the capture toast and drop the retained quiet-capture bytes. */
   dropPendingCaptures(): void;
@@ -49,6 +58,14 @@ export interface WorkspaceHost {
 }
 
 let host: WorkspaceHost | null = null;
+
+/** The group move running now, if any: it holds the switch lock from its first item to its last. */
+let moveRun: { stop: boolean } | null = null;
+
+/** What locks the switcher right now. */
+function busyNow(): WorkspaceBusy | null {
+  return host?.busy() ?? (moveRun ? "moving" : null);
+}
 
 function requireRegistry(): WorkspaceRegistry {
   if (!registry) throw new Error("workspaces: not initialized");
@@ -75,6 +92,133 @@ export async function initWorkspaces(): Promise<void> {
   });
   if (registry.readOnly) {
     console.warn("[workspaces] preferences.json does not parse: running read-only until restart");
+  }
+  // A move the app died in is finished before anything lists either workspace.
+  await healPendingMoves();
+}
+
+function movesJournalDir(): string {
+  return join(app.getPath("userData"), "workspace-moves");
+}
+
+/** The folder a workspace of a move lives in now, or null while it is not connected. */
+async function resolveMoveSide(side: MoveSide): Promise<string | null> {
+  const reg = requireRegistry();
+  if (!reg.get(side.workspaceId)) return null;
+  const { availability, id } = await reg.availability(side.workspaceId);
+  if (availability.state !== "available") return null;
+  return reg.get(id)?.path ?? null;
+}
+
+/**
+ * Finish every move the app died in (ADR 0033, decision 6). At startup and before each group.
+ * An entry whose workspace is not connected waits for a later run.
+ */
+async function healPendingMoves(): Promise<void> {
+  try {
+    const report = await healMoves({ journalDir: movesJournalDir(), resolve: resolveMoveSide });
+    if (report.healed > 0) host?.broadcastLibraryChanged();
+    if (report.quarantined.length > 0) {
+      console.error(
+        `[workspaces] ${report.quarantined.length} interrupted move(s) need a look; journal kept in`,
+        movesJournalDir(),
+      );
+    }
+  } catch (error) {
+    console.error("[workspaces] healing interrupted moves failed", error);
+  }
+}
+
+let deviceId: Promise<string> | null = null;
+
+/**
+ * `workspaces:move-items`: a group of single moves from the active workspace to `targetId`,
+ * one after another (ADR 0033, decision 14). Runs inside the workspace gate, so the window's
+ * stamp must still be current, and holds the switch lock from the first item to the last.
+ */
+async function moveItems(
+  sender: Electron.WebContents,
+  stamp: unknown,
+  input: unknown,
+): Promise<MoveItemsResult> {
+  const reg = requireRegistry();
+  const { items: rawItems, targetId } = (input ?? {}) as { items?: unknown; targetId?: unknown };
+  const items: MoveItemRef[] = Array.isArray(rawItems)
+    ? rawItems.filter(
+        (item): item is MoveItemRef =>
+          !!item &&
+          typeof (item as MoveItemRef).id === "string" &&
+          typeof (item as MoveItemRef).assetId === "string",
+      )
+    : [];
+  const target = typeof targetId === "string" ? targetId : "";
+  const refuseAll = (reason: MoveItemsResult["failed"][number]["reason"]): MoveItemsResult => ({
+    targetId: target,
+    moved: [],
+    failed: items.map((item) => ({ id: item.id, reason })),
+    skipped: [],
+  });
+  if (moveRun) return refuseAll("busy");
+  if (!workspaceGate().isCurrent(stamp)) return refuseAll("stale");
+  if (vaultActivity.inMaintenance) return refuseAll("maintenance");
+
+  const run = { stop: false };
+  moveRun = run;
+  void broadcastState();
+  try {
+    return await workspaceGate().run(stamp, () =>
+      vaultActivity.run("library", async () => {
+        await healPendingMoves();
+        const source = reg.active();
+        // A rejected read is not kept: the next group asks again.
+        deviceId ??= loadDeviceId(app.getPath("userData")).catch((error: unknown) => {
+          deviceId = null;
+          throw error;
+        });
+        const device = await deviceId;
+        const result = await runMoveGroup(
+          items,
+          async (item) => {
+            // Checked per item, when its turn comes (decision 14).
+            if (host?.busy()) return { ok: false, reason: "busy" };
+            if (target === source.id) return { ok: false, reason: "same-workspace" };
+            const entry = reg.get(target);
+            if (!entry) return { ok: false, reason: "target-unavailable" };
+            const directory = await resolveMoveSide({ workspaceId: target, directory: "" });
+            if (directory === null) return { ok: false, reason: "target-unavailable" };
+            const outcome = await moveItem(
+              {
+                source: { workspaceId: source.id, directory: source.path },
+                target: { workspaceId: target, directory },
+                id: item.id,
+                expectedAssetId: item.assetId,
+              },
+              { journalDir: movesJournalDir(), deviceId: () => device, dragLedger },
+            );
+            return outcome.ok
+              ? { ok: true, newId: outcome.newId }
+              : { ok: false, reason: outcome.reason };
+          },
+          {
+            targetId: target,
+            stopped: () => run.stop,
+            onProgress: (progress) => {
+              if (!sender.isDestroyed()) {
+                sender.send(IPC_CHANNELS.workspacesMoveProgress, progress);
+              }
+            },
+          },
+        );
+        return result;
+      }),
+    );
+  } catch (error) {
+    console.error("[workspaces] group move refused", error);
+    return refuseAll(refusalOfError(error));
+  } finally {
+    moveRun = null;
+    host?.broadcastLibraryChanged();
+    void broadcastState();
   }
 }
 
@@ -140,14 +284,22 @@ async function listState(): Promise<WorkspacesState> {
       availability.state === "available"
         ? await new LibraryVault(entry.path).countMedia().catch(() => null)
         : null;
-    views.push(toWorkspaceView(reg.get(id) ?? entry, availability, count));
+    // Which volume the folder is on: "Move to" says whether a move copies or is instant.
+    const device =
+      availability.state === "available"
+        ? await stat(entry.path).then(
+            (info) => String(info.dev),
+            () => null,
+          )
+        : null;
+    views.push(toWorkspaceView(reg.get(id) ?? entry, availability, count, device));
   }
   const { activeId, hintDismissedAt } = reg.state;
   return {
     activeId,
     generation: workspaceGate().stamp.generation,
     hintDismissed: hintDismissedAt !== undefined,
-    busy: host?.busy() ?? null,
+    busy: busyNow(),
     readOnly: reg.readOnly,
     workspaces: views,
   };
@@ -191,7 +343,8 @@ const prepareRequests = new PrepareRequests(IPC_CHANNELS.workspacesPrepare, PREP
 function activeTransactionDeps(): ActiveTransactionDeps {
   return {
     gate: workspaceGate(),
-    busy: () => host?.busy() ?? null,
+    // The group move holds this lock too: a folder cannot change under it.
+    busy: busyNow,
     prepareWindows: () => prepareRequests.prepare(BrowserWindow.getAllWindows()),
     abortWindows: () => sendToAll(IPC_CHANNELS.workspacesPrepareAbort),
     dropPendingCaptures: () => host?.dropPendingCaptures(),
@@ -222,7 +375,10 @@ async function runSwitch(id: string): Promise<WorkspaceSwitchResult> {
 }
 
 /** Folder picker for Add workspace; initializes or adopts the folder, then switches to it. */
-async function addWorkspace(sender: Electron.WebContents): Promise<WorkspaceAddResult> {
+async function addWorkspace(
+  sender: Electron.WebContents,
+  request: { activate?: unknown } = {},
+): Promise<WorkspaceAddResult> {
   const reg = requireRegistry();
   if (reg.readOnly) return { ok: false, reason: "read-only" };
   const window = BrowserWindow.fromWebContents(sender);
@@ -257,8 +413,9 @@ async function addWorkspace(sender: Electron.WebContents): Promise<WorkspaceAddR
   await reg.dismissHint();
   const { availability } = await reg.availability(outcome.entry.id);
   // Then make it the active one, through the same transaction as any other switch. A
-  // refusal (a recording running) leaves it registered and inactive.
-  await runSwitch(outcome.entry.id);
+  // refusal (a recording running) leaves it registered and inactive. "Move to ▸ New
+  // workspace…" keeps it inactive: the item goes there, the user stays here.
+  if (request.activate !== false) await runSwitch(outcome.entry.id);
   await broadcastState();
   return { ok: true, workspace: toWorkspaceView(outcome.entry, availability, null) };
 }
@@ -269,14 +426,20 @@ async function addWorkspace(sender: Electron.WebContents): Promise<WorkspaceAddR
  */
 async function createWorkspace(input: unknown): Promise<WorkspaceCreateResult> {
   const reg = requireRegistry();
-  const { name, color } = (input ?? {}) as { name?: unknown; color?: unknown };
+  const { name, color, activate } = (input ?? {}) as {
+    name?: unknown;
+    color?: unknown;
+    activate?: unknown;
+  };
   if (typeof name !== "string") return { ok: false, reason: "invalid-name" };
   if (typeof color !== "string") return { ok: false, reason: "invalid-color" };
   const outcome = await reg.create({ name, color });
   if (!outcome.ok) return outcome;
   await reg.dismissHint();
   const { availability } = await reg.availability(outcome.entry.id);
-  const switchResult = await runSwitch(outcome.entry.id);
+  // "Move to ▸ New workspace…" creates it inactive: the item goes there, the user stays here.
+  const switchResult: WorkspaceSwitchResult =
+    activate === false ? { ok: true } : await runSwitch(outcome.entry.id);
   await broadcastState();
   return {
     ok: true,
@@ -356,7 +519,15 @@ export function registerWorkspaceHandlers(deps: WorkspaceHost): void {
   ipcMain.handle(IPC_CHANNELS.workspacesSwitch, (_event, id: unknown) =>
     typeof id === "string" ? runSwitch(id) : { ok: false, reason: "unknown" },
   );
-  ipcMain.handle(IPC_CHANNELS.workspacesAdd, (event) => addWorkspace(event.sender));
+  ipcMain.handle(IPC_CHANNELS.workspacesAdd, (event, options: unknown) =>
+    addWorkspace(event.sender, (options ?? {}) as { activate?: unknown }),
+  );
+  ipcMain.handle(IPC_CHANNELS.workspacesMoveItems, (event, stamp: unknown, input: unknown) =>
+    moveItems(event.sender, stamp, input),
+  );
+  ipcMain.handle(IPC_CHANNELS.workspacesCancelMove, () => {
+    if (moveRun) moveRun.stop = true;
+  });
   ipcMain.handle(IPC_CHANNELS.workspacesCreate, (_event, input: unknown) => createWorkspace(input));
   ipcMain.handle(IPC_CHANNELS.workspacesEdit, (_event, input: unknown) => editWorkspace(input));
   ipcMain.handle(IPC_CHANNELS.workspacesRelocate, (event, id: unknown) =>

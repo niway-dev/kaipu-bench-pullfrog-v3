@@ -1,5 +1,6 @@
 import type { LocalRecording } from "@shared/types/library-storage";
 import { broadcastLibraryChanged, currentVault } from "../library";
+import { withItemLock } from "../library/item-lock";
 import type { NewMedia } from "../library/library-vault";
 import { activeWorkspace, requireCaptureWorkspace, workspaceGate } from "../workspaces";
 
@@ -63,11 +64,15 @@ export async function saveScreenshotToVault(
     if (!meta.overwriteAssetId) {
       throw new Error("screenshot save: an overwrite needs overwriteAssetId");
     }
-    id = await vault.overwriteImage(
-      meta.overwriteId,
-      png,
-      { title: meta.title, ...(meta.manual ? { editorSavedAt: now } : {}) },
-      meta.overwriteAssetId,
+    const { overwriteId, overwriteAssetId } = meta;
+    // Under the item lock: an overwrite never interleaves with a move of the same shot.
+    id = await withItemLock(vault.workspaceId ?? vault.directory, overwriteId, () =>
+      vault.overwriteImage(
+        overwriteId,
+        png,
+        { title: meta.title, ...(meta.manual ? { editorSavedAt: now } : {}) },
+        overwriteAssetId,
+      ),
     );
   }
   const saved = await vault.describe(id);

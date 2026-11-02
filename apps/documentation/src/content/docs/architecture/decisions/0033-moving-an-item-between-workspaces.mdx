@@ -7,16 +7,18 @@ description: A finished recording or screenshot moves to another workspace with 
 
 ## Status
 
-| Field         | Value                                                                                                     |
-| ------------- | --------------------------------------------------------------------------------------------------------- |
-| Status        | Proposed — [several workspaces design](/specs/2026-10-29-several-workspaces-design/); nothing implemented |
-| Date          | 2026-10-29                                                                                                |
-| Supersedes    | —                                                                                                         |
-| Superseded by | —                                                                                                         |
-| Amends        | ADR 0003's wording "the editor never … moves … the original" (see Consequences)                           |
-| Amended       | 2026-10-29, in place while Proposed: synced folders met the first reopen condition (decisions 4, 9, 13)   |
-| Amended       | 2026-10-30, round 3, in place while Proposed: a group move and the exports suggestion (decisions 14, 15)  |
-| Amended       | 2026-10-30, review round, in place while Proposed: the identity file is `.kaipu/workspace/identity.json`  |
+| Field         | Value                                                                                                                                                                |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Proposed — [several workspaces design](/specs/2026-10-29-several-workspaces-design/); implemented for local folders by part 2 (NIW2-600, see "Implementation notes") |
+| Date          | 2026-10-29                                                                                                                                                           |
+| Supersedes    | —                                                                                                                                                                    |
+| Superseded by | —                                                                                                                                                                    |
+| Amends        | ADR 0003's wording "the editor never … moves … the original" (see Consequences)                                                                                      |
+| Amended       | 2026-10-29, in place while Proposed: synced folders met the first reopen condition (decisions 4, 9, 13)                                                              |
+| Amended       | 2026-10-30, round 3, in place while Proposed: a group move and the exports suggestion (decisions 14, 15)                                                             |
+| Amended       | 2026-10-30, review round, in place while Proposed: the identity file is `.kaipu/workspace/identity.json`                                                             |
+| Amended       | 2026-11-01, part 2 (NIW2-600): a collision takes ` (2)`, the same volume links, the webcam track moves                                                               |
+| Implemented   | Part 2 (NIW2-600): decisions 1–9, 11, 12, 14 and 15 for local folders; 4 (synced), 6 (surfacing), 10, 13 open                                                        |
 
 ## Context
 
@@ -37,6 +39,7 @@ An item is more than its media file. In a vault today (`library-vault.ts`, `vide
 | `.kaipu/<id>.cursor.json`                      | the cursor track behind auto-zoom                                       |
 | `.kaipu/<id>.edit.json`, `<id>.edit.meta.json` | the video edit project and its freshness stamp                          |
 | `.kaipu/<id>.assets/`                          | slide images the edit project references                                |
+| `.kaipu/<id>.webcam.mp4`                       | the take's webcam track (ADR 0037, added after this ADR was written)    |
 
 Two traps come from the code. First, `describe()` mints a new `assetId` for a media file whose
 sidecar has none (`library-vault.ts:185-214`). A media file that lands before its sidecar
@@ -61,20 +64,28 @@ Three more traps are about things that run **beside** the move:
 
 ## Decision
 
-1. **What moves.** The media file, the sidecar, the thumbnail, the cursor track and the edit
-   project (`.edit.json`, `.edit.meta.json`, `.assets/`). Drag copies and staging files never
+1. **What moves.** The media file, the sidecar, the thumbnail, the cursor track, the edit
+   project (`.edit.json`, `.edit.meta.json`, `.assets/`) and the webcam track
+   (`.webcam.mp4`, amended 2026-11-01: ADR 0037 added it after this list was written; across
+   volumes it is verified by sha256 like the media, since it is as large as a take). Drag copies and staging files never
    move, wherever they live (`.kaipu/drag/` and `.kaipu/tmp/`, or the userData scratch folder of
    a synced workspace, decision 13). The item's drag artifacts are **deleted from the source**
    before the move completes (decision 11).
 2. **Identity is kept.** The `assetId`, `derivedFromAssetId`, title and every other sidecar
    field move unchanged. The local id stays the same unless it collides.
 3. **Collisions get a suffix and never overwrite.** If the target has a media file or any
-   Kaipu file under the same id, the item takes `<id>-2`, `<id>-3`… (still a plain item id).
+   Kaipu file under the same id, the item takes `<id> (2)`, `<id> (3)`… (still a plain item
+   id). Amended 2026-11-01: the tail is ADR 0035's, not `<id>-2`, so the moved item's file name
+   still follows its title and "Check and fix files" does not offer to rename it.
    Every file of the item is renamed to match; the edit project does not embed the id. If the
    target already holds an item with the same `assetId` (a copied folder), the move is refused.
 4. **Per file: rename on the same volume, otherwise copy, verify, delete.** Small Kaipu files
    are always copied into the target and removed from the source only at the end. The media is
-   renamed when both folders are on the same device (`stat.dev`). Otherwise it is copied into
+   renamed when both folders are on the same device (`stat.dev`). Amended 2026-11-01: the
+   "rename" is a hard link to the target name followed by the source's unlink. A `rename`
+   replaces a file at its destination; a link refuses to (EEXIST) and keeps the inode, size and
+   mtime just the same. Where the volume has no hard links (exFAT, FAT) or the link fails with
+   EXDEV, the move takes the copy path below. Otherwise it is copied into
    the target's `.kaipu/tmp/move-<moveId>/`, fsynced, its sha256 compared with the source's,
    and then renamed into place. A mismatch aborts the move and the source stays untouched.
    The media step never replaces an existing file.
@@ -123,6 +134,15 @@ Three more traps are about things that run **beside** the move:
    | absent       | present, identity does not match     | Do not delete anything. Quarantine the entry and surface it: this is the only copy.                                           |
    | absent       | absent                               | Do not delete anything. Look for the verified copy in the move's staging folder; if it is not there, surface the entry.       |
 
+   The two rows that delete the source add a check of their own, because the source may have
+   changed while the target was unplugged and the entry waited. The source media goes only
+   when it still matches the journal (size and mtime), the source sidecar still carries the
+   moved `assetId` (or is missing), and the source's edit project is byte-identical to the
+   copy in the target. A source that changed is quarantined with everything in it intact; a
+   source whose stem now belongs to another item is left alone and the entry is dropped. If
+   the source media cannot be removed (open elsewhere, read-only), the source sidecar stays and
+   the entry waits, so the file is never listed again under a new identity.
+
    One rule covers every row: **a side is deleted only when the other side is verified
    complete**, and a journal phase of `copying` never justifies deleting a target. A missing
    target sidecar next to a verified target media is rebuilt from the source sidecar, which is
@@ -159,9 +179,11 @@ Three more traps are about things that run **beside** the move:
       link and the copy fallback are the same case: the whole `.kaipu/drag/<uuid>/` goes),
       before step 2. A hard link shares the media's inode, so deleting the source media alone
       would not free the bytes or remove the titled file.
-    - Healing, before it deletes the source media of a committed move, also empties the
-      source's `.kaipu/drag/` (startup already does the same sweep, `main/index.ts:713`), so a
-      crash after a drag cannot leave an artifact behind.
+    - Healing does not touch `.kaipu/drag/`. It also runs while the app is open (before every
+      group, and after a failed commit), when another item's drag copy may still be read by a
+      drop target, and the drag folders are named by a uuid, not by item. Startup and quit
+      already sweep the whole folder (`main/index.ts:713`), so a crash after a drag cannot leave
+      an artifact behind for long.
     - When `createDragCopy` returns the vault file itself (EXDEV, read-only vault), there is
       no artifact. The 10-second rule still applies, since the original is the dragged file.
 12. **One item lock for every writer of the item.** A per-item async lock, keyed by
@@ -234,6 +256,31 @@ Three more traps are about things that run **beside** the move:
     - The count uses the already loaded list. It adds no `derivedFromAssetId` lookup to the list
       and no lineage check.
     - Cloud-only exports are not counted: the suggestion covers local files.
+
+## Implementation notes (part 2, NIW2-600)
+
+The mover is `apps/kaipu-record/src/main/workspaces/move-item.ts`, with real-filesystem tests
+in temp folders (`move-item.test.ts`): a crash at every step then healing, the EXDEV branch,
+a checksum mismatch, a collision, the item lock, an unreadable record and tags. Where it goes
+beyond or short of the decisions above:
+
+- **The target record is written first.** It reserves the stem under the names lock
+  (`LibraryVault.reserveIncoming`) before any companion is copied, so every file of the move in
+  the target sits behind a record carrying the item's `assetId`, and rolling back removes only
+  files under that record. The journal is written before the reservation with `targetId: null`
+  and updated after it; healing an entry without a target id removes target records that carry
+  the item's `assetId` and have no media.
+- **A copy restamps the caches.** A copied media file has a new mtime, so the target sidecar's
+  hash cache and `.edit.meta.json` are rewritten for it when they matched the source
+  (decision 8). Healing does the same when it rolls forward.
+- **Healing a quarantined entry is left to a person.** The entry is kept in
+  `userData/workspace-moves/` with a `quarantined` reason and logged at every start; no screen
+  surfaces it yet.
+- **Not built here:** the synced-folder branches of decisions 4, 9 and 13 (the app does not
+  detect a synced folder yet), the cloud step of decision 5 and cloud-only moves (decision 10,
+  part 4: no `workspaceId` on the server yet; a cloud-only item cannot be moved and says why),
+  and disabling a target in the menu for an item dragged under 10 seconds ago (the move is
+  refused with that reason instead).
 
 ## Alternatives rejected
 

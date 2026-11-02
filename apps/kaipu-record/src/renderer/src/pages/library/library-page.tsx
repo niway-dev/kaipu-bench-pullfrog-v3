@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Search,
+  SquareCheck,
   Tags,
 } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
@@ -43,6 +44,14 @@ import {
 } from "@renderer/features/video-editor/export/ready-copies";
 import { ReconcileBanner } from "@renderer/features/library/reconcile/reconcile-banner";
 import { WorkspaceNotConnectedNotice } from "@renderer/features/workspaces/not-connected-notice";
+import { ItemMoveMenu } from "@renderer/features/workspaces/move/item-move-menu";
+import { SelectionBar } from "@renderer/features/workspaces/move/selection-bar";
+import { useMoveItems } from "@renderer/features/workspaces/move/use-move-items";
+import { useMoveUi } from "@renderer/features/workspaces/move/move-store";
+import { notMovableReason } from "@renderer/features/workspaces/move/move-flow";
+import { useLibrarySelection } from "@renderer/features/library/hooks/use-library-selection";
+import type { ItemSelection } from "@renderer/features/library/components/select-check";
+import type { LibraryVideo } from "@renderer/features/library/types";
 import styles from "./library-page.module.css";
 
 /** The search field's share of the toolbar, moved out of the module: the shared
@@ -56,8 +65,12 @@ const sxLibrary = stylex.create({
   },
 });
 
+/** Whether an item can be checked in select mode and moved (cloud-only and unreadable cannot). */
+const canMove = (video: LibraryVideo): boolean => notMovableReason(video) === null;
+
 export function LibraryPage(): React.JSX.Element {
   const t = useTranslations("library");
+  const tMove = useTranslations("move");
   const tCopy = useTranslations("backgroundCopy");
   const navigate = useNavigate();
   const { openItem } = useOpenInEditor();
@@ -115,17 +128,58 @@ export function LibraryPage(): React.JSX.Element {
 
   const [view, setView] = useState<"grid" | "list">("grid");
 
+  // Select mode and "Move to" (spec decisions 13 and 20, ADR 0033). The selection follows
+  // the order on screen and clears whenever the search, a chip or the sort changes.
+  const selectionKey = JSON.stringify([
+    kindFilter,
+    storageFilter,
+    sortKey,
+    searchTerm,
+    selectedTags,
+  ]);
+  const selection = useLibrarySelection(visibleItems, selectionKey, canMove);
+  const move = useMoveItems();
+  const { progress: moveProgress } = useMoveUi();
+  const runMove = async (items: LibraryVideo[], target: string | "new"): Promise<void> => {
+    const result = await move({ items, target, library: videos });
+    if (!result || !selection.active) return;
+    // What stayed stays selected, so a retry is one click.
+    const stayed = new Set([...result.failed.map((f) => f.id), ...result.skipped]);
+    selection.replace(items.filter((v) => v.id !== null && stayed.has(v.id)).map((v) => v.assetId));
+  };
+  const selectionFor = (video: LibraryVideo): ItemSelection | undefined => {
+    if (!selection.active) return undefined;
+    const blocked = notMovableReason(video);
+    return {
+      checked: selection.isChecked(video.assetId),
+      disabledReason:
+        blocked === "cloud"
+          ? tMove("notMovableCloud")
+          : blocked === "record"
+            ? tMove("notMovableRecord")
+            : null,
+      label: tMove("selectItem", { title: video.title || t("untitled") }),
+      onToggle: (range) => selection.toggle(video.assetId, range),
+    };
+  };
+  const moveMenuFor = (video: LibraryVideo): React.ReactNode =>
+    selection.active ? undefined : (
+      <ItemMoveMenu item={video} onPick={(target) => void runMove([video], target)} />
+    );
+
   // A copy that just finished leads the grid as a "Ready to upload" card, newest first, in
   // place of its regular card — until it is opened, its card is closed, or the user leaves
   // the Library (`retireReadyCards`) after the card was on screen. Only copies the current
   // filters show, and only in the grid: a card noted shown here is one the user could see.
   const leading = useMemo(() => {
+    // Select mode lists every item in plain order: a shift-click range follows what is shown.
+    if (selection.active) return [];
     const visible = new Map(visibleItems.map((v) => [v.assetId, v]));
     return readyCards(readyCopies).flatMap((copy) => {
       const video = visible.get(copy.assetId);
       return video ? [{ video, copy }] : [];
     });
-  }, [readyCopies, visibleItems]);
+  }, [readyCopies, visibleItems, selection.active]);
   const leadingIds = new Set(leading.map(({ video }) => video.assetId));
   const leadingKey = leading.map(({ video }) => video.assetId).join("\n");
   useEffect(() => {
@@ -179,6 +233,15 @@ export function LibraryPage(): React.JSX.Element {
           <p className={styles.pageSubtitle}>{t("subtitle")}</p>
         </div>
         <div className={styles.headerActions}>
+          <button
+            className={styles.headerSyncButton}
+            type="button"
+            aria-pressed={selection.active}
+            onClick={() => (selection.active ? selection.stop() : selection.start())}
+          >
+            <SquareCheck size={15} strokeWidth={1.8} />
+            {selection.active ? tMove("selectDone") : tMove("select")}
+          </button>
           <button
             className={styles.headerSyncButton}
             title={t("rescan")}
@@ -420,6 +483,8 @@ export function LibraryPage(): React.JSX.Element {
                 selected={video.assetId === taggingId}
                 justReady={unseenCopies.has(video.assetId)}
                 tags={resolveTags(video.tagIds, tagApi.byId)}
+                moveMenu={moveMenuFor(video)}
+                selection={selectionFor(video)}
                 onDelete={() => {
                   const { id, title } = video;
                   if (id !== null) setPendingDelete({ id, title });
@@ -444,6 +509,8 @@ export function LibraryPage(): React.JSX.Element {
                 onTags={video.id !== null ? () => openTagPanel(video.assetId) : undefined}
                 selected={video.assetId === taggingId}
                 tags={resolveTags(video.tagIds, tagApi.byId)}
+                moveMenu={moveMenuFor(video)}
+                selection={selectionFor(video)}
                 onDelete={() => {
                   const { id, title } = video;
                   if (id !== null) setPendingDelete({ id, title });
@@ -452,6 +519,14 @@ export function LibraryPage(): React.JSX.Element {
             ))}
           </div>
         </div>
+      )}
+      {(selection.active || moveProgress) && (
+        <SelectionBar
+          count={selection.selected.length}
+          onMoveTo={(target) => void runMove(selection.selected, target)}
+          onClear={selection.clear}
+          onDone={selection.stop}
+        />
       )}
       {tagDrawer && (
         <TagPanel

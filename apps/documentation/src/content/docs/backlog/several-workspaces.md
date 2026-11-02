@@ -24,7 +24,14 @@ description: "Proposal: keep several workspaces (folders with Kaipu files), one 
 > mounts elsewhere) and never moves or copies files. It is refused for a folder that is not this
 > workspace's (another identity, Kaipu items with no identity, an empty or plain folder, a folder
 > already registered), and while a recording or export runs; the active workspace goes through the
-> switch transaction. Parts 2–4 (Move to, per-workspace settings, cloud) are still to build.
+> switch transaction.
+>
+> **Part 2 (NIW2-600, 🟡 In progress, stacked on #478):** "Move to" for local folders. The
+> mover (same drive: a hard link; another drive: copy, sha256, then delete; a journal that
+> heals a move the app died in), the "IN · Work ▾" chip in both editors and on the item page,
+> the Library's "⋯" menu and select mode with "N selected · Move to ▸", the exports question
+> and the result toast. Not in it: synced folders and cloud-only items (part 4). Parts 3–4
+> (per-workspace settings, cloud) are still to build.
 
 ## Why
 

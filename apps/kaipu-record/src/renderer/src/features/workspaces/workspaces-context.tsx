@@ -20,6 +20,7 @@ import type {
 import { showToast } from "@renderer/ui/toast-store";
 import { relocateRefusalMessage } from "./relocate-copy";
 import { WorkspaceDialog } from "./workspace-dialog";
+import { MoveExportsDialogHost } from "./move/move-exports-dialog";
 
 export interface Workspaces {
   /** Null until the first list answer. */
@@ -37,8 +38,12 @@ export interface Workspaces {
   switchTo(id: string): Promise<void>;
   /** "Use an existing folder…": the folder picker, then adopt the folder and switch to it. */
   add(): Promise<void>;
-  /** "New workspace…": the dialog (name, color, location). */
-  openCreateDialog(): void;
+  /**
+   * "New workspace…": the dialog (name, color, location). With `forMove`, the new workspace
+   * stays inactive and is handed to `forMove.onCreated` ("Move to ▸ New workspace…");
+   * `onCancelled` runs when the dialog closes without one.
+   */
+  openCreateDialog(forMove?: CreateForMove): void;
   /** "Edit": the same dialog on an existing workspace (name and color). */
   openEditDialog(id: string): void;
   remove(id: string): Promise<WorkspaceRemoveResult>;
@@ -49,6 +54,12 @@ export interface Workspaces {
    */
   changeFolder(id: string): Promise<void>;
   dismissHint(): void;
+}
+
+/** "Move to ▸ New workspace…": create (or adopt) it inactive, then move into it. */
+export interface CreateForMove {
+  onCreated(workspace: WorkspaceView): void;
+  onCancelled(): void;
 }
 
 const WorkspacesContext = createContext<Workspaces | null>(null);
@@ -66,6 +77,8 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
   const [epoch, setEpoch] = useState(0);
   // The dialog: "new", or the id of the workspace being edited.
   const [dialog, setDialog] = useState<"new" | { editId: string } | null>(null);
+  // Set while the dialog was opened from "Move to ▸ New workspace…".
+  const forMove = useRef<CreateForMove | null>(null);
   const generation = useRef<number | null>(null);
 
   useEffect(() => {
@@ -108,7 +121,9 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
           ? t("switchRefusedUnavailable", { name: target?.name ?? "" })
           : reason === "read-only"
             ? t("readOnly")
-            : t("switchRefusedBusy");
+            : reason === "moving"
+              ? t("lockedMoving")
+              : t("switchRefusedBusy");
       showToast({ message });
     },
     [t],
@@ -133,10 +148,34 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
     if (!result.ok && result.reason === "read-only") showToast({ message: t("readOnly") });
   }, [t]);
 
-  const openCreateDialog = useCallback((): void => {
+  const openCreateDialog = useCallback((move?: CreateForMove): void => {
     setMenuOpen(false);
+    forMove.current?.onCancelled();
+    forMove.current = move ?? null;
     setDialog("new");
   }, []);
+
+  /** The dialog closed without a workspace: a pending "Move to ▸ New workspace…" moves nothing. */
+  const closeDialog = useCallback((): void => {
+    setDialog(null);
+    const move = forMove.current;
+    forMove.current = null;
+    move?.onCancelled();
+  }, []);
+
+  /** "Use an existing folder…" from the dialog: the folder picker, then adopt the folder. */
+  const adoptExisting = useCallback(async (): Promise<void> => {
+    setDialog(null);
+    const move = forMove.current;
+    forMove.current = null;
+    if (!move) return add();
+    const result = await window.electronAPI.workspaces.add({ activate: false });
+    if (result.ok) move.onCreated(result.workspace);
+    else {
+      if (result.reason === "read-only") showToast({ message: t("readOnly") });
+      move.onCancelled();
+    }
+  }, [add, t]);
 
   const openEditDialog = useCallback((id: string): void => {
     setMenuOpen(false);
@@ -146,6 +185,9 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
   const onCreated = useCallback(
     (result: Extract<WorkspaceCreateResult, { ok: true }>): void => {
       setDialog(null);
+      const move = forMove.current;
+      forMove.current = null;
+      if (move) return move.onCreated(result.workspace);
       // The workspace exists either way; only the switch to it can have been refused.
       if (!result.switchResult.ok) explain(result.switchResult.reason, result.workspace);
     },
@@ -254,17 +296,16 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
   return (
     <WorkspacesContext.Provider value={value}>
       {children}
+      <MoveExportsDialogHost />
       {showDialog && state && (
         <WorkspaceDialog
           // A fresh form per target: the fields start from that workspace, not the last one.
           key={editing?.id ?? "new"}
           state={state}
           editing={editing}
-          onClose={() => setDialog(null)}
-          onUseExisting={() => {
-            setDialog(null);
-            void add();
-          }}
+          activate={forMove.current === null}
+          onClose={closeDialog}
+          onUseExisting={() => void adoptExisting()}
           onCreated={onCreated}
           onSaved={onSaved}
           onRelocated={onRelocated}

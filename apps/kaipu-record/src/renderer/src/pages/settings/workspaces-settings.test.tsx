@@ -27,6 +27,7 @@ const view = (id: string, name: string): WorkspacesState["workspaces"][number] =
   volume: null,
   state: "available",
   itemCount: 1,
+  device: "1",
 });
 const STATE: WorkspacesState = {
   activeId: "ws-a",

@@ -234,3 +234,11 @@
   border-style: dashed;
   color: var(--text-muted);
 }
+
+/* Select mode: the checkbox sits on the poster's top-left corner. */
+.selectCheck {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+}

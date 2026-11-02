@@ -141,7 +141,9 @@ function WorkspaceMenu({
       ? t("lockedRecording")
       : state.busy === "exporting"
         ? t("lockedExporting")
-        : null;
+        : state.busy === "moving"
+          ? t("lockedMoving")
+          : null;
   const others = state.workspaces.filter((w) => w.id !== active.id);
   const goToSettings = (): void => {
     setMenuOpen(false);
@@ -231,7 +233,7 @@ function WorkspaceMenu({
             role="menuitem"
             className={styles.action}
             disabled={state.readOnly}
-            onClick={openCreateDialog}
+            onClick={() => openCreateDialog()}
           >
             <Plus size={15} />
             {t("add")}

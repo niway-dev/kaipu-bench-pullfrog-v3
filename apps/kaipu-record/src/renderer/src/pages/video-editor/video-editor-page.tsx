@@ -144,6 +144,7 @@ import { TimelineStrip } from "@renderer/features/video-editor/components/timeli
 import { showToast } from "@renderer/ui/toast-store";
 import { isAmbiguousIdentityError } from "@renderer/features/library/rename-outcome";
 import { registerSwitchFlush } from "@renderer/features/workspaces/prepare-switch";
+import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
 import styles from "./video-editor-page.module.css";
 
 /** The "original" pill's own shape, moved out of video-editor-page.module.css:
@@ -417,12 +418,16 @@ export function VideoEditorLoader({ source }: { source: VideoEditorSource }): Re
   }
 
   return (
-    <VideoEditor
-      source={resolved.source}
-      resolvedScene={resolved.scene}
-      cursorTrack={resolved.cursorTrack}
-      assetStoreRef={assetStoreRef}
-    />
+    <>
+      {/* "IN · Work ▾": where the recording belongs, and Move to (ADR 0033). */}
+      <ItemWorkspaceChip assetId={resolved.source.assetId} />
+      <VideoEditor
+        source={resolved.source}
+        resolvedScene={resolved.scene}
+        cursorTrack={resolved.cursorTrack}
+        assetStoreRef={assetStoreRef}
+      />
+    </>
   );
 }
 

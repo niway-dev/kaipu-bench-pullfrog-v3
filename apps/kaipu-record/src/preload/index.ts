@@ -16,6 +16,7 @@ import type { RecordingReadyHandOff, RecordingReadyPayload } from "@shared/types
 import {
   STALE_WORKSPACE,
   type WorkspacePrepareRequest,
+  type MoveProgress,
   type WorkspacesState,
   type WorkspaceStamp,
 } from "@shared/types/workspaces";
@@ -167,7 +168,7 @@ const kaipuApi: KaipuElectronAPI = {
   workspaces: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.workspacesList),
     activeId: () => guard.stamp?.workspaceId ?? null,
-    add: () => ipcRenderer.invoke(IPC_CHANNELS.workspacesAdd),
+    add: (options) => ipcRenderer.invoke(IPC_CHANNELS.workspacesAdd, options ?? {}),
     create: (input) => ipcRenderer.invoke(IPC_CHANNELS.workspacesCreate, input),
     checkLocation: (name) => ipcRenderer.invoke(IPC_CHANNELS.workspacesCheckLocation, name),
     edit: (input) => ipcRenderer.invoke(IPC_CHANNELS.workspacesEdit, input),
@@ -176,6 +177,13 @@ const kaipuApi: KaipuElectronAPI = {
     remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.workspacesRemove, id),
     openFolder: (id) => ipcRenderer.invoke(IPC_CHANNELS.workspacesOpenFolder, id),
     dismissHint: () => ipcRenderer.invoke(IPC_CHANNELS.workspacesDismissHint),
+    moveItems: (request) => scopedInvoke(IPC_CHANNELS.workspacesMoveItems, request),
+    cancelMove: () => ipcRenderer.invoke(IPC_CHANNELS.workspacesCancelMove),
+    onMoveProgress: (callback) => {
+      const listener = (_e: IpcRendererEvent, progress: MoveProgress): void => callback(progress);
+      ipcRenderer.on(IPC_CHANNELS.workspacesMoveProgress, listener);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.workspacesMoveProgress, listener);
+    },
     onChanged: (callback) => {
       const listener = (_e: IpcRendererEvent, state: WorkspacesState): void => callback(state);
       ipcRenderer.on(IPC_CHANNELS.workspacesChanged, listener);

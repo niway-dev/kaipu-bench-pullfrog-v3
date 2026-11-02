@@ -488,6 +488,12 @@ export const IPC_CHANNELS = {
   workspacesCheckLocation: "workspaces:check-location",
   workspacesOpenFolder: "workspaces:open-folder",
   workspacesDismissHint: "workspaces:dismiss-hint",
+  // Item-scoped (stamped): move items of the active workspace to another (ADR 0033).
+  workspacesMoveItems: "workspaces:move-items",
+  // Stop a group move: the move in flight finishes, no further one starts.
+  workspacesCancelMove: "workspaces:cancel-move",
+  // Main → the window that asked: "Moving 3 of 12" (`MoveProgress`).
+  workspacesMoveProgress: "workspaces:move-progress",
   // Main → every window: the registry or the active workspace changed (`WorkspacesState`).
   workspacesChanged: "workspaces:changed",
   // Main → every window: prepare for a switch (flush, ask about unsaved work, close editors).

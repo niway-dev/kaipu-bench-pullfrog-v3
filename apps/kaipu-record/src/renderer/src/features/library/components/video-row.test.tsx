@@ -134,3 +134,17 @@ describe("VideoRow", () => {
     expect(screen.getByText(/edited · not exported/i)).toBeInTheDocument();
   });
 });
+
+describe("VideoRow keyboard and select mode (PR 479)", () => {
+  it("Enter on a control inside the row does not open the row", () => {
+    const { onNavigate } = renderRow({ moveMenu: <button type="button">menu</button> });
+    fireEvent.keyDown(screen.getByRole("button", { name: "menu" }), { key: "Enter" });
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("in select mode the row says whether it is checked", () => {
+    const selection = { checked: true, disabledReason: null, label: "Select", onToggle: vi.fn() };
+    const { container } = renderRow({ selection });
+    expect(container.firstElementChild).toHaveAttribute("aria-pressed", "true");
+  });
+});

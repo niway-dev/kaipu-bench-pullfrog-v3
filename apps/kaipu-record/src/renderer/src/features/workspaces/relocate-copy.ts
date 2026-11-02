@@ -32,6 +32,8 @@ export function relocateRefusalMessage(
       return t("relocateRecording");
     case "exporting":
       return t("relocateExporting");
+    case "moving":
+      return t("relocateMoving");
     case "read-only":
       return t("readOnly");
     case "unknown":

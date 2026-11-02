@@ -21,6 +21,7 @@ const view = (id: string, name: string, color: WorkspaceView["color"]): Workspac
   volume: null,
   state: "available",
   itemCount: 1,
+  device: "1",
 });
 const DEFAULT = view("ws-default", "Default workspace", "kaipu");
 const ACME = view("ws-acme", "Client Acme", "sky");
@@ -284,14 +285,14 @@ describe("Edit workspace: Show in Finder and Change folder…", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("an empty folder is refused with the way out: it is for a moved workspace", async () => {
+  it("an empty folder is refused with the way out: it is for a moved workspace, Move to is for items", async () => {
     renderDialog(ACME);
     relocate.mockResolvedValue({ ok: false, reason: "not-a-workspace" });
     fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("a workspace folder that was moved");
-    expect(alert).not.toHaveTextContent("Move to");
+    expect(alert).toHaveTextContent("“Move to”");
     expect(onRelocated).not.toHaveBeenCalled();
   });
 

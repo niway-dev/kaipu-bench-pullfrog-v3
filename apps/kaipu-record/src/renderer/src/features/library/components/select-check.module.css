@@ -1,0 +1,20 @@
+/* The Library's select mode (spec decision 20): a checkbox on each card and row. */
+.check {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+.check[data-checked] {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+}
+.check[data-disabled] {
+  opacity: 0.35;
+}
