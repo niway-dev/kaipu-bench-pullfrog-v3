@@ -1,9 +1,13 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { createMainTranslator } from "@kaipu/i18n/main";
 import { IPC_CHANNELS } from "@shared/types";
 import type {
+  LocationCheck,
   WorkspaceAddResult,
+  WorkspaceCreateResult,
+  WorkspaceEditResult,
+  WorkspaceRelocateResult,
   WorkspacePrepareResult,
   WorkspaceRemoveResult,
   WorkspacesState,
@@ -18,7 +22,8 @@ import { defaultVaultDirectory, forgetCachedPreferences } from "../library/vault
 import { StaleWorkspaceError, WorkspaceGate } from "./gate";
 import { WorkspaceRegistry, type WorkspaceEntry } from "./registry";
 import { PrepareRequests } from "./prepare-windows";
-import { switchWorkspace } from "./switch-transaction";
+import { relocateRefusal, relocateWorkspace } from "./relocate";
+import { switchWorkspace, type ActiveTransactionDeps } from "./switch-transaction";
 import { APP_TITLE, composeWindowTitle } from "./window-title";
 import { toWorkspaceView } from "./workspace-view";
 
@@ -182,25 +187,32 @@ function refreshTitles(): void {
 
 const prepareRequests = new PrepareRequests(IPC_CHANNELS.workspacesPrepare, PREPARE_TIMEOUT_MS);
 
+/** What every change to the active workspace shares: the lock, the windows, the commit. */
+function activeTransactionDeps(): ActiveTransactionDeps {
+  return {
+    gate: workspaceGate(),
+    busy: () => host?.busy() ?? null,
+    prepareWindows: () => prepareRequests.prepare(BrowserWindow.getAllWindows()),
+    abortWindows: () => sendToAll(IPC_CHANNELS.workspacesPrepareAbort),
+    dropPendingCaptures: () => host?.dropPendingCaptures(),
+    afterCommit: () => {
+      refreshTitles();
+      void broadcastState();
+      host?.broadcastLibraryChanged();
+    },
+  };
+}
+
 async function runSwitch(id: string): Promise<WorkspaceSwitchResult> {
   const reg = requireRegistry();
   const result = await switchWorkspace(
     {
-      gate: workspaceGate(),
+      ...activeTransactionDeps(),
       activeId: () => reg.active().id,
       isKnown: (candidate) => reg.get(candidate) !== undefined,
       readOnly: () => reg.readOnly,
       availability: (candidate) => reg.availability(candidate),
-      busy: () => host?.busy() ?? null,
-      prepareWindows: () => prepareRequests.prepare(BrowserWindow.getAllWindows()),
-      abortWindows: () => sendToAll(IPC_CHANNELS.workspacesPrepareAbort),
-      dropPendingCaptures: () => host?.dropPendingCaptures(),
       persistActive: (target) => reg.setActive(target),
-      afterCommit: () => {
-        refreshTitles();
-        void broadcastState();
-        host?.broadcastLibraryChanged();
-      },
     },
     id,
   );
@@ -251,6 +263,93 @@ async function addWorkspace(sender: Electron.WebContents): Promise<WorkspaceAddR
   return { ok: true, workspace: toWorkspaceView(outcome.entry, availability, null) };
 }
 
+/**
+ * New workspace: a new folder next to the Default workspace's, only Kaipu's files in it, then
+ * the same switch as any other. A refused switch (a recording running) leaves it registered.
+ */
+async function createWorkspace(input: unknown): Promise<WorkspaceCreateResult> {
+  const reg = requireRegistry();
+  const { name, color } = (input ?? {}) as { name?: unknown; color?: unknown };
+  if (typeof name !== "string") return { ok: false, reason: "invalid-name" };
+  if (typeof color !== "string") return { ok: false, reason: "invalid-color" };
+  const outcome = await reg.create({ name, color });
+  if (!outcome.ok) return outcome;
+  await reg.dismissHint();
+  const { availability } = await reg.availability(outcome.entry.id);
+  const switchResult = await runSwitch(outcome.entry.id);
+  await broadcastState();
+  return {
+    ok: true,
+    workspace: toWorkspaceView(outcome.entry, availability, null),
+    switchResult,
+  };
+}
+
+async function editWorkspace(input: unknown): Promise<WorkspaceEditResult> {
+  const reg = requireRegistry();
+  const { id, name, color } = (input ?? {}) as { id?: unknown; name?: unknown; color?: unknown };
+  if (typeof id !== "string") return { ok: false, reason: "unknown" };
+  const outcome = await reg.edit(id, {
+    ...(typeof name === "string" ? { name } : {}),
+    ...(typeof color === "string" ? { color } : {}),
+  });
+  if (!outcome.ok) return outcome;
+  const { availability } = await reg.availability(outcome.entry.id);
+  // The window title shows the active workspace's name, and the tiles show the initials.
+  refreshTitles();
+  await broadcastState();
+  return {
+    ok: true,
+    workspace: toWorkspaceView(outcome.entry, availability, null),
+    savedToFolder: outcome.savedToFolder,
+  };
+}
+
+/**
+ * "Change folder…": the native folder picker, then the workspace is pointed at that folder.
+ * Relocating never moves or copies files; the rules are in `relocate.ts` and the registry.
+ */
+async function relocateFolder(
+  sender: Electron.WebContents,
+  id: unknown,
+): Promise<WorkspaceRelocateResult> {
+  const reg = requireRegistry();
+  const deps = { ...activeTransactionDeps(), registry: reg };
+  if (typeof id !== "string") return { ok: false, reason: "unknown" };
+  // Locked or read-only: say so now, instead of after the user picked a folder.
+  const refused = relocateRefusal(deps, id);
+  if (refused) return refused;
+  const entry = reg.get(id);
+  if (!entry) return { ok: false, reason: "unknown" };
+
+  const window = BrowserWindow.fromWebContents(sender);
+  const t = createMainTranslator(getAppSettings().locale);
+  const options: Electron.OpenDialogOptions = {
+    title: t("dialogs.relocateWorkspace", { name: entry.name }),
+    buttonLabel: t("dialogs.relocateWorkspaceButton"),
+    // Where it was: a moved folder is usually next to where it used to be.
+    defaultPath: dirname(entry.path),
+    properties: ["openDirectory", "createDirectory"],
+  };
+  const picked = window
+    ? await dialog.showOpenDialog(window, options)
+    : await dialog.showOpenDialog(options);
+  const chosen = picked.filePaths[0];
+  if (picked.canceled || !chosen) return { ok: false, reason: "cancelled" };
+
+  const outcome = await relocateWorkspace(deps, id, chosen);
+  if (!outcome.ok) return outcome;
+  const { availability } = await reg.availability(outcome.entry.id);
+  // The active workspace re-lists inside its transaction; any other one only needs the state.
+  refreshTitles();
+  await broadcastState();
+  return {
+    ok: true,
+    workspace: toWorkspaceView(reg.get(outcome.entry.id) ?? outcome.entry, availability, null),
+    ...(outcome.unchanged ? { unchanged: true as const } : {}),
+  };
+}
+
 export function registerWorkspaceHandlers(deps: WorkspaceHost): void {
   host = deps;
   ipcMain.handle(IPC_CHANNELS.workspacesList, () => listState());
@@ -258,6 +357,18 @@ export function registerWorkspaceHandlers(deps: WorkspaceHost): void {
     typeof id === "string" ? runSwitch(id) : { ok: false, reason: "unknown" },
   );
   ipcMain.handle(IPC_CHANNELS.workspacesAdd, (event) => addWorkspace(event.sender));
+  ipcMain.handle(IPC_CHANNELS.workspacesCreate, (_event, input: unknown) => createWorkspace(input));
+  ipcMain.handle(IPC_CHANNELS.workspacesEdit, (_event, input: unknown) => editWorkspace(input));
+  ipcMain.handle(IPC_CHANNELS.workspacesRelocate, (event, id: unknown) =>
+    relocateFolder(event.sender, id),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.workspacesCheckLocation,
+    (_event, name: unknown): Promise<LocationCheck> =>
+      typeof name === "string"
+        ? requireRegistry().checkNewLocation(name)
+        : Promise.resolve({ path: null, state: "parent-missing" }),
+  );
   ipcMain.handle(
     IPC_CHANNELS.workspacesRemove,
     async (_event, id: unknown): Promise<WorkspaceRemoveResult> => {

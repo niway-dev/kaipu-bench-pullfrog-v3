@@ -132,7 +132,7 @@ function WorkspaceMenu({
 }): React.JSX.Element {
   const t = useTranslations("workspaces");
   const navigate = useNavigate();
-  const { setMenuOpen, switchTo, add, openFolder } = useWorkspaces();
+  const { setMenuOpen, switchTo, openCreateDialog, openFolder } = useWorkspaces();
   const activeOff = active.state === "unavailable";
   const locationOf = useLocationLabel();
   // The LOCKED state: nothing can switch while a take or an export writes here.
@@ -231,7 +231,7 @@ function WorkspaceMenu({
             role="menuitem"
             className={styles.action}
             disabled={state.readOnly}
-            onClick={() => void add()}
+            onClick={openCreateDialog}
           >
             <Plus size={15} />
             {t("add")}

@@ -14,6 +14,17 @@ description: "Proposal: keep several workspaces (folders with Kaipu files), one 
 > [0034](/architecture/decisions/0034-per-workspace-setting-overrides/) · Linear
 > [NIW2-370](https://linear.app/niway/issue/NIW2-370). The dependencies NIW2-394 (#410) and
 > NIW2-398 (#412) are merged.
+>
+> **Part 1b (NIW2-599, 🟢 Ready to validate):** "New workspace…" dialog (name, color, a new folder
+> `Kaipu Record — <name>` next to the Default workspace's, or "Use an existing folder…"), editing a
+> workspace's name and color from Settings → Workspaces, and the Default workspace in Kaipu's
+> brand color `#F6055C`. The folder is only ever shown as text; it changes through **Change
+> folder…**, which opens the native folder picker and _relocates_ the workspace: it points it at
+> the folder where it now lives (moved in Finder, put in a Google Drive folder, a drive that
+> mounts elsewhere) and never moves or copies files. It is refused for a folder that is not this
+> workspace's (another identity, Kaipu items with no identity, an empty or plain folder, a folder
+> already registered), and while a recording or export runs; the active workspace goes through the
+> switch transaction. Parts 2–4 (Move to, per-workspace settings, cloud) are still to build.
 
 ## Why
 

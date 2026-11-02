@@ -7,15 +7,16 @@ description: A workspace is an existing folder with Kaipu files in it; its id an
 
 ## Status
 
-| Field         | Value                                                                                                                                          |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status        | Proposed — [several workspaces design](/specs/2026-10-29-several-workspaces-design/); nothing implemented                                      |
-| Date          | 2026-10-29                                                                                                                                     |
-| Supersedes    | —                                                                                                                                              |
-| Superseded by | —                                                                                                                                              |
-| Amended       | 2026-10-29, round 2, in place while Proposed: switcher, color and initials, synced folders, downgrade, settings                                |
-| Amended       | 2026-10-30, round 3, in place while Proposed: visible with one workspace, "Default workspace", orphan cloud entries                            |
-| Amended       | 2026-10-30, review round, in place while Proposed: identity file moved to `.kaipu/workspace/`, no reads of evicted files, capture-bound policy |
+| Field         | Value                                                                                                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status        | Proposed — [several workspaces design](/specs/2026-10-29-several-workspaces-design/); parts 1 and 1b implemented (registry, switch, create and edit); moving items, per-workspace settings and cloud are not |
+| Date          | 2026-10-29                                                                                                                                                                                                   |
+| Supersedes    | —                                                                                                                                                                                                            |
+| Superseded by | —                                                                                                                                                                                                            |
+| Amended       | 2026-10-29, round 2, in place while Proposed: switcher, color and initials, synced folders, downgrade, settings                                                                                              |
+| Amended       | 2026-10-30, round 3, in place while Proposed: visible with one workspace, "Default workspace", orphan cloud entries                                                                                          |
+| Amended       | 2026-10-30, review round, in place while Proposed: identity file moved to `.kaipu/workspace/`, no reads of evicted files, capture-bound policy                                                               |
+| Amended       | 2026-11-01, part 1b (NIW2-599), owner's request: "New workspace…" creates a new folder (decision 1); the Default workspace wears Kaipu's brand color `kaipu` (decision 4 of the spec's data shapes)          |
 
 ## Context
 
@@ -38,7 +39,10 @@ The user-facing word is **workspace**. "Vault" survives only in existing code id
    from the tag palette and optional `initials`). The file is in a **subfolder** of `.kaipu/`,
    not beside the sidecars: a sidecar is `.kaipu/<stem>.json`, so a customer's `workspace.png`
    already owns `.kaipu/workspace.json`, and no stem can address a folder. The folder is
-   never created by Kaipu, and Kaipu never creates the folder root again once it is registered:
+   never created by Kaipu **when the user picks it** ("Use an existing folder…"). The "New workspace…"
+   dialog (part 1b) is the one exception: it creates a single new folder, `Kaipu Record — <name>`,
+   next to the Default workspace's, refuses one that exists and is not empty, and writes only
+   Kaipu's own files in it. Kaipu never creates the folder root again once it is registered:
    a missing root means "unavailable", not "empty".
 2. **A folder that already has `.kaipu/` is adopted**: its `identity.json` is reused, or
    minted when absent (a vault from before this ADR). Its sidecars, tags and edit projects are

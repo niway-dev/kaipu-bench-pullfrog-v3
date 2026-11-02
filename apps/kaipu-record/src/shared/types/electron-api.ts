@@ -32,7 +32,12 @@ import type {
   ReconcileScanResult,
 } from "./library-reconcile";
 import type {
+  LocationCheck,
   WorkspaceAddResult,
+  WorkspaceCreateResult,
+  WorkspaceEditRequest,
+  WorkspaceEditResult,
+  WorkspaceRelocateResult,
   WorkspaceRemoveResult,
   WorkspacesState,
   WorkspaceSwitchResult,
@@ -157,8 +162,23 @@ export interface WorkspacesBridge {
   list(): Promise<WorkspacesState>;
   /** The workspace this window's stamp names, read synchronously (null until it is known). */
   activeId(): string | null;
-  /** Folder picker, then adopt or initialize the folder and switch to it. */
+  /** Folder picker, then adopt or initialize the folder and switch to it ("Use an existing folder"). */
   add(): Promise<WorkspaceAddResult>;
+  /**
+   * New workspace: a new folder `Kaipu Record — <name>` next to the Default workspace's, with
+   * only Kaipu's files in it, then a switch to it.
+   */
+  create(input: { name: string; color: TagColor }): Promise<WorkspaceCreateResult>;
+  /** Where `create` would put the folder, and whether it can be used. */
+  checkLocation(name: string): Promise<LocationCheck>;
+  /** Rename and/or recolor; written to the registry and to the folder's identity. */
+  edit(input: WorkspaceEditRequest): Promise<WorkspaceEditResult>;
+  /**
+   * "Change folder…": the native folder picker, then point this workspace at the folder where
+   * it now lives (moved in Finder, put in a Google Drive folder). Never moves or copies files;
+   * refuses a folder that is not this workspace's, and while a recording or export runs.
+   */
+  relocate(id: string): Promise<WorkspaceRelocateResult>;
   switch(id: string): Promise<WorkspaceSwitchResult>;
   /** Unregister; nothing on disk changes. Refused for the active and the last one. */
   remove(id: string): Promise<WorkspaceRemoveResult>;

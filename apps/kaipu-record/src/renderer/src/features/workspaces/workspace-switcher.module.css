@@ -12,14 +12,18 @@
   height: 30px;
 }
 
+/*
+ * No `--tag` here: the palette rule `[data-color="…"]` (tag-palette.css) has the same
+ * specificity as `.tile` and loads earlier, so a default set on `.tile` overrode every
+ * workspace color and every tile rendered gray. The fallback lives in `var()` instead.
+ */
 .tile {
-  --tag: var(--text-muted);
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border-radius: 28%;
-  background: var(--tag);
+  background: var(--tag, var(--text-muted));
   color: rgba(0, 0, 0, 0.78);
   font-family: var(--font-mono);
   font-weight: var(--font-weight-semibold);

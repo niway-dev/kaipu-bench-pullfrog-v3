@@ -104,15 +104,18 @@ describe("WorkspaceSwitcher with one workspace (spec decision 19)", () => {
     expect(bar).toHaveTextContent("This Mac");
   });
 
-  it("the menu shows the current workspace and Add / Manage, with nothing to switch to", async () => {
+  it("the menu shows the current workspace and New / Manage, with nothing to switch to", async () => {
     renderSwitcher();
     await openMenu();
     const menu = screen.getByRole("menu");
     expect(menu).toHaveTextContent(DEFAULT.path);
     expect(menu).toHaveTextContent("128");
     expect(screen.queryByText("Switch to")).toBeNull();
-    fireEvent.click(screen.getByRole("menuitem", { name: /Add workspace/ }));
-    expect(bridge.add).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("menuitem", { name: /New workspace/ }));
+    // "New workspace…" opens the dialog, it no longer opens the folder picker straight away.
+    expect(await screen.findByRole("alertdialog", { name: "New workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(bridge.add).not.toHaveBeenCalled();
   });
 
   it("shows the one-time hint until it is dismissed, by its button or by Escape", async () => {
@@ -225,6 +228,23 @@ describe("WorkspaceSwitcher with several workspaces", () => {
     expect(alert).toHaveTextContent(
       "Reconnect T7 Shield, or switch workspace. Nothing is saved elsewhere.",
     );
+  });
+
+  it("NOT CONNECTED: the notice offers Change folder… for the drive that moved", async () => {
+    setup(state({ activeId: ARCHIVE.id, workspaces: [ARCHIVE, DEFAULT] }));
+    const relocate = vi.fn(async () => ({ ok: false as const, reason: "cancelled" as const }));
+    window.electronAPI = { ...realApi, workspaces: { ...bridge, relocate } };
+    renderSwitcher();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change folder…" }));
+
+    expect(relocate).toHaveBeenCalledWith("ws-archive");
+  });
+
+  it("a connected active workspace's notice does not exist, so neither does the button", async () => {
+    renderSwitcher();
+    await screen.findByRole("button", { name: /^Workspace:/ });
+    expect(screen.queryByRole("button", { name: "Change folder…" })).toBeNull();
   });
 
   it("NOT CONNECTED: the menu does not claim captures are saved here, and Finder is disabled", async () => {
