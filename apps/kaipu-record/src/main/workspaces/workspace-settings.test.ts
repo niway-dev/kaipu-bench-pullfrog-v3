@@ -589,20 +589,77 @@ describe("a refresh racing a write", () => {
     const realRead = overridesModule.readFolderOverrides;
     let release!: () => void;
     const held = new Promise<void>((resolve) => (release = resolve));
+    let oldReadDone!: () => void;
+    const oldRead = new Promise<void>((resolve) => (oldReadDone = resolve));
     const spy = vi
       .spyOn(overridesModule, "readFolderOverrides")
       .mockImplementationOnce(async (path) => {
         const old = await realRead(path); // the old bytes, read before the write below
+        oldReadDone();
         await held;
         return old;
       });
     const refreshing = settings.refresh("work");
-    await vi.waitFor(() => expect(spy).toHaveBeenCalled());
+    // Only once the old bytes are in hand does the write start, so the stale read is real.
+    await oldRead;
     await settings.setOverride("work", "showBrandBadge", false);
     release();
     await refreshing;
     spy.mockRestore();
     // The cache, as captures and snapshots read it (no fresh read to mask the race).
     expect(settings.activeOverrides()).toEqual({ screenshotCopy: "manual", showBrandBadge: false });
+  });
+
+  it("a refresh that starts in the middle of a write is dropped, so the overrides never flicker off", async () => {
+    await settings.setOverride("work", "screenshotCopy", "manual");
+    const realUpdate = machineStore.update.bind(machineStore);
+    let seenMidWrite: unknown = null;
+    vi.spyOn(machineStore, "update").mockImplementationOnce(async (id, change) => {
+      // The new hash is recorded; the file still holds the old bytes. A capture starts now.
+      await realUpdate(id, change);
+      await settings.refresh("work");
+      seenMidWrite = settings.activeOverrides();
+    });
+    await settings.setOverride("work", "showBrandBadge", false);
+    expect(seenMidWrite).toEqual({ screenshotCopy: "manual" });
+    expect(settings.activeOverrides()).toEqual({ screenshotCopy: "manual", showBrandBadge: false });
+  });
+
+  it("of two overlapping refreshes the one that started last wins, whichever finishes first", async () => {
+    await putFolderFile(work, { screenshotCopy: "auto" });
+    const current = await overridesModule.readFolderOverrides(work.path);
+    if (current.kind !== "ok") throw new Error("fixture file unreadable");
+    await machineStore.update("work", (entry) => ({
+      ...entry,
+      folderOverrides: { sha256: current.sha256, decision: "use", at: 1 },
+    }));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const spy = vi
+      .spyOn(overridesModule, "readFolderOverrides")
+      .mockImplementationOnce(async () => {
+        await gate; // the first refresh read the file before a sync rewrote it
+        return { kind: "ok", overrides: { screenshotCopy: "manual" }, sha256: "0".repeat(64) };
+      });
+    const first = settings.refresh("work");
+    await settings.refresh("work"); // started later, finishes first
+    release();
+    await first;
+    spy.mockRestore();
+    expect(settings.activeOverrides()).toEqual({ screenshotCopy: "auto" });
+  });
+
+  it("refuses to copy from a workspace whose file cannot be read, and writes nothing anywhere", async () => {
+    await settings.setOverride("personal", "screenshotCopy", "auto");
+    const before = await readFile(folderFile(personal), "utf-8");
+    const allBefore = { ...all };
+    await mkdir(join(work.path, ".kaipu", "workspace"), { recursive: true });
+    await writeFile(folderFile(work), "{broken");
+    await expect(settings.copyToAll("work", ["screenshotCopy"])).resolves.toEqual({
+      ok: false,
+      reason: "unreadable",
+    });
+    expect(all).toEqual(allBefore);
+    expect(await readFile(folderFile(personal), "utf-8")).toBe(before);
   });
 });
