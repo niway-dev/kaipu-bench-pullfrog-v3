@@ -204,7 +204,19 @@ function FindingItem({
   const Icon = ICONS[row.icon];
   const renamed = row.renamedTo !== undefined;
   return (
-    <li className={`${styles.row} ${selectable && !fixing ? styles.rowOff : ""}`}>
+    <li
+      className={`${styles.row} ${selectable ? styles.rowSelectable : ""} ${selectable && !fixing ? styles.rowOff : ""}`}
+      // The whole row is the target, so a near miss on the 16 px box still toggles it. The
+      // box's own click already toggled through its onChange.
+      onClick={
+        selectable
+          ? (event) => {
+              if ((event.target as HTMLElement).closest("input")) return;
+              setFixing([finding.path], !fixing);
+            }
+          : undefined
+      }
+    >
       {selectable && (
         <Check
           checked={fixing}
