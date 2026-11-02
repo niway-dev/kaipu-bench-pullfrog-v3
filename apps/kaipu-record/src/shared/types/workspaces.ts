@@ -205,7 +205,10 @@ export interface MoveItemsResult {
   targetId: string;
   moved: { id: string; newId: string }[];
   failed: { id: string; reason: MoveRefusal }[];
-  /** Not started: the user pressed Stop, or the whole group was refused before it began. */
+  /**
+   * Not started because the user pressed Stop. A group refused as a whole (busy, stale,
+   * maintenance) lists every item in `failed` with that reason and leaves this empty.
+   */
   skipped: string[];
 }
 

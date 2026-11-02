@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { MoveItemRef } from "@shared/types/workspaces";
-import { runMoveGroup } from "./move-group";
+import { MaintenanceError } from "../library/vault-activity";
+import { StaleWorkspaceError } from "./gate";
+import { refusalOfError, runMoveGroup } from "./move-group";
 
 const items: MoveItemRef[] = ["a", "b", "c", "d"].map((id) => ({ id, assetId: `x-${id}` }));
 
@@ -67,5 +69,14 @@ describe("runMoveGroup", () => {
       { targetId: "t" },
     );
     expect(result.failed).toEqual([{ id: "a", reason: "io" }]);
+  });
+});
+
+describe("refusalOfError", () => {
+  it("says stale only for a stale window, maintenance for maintenance, and io for the rest", () => {
+    expect(refusalOfError(new StaleWorkspaceError())).toBe("stale");
+    expect(refusalOfError(new MaintenanceError())).toBe("maintenance");
+    expect(refusalOfError(new Error("EACCES: reading the device id"))).toBe("io");
+    expect(refusalOfError("not even an Error")).toBe("io");
   });
 });

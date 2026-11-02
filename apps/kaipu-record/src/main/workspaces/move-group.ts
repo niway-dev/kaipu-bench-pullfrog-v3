@@ -5,6 +5,9 @@ import type {
   MoveRefusal,
 } from "@shared/types/workspaces";
 
+import { MaintenanceError } from "../library/vault-activity";
+import { StaleWorkspaceError } from "./gate";
+
 export type SingleMove = (
   item: MoveItemRef,
 ) => Promise<{ ok: true; newId: string } | { ok: false; reason: MoveRefusal }>;
@@ -50,4 +53,14 @@ export async function runMoveGroup(
     else result.failed.push({ id: item.id, reason: outcome.reason });
   }
   return result;
+}
+
+/**
+ * Why a group move threw before or around its items: a stale window and a maintenance run are
+ * what they say; anything else (a failed read, a full disk) is an I/O failure, never "stale".
+ */
+export function refusalOfError(error: unknown): MoveRefusal {
+  if (error instanceof StaleWorkspaceError) return "stale";
+  if (error instanceof MaintenanceError) return "maintenance";
+  return "io";
 }
