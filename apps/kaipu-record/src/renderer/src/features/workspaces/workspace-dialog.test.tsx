@@ -284,14 +284,14 @@ describe("Edit workspace: Show in Finder and Change folder…", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("an empty folder is refused with the way out: it is for a moved workspace, Move to is for items", async () => {
+  it("an empty folder is refused with the way out: it is for a moved workspace", async () => {
     renderDialog(ACME);
     relocate.mockResolvedValue({ ok: false, reason: "not-a-workspace" });
     fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("a workspace folder that was moved");
-    expect(alert).toHaveTextContent("“Move to”");
+    expect(alert).not.toHaveTextContent("Move to");
     expect(onRelocated).not.toHaveBeenCalled();
   });
 
@@ -342,7 +342,28 @@ describe("Edit workspace: Show in Finder and Change folder…", () => {
 
   it("Save does not depend on the folder: only name and color enable it", async () => {
     renderDialog(ACME);
+    const moved = { ...ACME, path: "/Volumes/Drive/Client Acme" };
+    relocate.mockResolvedValue({ ok: true, workspace: moved });
+    fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
+    await waitFor(() => expect(onRelocated).toHaveBeenCalled());
+
+    // The folder changed at once, so Save has nothing of its own to save yet.
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Kaipu" }));
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+  it("a rejected relocate says the result is unknown and to check the folder, and frees the button", async () => {
+    renderDialog(ACME);
+    relocate.mockRejectedValue(new Error("ipc closed"));
+    fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/can't tell whether the folder was changed/);
+    expect(alert).not.toHaveTextContent(/couldn't change|failed/i);
+    expect(onRelocated).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Change folder…" })).toBeEnabled();
   });
 });
 

@@ -171,7 +171,14 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
 
   const changeFolder = useCallback(
     async (id: string): Promise<void> => {
-      const result = await window.electronAPI.workspaces.relocate(id);
+      let result: Awaited<ReturnType<typeof window.electronAPI.workspaces.relocate>>;
+      try {
+        result = await window.electronAPI.workspaces.relocate(id);
+      } catch {
+        // Rejected after main may already have applied the new folder: the result is unknown.
+        showToast({ message: t("relocateUncertain") });
+        return;
+      }
       if (result.ok) {
         onRelocated(result);
         return;

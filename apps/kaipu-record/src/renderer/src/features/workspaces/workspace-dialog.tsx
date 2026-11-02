@@ -144,6 +144,9 @@ export function WorkspaceDialog({
       const result = await window.electronAPI.workspaces.relocate(editing.id);
       if (result.ok) onRelocated(result);
       else setFolderError(relocateRefusalMessage(result, editing.name, t));
+    } catch {
+      // Rejected after main may already have applied the new folder: the result is unknown.
+      setFolderError(t("relocateUncertain"));
     } finally {
       setRelocating(false);
     }
