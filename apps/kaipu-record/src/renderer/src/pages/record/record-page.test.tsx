@@ -217,7 +217,7 @@ describe("RecordPage idle layout (design Kaipu Record Modes)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Switch" }));
     const menu = screen.getByRole("menu");
     expect(menu).toHaveTextContent("Default workspace");
-    expect(screen.getByRole("menuitem", { name: /Add workspace/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /New workspace/ })).toBeInTheDocument();
   });
 
   it("opens the camera settings drawer from the split Camera tile in the idle layout", () => {

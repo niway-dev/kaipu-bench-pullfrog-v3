@@ -104,15 +104,18 @@ describe("WorkspaceSwitcher with one workspace (spec decision 19)", () => {
     expect(bar).toHaveTextContent("This Mac");
   });
 
-  it("the menu shows the current workspace and Add / Manage, with nothing to switch to", async () => {
+  it("the menu shows the current workspace and New / Manage, with nothing to switch to", async () => {
     renderSwitcher();
     await openMenu();
     const menu = screen.getByRole("menu");
     expect(menu).toHaveTextContent(DEFAULT.path);
     expect(menu).toHaveTextContent("128");
     expect(screen.queryByText("Switch to")).toBeNull();
-    fireEvent.click(screen.getByRole("menuitem", { name: /Add workspace/ }));
-    expect(bridge.add).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("menuitem", { name: /New workspace/ }));
+    // "New workspace…" opens the dialog, it no longer opens the folder picker straight away.
+    expect(await screen.findByRole("alertdialog", { name: "New workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(bridge.add).not.toHaveBeenCalled();
   });
 
   it("shows the one-time hint until it is dismissed, by its button or by Escape", async () => {

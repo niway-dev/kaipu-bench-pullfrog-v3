@@ -88,7 +88,7 @@ describe("Settings layout", () => {
     expect(screen.getAllByRole("button", { name: /request/i }).length).toBeGreaterThan(0);
   });
 
-  it("Workspaces lists each workspace with its folder, opens it, and adds one", async () => {
+  it("Workspaces lists each workspace with its folder, opens it, and offers New workspace", async () => {
     const openFolder = vi.spyOn(window.electronAPI.workspaces, "openFolder");
     const add = vi.spyOn(window.electronAPI.workspaces, "add");
     renderAt("/settings/workspaces");
@@ -97,7 +97,11 @@ describe("Settings layout", () => {
     expect(openFolder).toHaveBeenCalledWith("ws-default");
     // With one workspace there is nothing to remove: it is the active and the last one.
     expect(screen.queryByRole("button", { name: "Remove from list" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Add workspace" }));
+    // New workspace opens the dialog; the folder picker is its secondary link.
+    fireEvent.click(screen.getByRole("button", { name: "New workspace" }));
+    expect(add).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alertdialog", { name: "New workspace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use an existing folder…" }));
     expect(add).toHaveBeenCalledOnce();
     openFolder.mockRestore();
     add.mockRestore();

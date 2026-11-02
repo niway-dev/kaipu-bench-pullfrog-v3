@@ -212,13 +212,13 @@ export function RecordingSettingsPage(): React.JSX.Element {
 
 /**
  * Settings → Workspaces (was Files): one row per workspace with its folder and state, Show
- * folder and Remove from list, and Add workspace (ADR 0032). Remove changes nothing on disk.
+ * folder, Edit (name and color) and Remove from list, and New workspace (ADR 0032). Remove changes nothing on disk.
  */
 export function WorkspacesSettingsPage(): React.JSX.Element {
   const t = useTranslations("settings");
   const tw = useTranslations("workspaces");
   const tc = useTranslations("common");
-  const { state, add, remove, openFolder } = useWorkspaces();
+  const { state, openCreateDialog, openEditDialog, remove, openFolder } = useWorkspaces();
   const [removing, setRemoving] = React.useState<WorkspaceView | null>(null);
   const count = state?.workspaces.length ?? 0;
   return (
@@ -254,6 +254,15 @@ export function WorkspacesSettingsPage(): React.JSX.Element {
                   <Button
                     variant="outline"
                     size="sm"
+                    aria-label={tw("editNamed", { name: workspace.name })}
+                    disabled={state.readOnly}
+                    onClick={() => openEditDialog(workspace.id)}
+                  >
+                    {tw("edit")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={workspace.state === "unavailable"}
                     onClick={() => openFolder(workspace.id)}
                   >
@@ -282,7 +291,7 @@ export function WorkspacesSettingsPage(): React.JSX.Element {
         />
       </Section>
       <div className={styles.workspacesActions}>
-        <Button variant="outline" size="sm" disabled={state?.readOnly} onClick={() => void add()}>
+        <Button variant="outline" size="sm" disabled={state?.readOnly} onClick={openCreateDialog}>
           {tw("addAction")}
         </Button>
       </div>

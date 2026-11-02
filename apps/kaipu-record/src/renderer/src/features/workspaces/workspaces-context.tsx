@@ -9,12 +9,15 @@ import React, {
 } from "react";
 import { useTranslations } from "@kaipu/i18n";
 import type {
+  WorkspaceCreateResult,
+  WorkspaceEditResult,
   WorkspaceRemoveResult,
   WorkspacesState,
   WorkspaceSwitchRefusal,
   WorkspaceView,
 } from "@shared/types/workspaces";
 import { showToast } from "@renderer/ui/toast-store";
+import { WorkspaceDialog } from "./workspace-dialog";
 
 export interface Workspaces {
   /** Null until the first list answer. */
@@ -30,7 +33,12 @@ export interface Workspaces {
   menuOpen: boolean;
   setMenuOpen(open: boolean): void;
   switchTo(id: string): Promise<void>;
+  /** "Use an existing folder…": the folder picker, then adopt the folder and switch to it. */
   add(): Promise<void>;
+  /** "New workspace…": the dialog (name, color, location). */
+  openCreateDialog(): void;
+  /** "Edit": the same dialog on an existing workspace (name and color). */
+  openEditDialog(id: string): void;
   remove(id: string): Promise<WorkspaceRemoveResult>;
   openFolder(id: string): void;
   dismissHint(): void;
@@ -49,6 +57,8 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
   const [state, setState] = useState<WorkspacesState | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [epoch, setEpoch] = useState(0);
+  // The dialog: "new", or the id of the workspace being edited.
+  const [dialog, setDialog] = useState<"new" | { editId: string } | null>(null);
   const generation = useRef<number | null>(null);
 
   useEffect(() => {
@@ -116,6 +126,35 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
     if (!result.ok && result.reason === "read-only") showToast({ message: t("readOnly") });
   }, [t]);
 
+  const openCreateDialog = useCallback((): void => {
+    setMenuOpen(false);
+    setDialog("new");
+  }, []);
+
+  const openEditDialog = useCallback((id: string): void => {
+    setMenuOpen(false);
+    setDialog({ editId: id });
+  }, []);
+
+  const onCreated = useCallback(
+    (result: Extract<WorkspaceCreateResult, { ok: true }>): void => {
+      setDialog(null);
+      // The workspace exists either way; only the switch to it can have been refused.
+      if (!result.switchResult.ok) explain(result.switchResult.reason, result.workspace);
+    },
+    [explain],
+  );
+
+  const onSaved = useCallback(
+    (result: Extract<WorkspaceEditResult, { ok: true }>): void => {
+      setDialog(null);
+      if (!result.savedToFolder) {
+        showToast({ message: t("editSavedOffline", { name: result.workspace.name }) });
+      }
+    },
+    [t],
+  );
+
   const remove = useCallback(
     async (id: string): Promise<WorkspaceRemoveResult> => {
       const result = await window.electronAPI.workspaces.remove(id);
@@ -147,14 +186,42 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
       setMenuOpen,
       switchTo,
       add,
+      openCreateDialog,
+      openEditDialog,
       remove,
       openFolder: (id) => void window.electronAPI.workspaces.openFolder(id),
       dismissHint: () => void window.electronAPI.workspaces.dismissHint(),
     }),
-    [state, epoch, active, menuOpen, switchTo, add, remove],
+    [state, epoch, active, menuOpen, switchTo, add, openCreateDialog, openEditDialog, remove],
   );
 
-  return <WorkspacesContext.Provider value={value}>{children}</WorkspacesContext.Provider>;
+  const editing =
+    dialog && dialog !== "new"
+      ? (state?.workspaces.find((w) => w.id === dialog.editId) ?? null)
+      : null;
+  // An edit of a workspace that left the list meanwhile has nothing to show.
+  const showDialog = state !== null && (dialog === "new" || (dialog !== null && editing !== null));
+
+  return (
+    <WorkspacesContext.Provider value={value}>
+      {children}
+      {showDialog && state && (
+        <WorkspaceDialog
+          // A fresh form per target: the fields start from that workspace, not the last one.
+          key={editing?.id ?? "new"}
+          state={state}
+          editing={editing}
+          onClose={() => setDialog(null)}
+          onUseExisting={() => {
+            setDialog(null);
+            void add();
+          }}
+          onCreated={onCreated}
+          onSaved={onSaved}
+        />
+      )}
+    </WorkspacesContext.Provider>
+  );
 }
 
 export function useWorkspaces(): Workspaces {
