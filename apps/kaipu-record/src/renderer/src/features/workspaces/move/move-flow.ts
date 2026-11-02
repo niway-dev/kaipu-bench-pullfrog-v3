@@ -54,14 +54,16 @@ export function orderForMove(
   exports: readonly MovableItem[],
 ): MovableItem[] {
   const out: MovableItem[] = [];
-  const rest = [...exports];
+  const taken = new Set<MovableItem>();
   for (const item of selected) {
     out.push(item);
-    for (let i = rest.length - 1; i >= 0; i--) {
-      if (rest[i]!.derivedFromAssetId === item.assetId) out.push(...rest.splice(i, 1));
+    for (const candidate of exports) {
+      if (candidate.derivedFromAssetId !== item.assetId || taken.has(candidate)) continue;
+      taken.add(candidate);
+      out.push(candidate);
     }
   }
-  return [...out, ...rest];
+  return [...out, ...exports.filter((candidate) => !taken.has(candidate))];
 }
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -84,8 +86,9 @@ export function resultMessage(
   let message: string;
   if (result.failed.length === 0 && result.skipped.length === 0) {
     message = t("resultAll", { count: result.moved.length, target: context.target });
-  } else if (result.moved.length === 0 && result.failed.length > 0) {
-    message = t("resultNone", { target: context.target, list });
+  } else if (result.moved.length === 0) {
+    // Everything failed, or Stop came before the first move finished.
+    message = t("resultNone", { target: context.target, list }).trim().replace(/\.$/, "");
   } else if (result.failed.length > 0) {
     message = t("resultPartial", {
       moved: result.moved.length,

@@ -90,7 +90,7 @@ export function useMoveItems(): MoveItemsFlow {
         result = {
           targetId: target.id,
           moved: [],
-          failed: moving.map(({ id }) => ({ id, reason: "stale" as const })),
+          failed: moving.map(({ id }) => ({ id, reason: "io" as const })),
           skipped: [],
         };
       } finally {
