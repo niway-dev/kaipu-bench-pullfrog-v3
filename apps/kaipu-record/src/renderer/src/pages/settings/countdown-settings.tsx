@@ -8,6 +8,7 @@ import {
   sanitizeCountdownSeconds,
 } from "@shared/types";
 import { useAppSettings } from "./use-app-settings";
+import { AppWideBadge } from "./scope/scope-controls";
 
 /**
  * Length of the countdown before a take (off, 3 or 5 seconds) — writes
@@ -26,7 +27,12 @@ export function CountdownSettings(): React.JSX.Element {
       label={t("countdown")}
       description={t("countdownDescription")}
       action={
-        <div role="radiogroup" aria-label={t("countdown")} style={{ display: "flex", gap: 8 }}>
+        <div
+          role="radiogroup"
+          aria-label={t("countdown")}
+          style={{ display: "flex", alignItems: "center", gap: 8 }}
+        >
+          <AppWideBadge />
           {RECORDING_COUNTDOWN_OPTIONS.map((seconds) => (
             <Button
               key={seconds}

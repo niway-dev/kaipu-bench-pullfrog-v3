@@ -165,11 +165,11 @@ function broadcastSettings(): void {
   }
 }
 
-// Listeners notified after every persisted settings change (e.g. to re-register
-// global shortcuts when their bindings change).
+// Listeners notified after every settings change, with the EFFECTIVE settings of the active
+// workspace (e.g. to re-register global shortcuts when their bindings change).
 const settingsListeners = new Set<(settings: AppSettings) => void>();
 
-/** Subscribe to persisted settings changes. */
+/** Subscribe to settings changes (the argument is the active workspace's effective settings). */
 export function onSettingsChanged(listener: (settings: AppSettings) => void): void {
   settingsListeners.add(listener);
 }

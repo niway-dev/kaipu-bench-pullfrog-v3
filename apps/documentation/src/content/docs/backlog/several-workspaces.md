@@ -24,8 +24,15 @@ description: "Proposal: keep several workspaces (folders with Kaipu files), one 
 > mover (same drive: a hard link; another drive: copy, sha256, then delete; a journal that
 > heals a move the app died in), the "IN · Work ▾" chip in both editors and on the item page,
 > the Library's "⋯" menu and select mode with "N selected · Move to ▸", the exports question
-> and the result toast. Not in it: synced folders and cloud-only items (part 4). Parts 3–4
-> (per-workspace settings, cloud) are still to build.
+> and the result toast. Not in it: synced folders and cloud-only items (part 4).
+>
+> **Part 3 (NIW2-601, 🟡 In progress, stacked on #479):** per-workspace settings with inheritance
+> ([ADR 0034](/architecture/decisions/0034-per-workspace-setting-overrides/)). Five overridable
+> keys, effective snapshots everywhere, a capture that keeps the settings it started with, the
+> confirmation of a folder's own settings file by its sha256, and the Settings UI ("Settings for",
+> the blue dot, "Set for Work" / "Same as default", Copy to all workspaces, Reset). Deviations
+> from the design mock are listed in the PR: the mock also scopes the countdown, the mic and the
+> camera; ADR 0034 keeps them app-wide. Part 4 (cloud) is still to build.
 
 ## Why
 

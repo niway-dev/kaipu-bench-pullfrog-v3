@@ -9,7 +9,7 @@ description: Five settings can be overridden per workspace and every other one s
 
 | Field         | Value                                                                                                                                                                                                                                                                                               |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status        | Proposed — [several workspaces design](/specs/2026-10-29-several-workspaces-design/), rounds 2 and 3; nothing implemented                                                                                                                                                                           |
+| Status        | Proposed — [several workspaces design](/specs/2026-10-29-several-workspaces-design/), rounds 2 and 3; implemented on the NIW2-601 branch (part 3), not yet on `main`                                                                                                                                |
 | Date          | 2026-10-29                                                                                                                                                                                                                                                                                          |
 | Supersedes    | —                                                                                                                                                                                                                                                                                                   |
 | Superseded by | —                                                                                                                                                                                                                                                                                                   |
@@ -153,6 +153,29 @@ Two existing models were weighed:
 | `cameraBubble`              | App-wide                  | The camera and its look; applied live to a bubble that can outlive a switch.                        |
 | `audio`                     | App-wide                  | The mic and system audio levels follow the hardware, not the folder.                                |
 | `microphone`                | App-wide                  | The input device is hardware.                                                                       |
+
+### Implementation notes (part 3, NIW2-601)
+
+These are choices the implementation made inside the decisions above; none changes them.
+
+- **The resolver** is `main/workspaces/workspace-settings.ts` (the two override files, the
+  confirmation, the scoped read) and `main/workspaces/settings-overrides.ts` (file formats,
+  validation with the `mergeSettings` validators, hashing, `resolveEffective`). `settings-store.ts`
+  keeps the All level as the only thing it persists and answers every snapshot from the cached
+  effective settings; `notifyOverridesChanged()` recomputes and broadcasts it. The folder file of
+  the active workspace is cached, and read again on a switch, when a workspace is added, and as a
+  capture starts (a read that takes longer than two seconds counts as unreadable).
+- **"Copy to all workspaces"** makes the value the workspace shows the All level's and removes the
+  workspace's own override of that key everywhere it can (`settings:copy-to-all`). It copies no
+  value into other folders, so the workspaces cannot drift apart afterwards. A workspace that is
+  not connected, whose file cannot be read, or whose file still awaits an answer keeps its value
+  and is named in the toast ("all" never silently means "all that were connected").
+- **The answer to the sheet names the file** the user saw (`settings:resolve-pending` takes its
+  sha256): a file that changed in between is refused with `changed` and the sheet asks again.
+- **A write over a pending file is refused** (`pending`): writing would activate values the user
+  has not seen. An ignored file is replaced by the keys this Mac writes, as decision 8 says.
+- **The Cloud page** edits the active workspace's `uploadMode` through the same row semantics (a
+  bar with the source, Reset and Copy to all) because it has no scope selector of its own.
 
 ## Alternatives rejected
 
