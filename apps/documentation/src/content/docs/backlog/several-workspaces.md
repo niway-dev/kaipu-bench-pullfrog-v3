@@ -14,6 +14,11 @@ description: "Proposal: keep several workspaces (folders with Kaipu files), one 
 > [0034](/architecture/decisions/0034-per-workspace-setting-overrides/) · Linear
 > [NIW2-370](https://linear.app/niway/issue/NIW2-370). The dependencies NIW2-394 (#410) and
 > NIW2-398 (#412) are merged.
+>
+> **Part 1b (NIW2-599, 🟢 Ready to validate):** "New workspace…" dialog (name, color, a new folder
+> `Kaipu Record — <name>` next to the Default workspace's, or "Use an existing folder…"), editing a
+> workspace's name and color from Settings → Workspaces, and the Default workspace in Kaipu's
+> brand color `#F6055C`. Parts 2–4 (Move to, per-workspace settings, cloud) are still to build.
 
 ## Why
 
