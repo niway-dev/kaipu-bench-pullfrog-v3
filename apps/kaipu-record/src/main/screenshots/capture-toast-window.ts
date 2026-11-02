@@ -7,17 +7,23 @@ import {
   isCaptureToastAction,
   type CaptureToastAction,
   type CaptureToastPayload,
+  type CaptureToastTimer,
 } from "@shared/types/screenshot-capture";
+import {
+  PREVIEW_WINDOW_PADDING,
+  previewCardSize,
+  type PreviewCardSize,
+} from "@shared/capture-preview-layout";
 import type { KeptQuietCapture, QuietCapture } from "./last-quiet-capture";
 import type { SaveScreenshotMeta } from "./screenshot-save";
 
-/** The card's window, in DIP (the card itself is drawn by the renderer inside it). */
-export const TOAST_WIDTH = 380;
-export const TOAST_HEIGHT = 150;
-/** Gap between the toast and the work area's top and right edges. */
+/** Gap between the card (not its window) and the work area's top and right edges. */
 export const TOAST_MARGIN = 18;
-/** The toast hides itself this long after it appears, unless the pointer is over it. */
-export const TOAST_AUTO_HIDE_MS = 6_000;
+/**
+ * The card hides itself this long after it appears, unless the pointer is over it (spec
+ * decision 8: Capture no longer opens the editor, so the card is where Edit is).
+ */
+export const TOAST_AUTO_HIDE_MS = 10_000;
 
 /** What `show` takes: the payload the card renders, plus the display the shot came from. */
 export type CaptureToastShowRequest = CaptureToastPayload & { displayId: number };
@@ -68,29 +74,38 @@ export interface CaptureToastDeps {
   openSaved(target: "editor" | "library", id: string): void;
   /** Open a copy-only capture's bytes in the main window's editor and reveal it. */
   openQuietCapture(capture: QuietCapture): void;
+  /** Show a saved item's file in Finder / Explorer. */
+  revealSaved(id: string): Promise<void>;
+  /** Put a saved item's current file on the clipboard; rejects when it cannot be read. */
+  copySaved(id: string): Promise<void>;
+  /** Put a copy-only capture's kept bytes on the clipboard. */
+  copyBytes(png: Buffer): void;
 }
 
 /**
- * Top-right of `workArea`, `TOAST_MARGIN` in from both edges. Clamped to the work area's
- * left edge, so a display narrower than the toast (or one left of the primary, whose x is
+ * The window for a card of `size`, with the card `TOAST_MARGIN` in from the work area's top and
+ * right edges (the window's transparent padding sits inside that margin). Clamped to the work
+ * area's left edge, so a display narrower than the card (or one left of the primary, whose x is
  * negative) still shows all of it that fits, never a sliver off screen.
  */
-export function toastBounds(workArea: Rectangle): Rectangle {
-  const right = workArea.x + workArea.width - TOAST_WIDTH - TOAST_MARGIN;
+export function toastBounds(workArea: Rectangle, size: PreviewCardSize): Rectangle {
+  const inset = TOAST_MARGIN - PREVIEW_WINDOW_PADDING;
+  const right = workArea.x + workArea.width - size.windowWidth - inset;
   return {
     x: Math.round(Math.max(workArea.x, right)),
-    y: Math.round(workArea.y + TOAST_MARGIN),
-    width: TOAST_WIDTH,
-    height: TOAST_HEIGHT,
+    y: Math.round(workArea.y + inset),
+    width: size.windowWidth,
+    height: size.windowHeight,
   };
 }
 
 /**
- * The capture toast (spec decision 7): one frameless, always-on-top window at the top-right
- * of the display a quiet capture came from. It says what happened ("Copied to clipboard",
- * "Saved to Library") and offers Annotate and Open in Library / Save to Library. It is
- * the one window allowed on screen while the main window stays hidden after a quiet
- * capture, so it never activates the app (`focusable: false`, `showInactive`).
+ * The capture preview card (ADR 0042, spec 2026-11-02): one frameless, always-on-top window at
+ * the top-right of the display a quiet capture came from, sized to the shot. The image is the
+ * card; it shows whether the shot was saved and copied, and offers Edit, Copy, Reveal (or Save
+ * after a failed write) and Close. It is the one window allowed on screen while the main
+ * window stays hidden after a capture, so it never activates the app (`focusable: false`,
+ * `showInactive`).
  *
  * A second capture re-targets the same window (failure 6). Like the tray panel, it joins
  * every Space, full-screen ones included, only while shown: kept on while hidden, that
@@ -110,7 +125,7 @@ export class CaptureToastWindow {
   private pointerInside = false;
   /** The toast generation whose Save is writing; a newer toast's Save is never blocked by it. */
   private savingGeneration: number | null = null;
-  /** Annotate was pressed while that generation's Save was writing: it runs when the write ends. */
+  /** Edit was pressed while that generation's Save was writing: it runs when the write ends. */
   private annotateAfterSave: number | null = null;
   /** `destroy()` ran: the app is quitting, so no window is created again. */
   private disposed = false;
@@ -152,7 +167,10 @@ export class CaptureToastWindow {
     this.generation += 1;
     this.annotateAfterSave = null;
     this.payload = payload;
-    this.bounds = toastBounds(this.workAreaOf(displayId));
+    this.bounds = toastBounds(
+      this.workAreaOf(displayId),
+      previewCardSize(payload.width, payload.height),
+    );
     this.paused = this.pointerInside;
     this.ensureWindow();
     this.present();
@@ -168,7 +186,7 @@ export class CaptureToastWindow {
 
   /** The pointer left the card: a full 6 s again. */
   resume(): void {
-    // An Annotate waiting on the Save holds the toast until the write ends.
+    // An Edit waiting on the Save holds the card until the write ends.
     if (!this.payload || this.annotateAfterSave === this.generation) return;
     this.paused = false;
     this.restartTimer();
@@ -176,7 +194,7 @@ export class CaptureToastWindow {
 
   /**
    * Hide the toast. The kept copy-only bytes stay: only a new capture, Annotate or a Save that
-   * reached the vault frees them. An Annotate waiting on a Save is dropped with the toast.
+   * reached the vault frees them. An Edit waiting on a Save is dropped with the card.
    */
   dismiss(): void {
     this.stopTimer();
@@ -205,7 +223,7 @@ export class CaptureToastWindow {
       case "dismiss":
         this.dismiss();
         return;
-      case "annotate": {
+      case "edit": {
         if (payload.saved) {
           this.deps.openSaved("editor", payload.saved.id);
         } else if (this.savingGeneration === this.generation) {
@@ -223,10 +241,14 @@ export class CaptureToastWindow {
         this.dismiss();
         return;
       }
-      case "open-library":
+      case "reveal":
         if (!payload.saved) return;
-        this.deps.openSaved("library", payload.saved.id);
-        this.dismiss();
+        void this.deps
+          .revealSaved(payload.saved.id)
+          .catch((error) => console.error("screenshot toast reveal failed", error));
+        return;
+      case "copy":
+        void this.copy(payload);
         return;
       case "save":
         void this.save(payload);
@@ -235,8 +257,32 @@ export class CaptureToastWindow {
   }
 
   /**
-   * Save to Library on a copy-only toast: one vault write, then Open in Library. The bytes
-   * are read, not taken, so Annotate keeps working while the write runs; they are freed only
+   * Copy from the card: a saved shot's file as it is now (read by id at press time, so a rename
+   * or an edit since is followed), else the kept copy-only bytes (peeked, so Edit and Save keep
+   * working). The card then reads Copied; a newer card is never repainted by a late copy.
+   */
+  private async copy(payload: CaptureToastPayload): Promise<void> {
+    const generation = this.generation;
+    try {
+      if (payload.saved) {
+        await this.deps.copySaved(payload.saved.id);
+      } else {
+        const kept = this.deps.peekQuietCapture();
+        if (!kept) return;
+        this.deps.copyBytes(kept.capture.png);
+      }
+    } catch (error) {
+      console.error("screenshot toast copy failed", error);
+      return;
+    }
+    if (generation !== this.generation || !this.payload) return;
+    this.payload = { ...this.payload, copied: true };
+    this.send(this.payload);
+  }
+
+  /**
+   * Save on a card whose vault write failed: one vault write, then the card reads Saved. The
+   * bytes are read, not taken, so Edit keeps working while the write runs; they are freed only
    * once the vault has them, and only if no capture started since (its sequence).
    */
   private async save(payload: CaptureToastPayload): Promise<void> {
@@ -257,8 +303,8 @@ export class CaptureToastWindow {
       // A newer capture replaced this toast while the write ran: its card stays.
       if (generation !== this.generation) return;
       const next = { ...payload, saved: { id: saved.id } };
-      if (this.payload) this.payload = next;
-      this.send(next);
+      if (this.payload) this.payload = { ...this.payload, saved: { id: saved.id } };
+      this.send(this.payload ?? next);
       if (this.annotateAfterSave === generation) {
         this.deps.openSaved("editor", saved.id);
         this.dismiss();
@@ -281,9 +327,11 @@ export class CaptureToastWindow {
   private ensureWindow(): void {
     if (this.window && !this.window.isDestroyed()) return;
     this.rendererReady = false;
+    // Resized to each shot by `present`; this is a 16:10 shot's card until then.
+    const initial = previewCardSize(16, 10);
     const window = this.deps.createWindow({
-      width: TOAST_WIDTH,
-      height: TOAST_HEIGHT,
+      width: initial.windowWidth,
+      height: initial.windowHeight,
       // macOS: a panel is what can float over a full-screen app (hub page
       // desktop/floating-windows-over-full-screen).
       ...(this.deps.platform === "darwin" ? { type: "panel" } : {}),
@@ -343,12 +391,21 @@ export class CaptureToastWindow {
       this.timer = null;
       this.dismiss();
     }, TOAST_AUTO_HIDE_MS);
+    this.sendTimer({ remainingMs: TOAST_AUTO_HIDE_MS });
   }
 
   private stopTimer(): void {
+    // Sent even with no timer running: the bar freezes whatever it was showing.
+    this.sendTimer({ remainingMs: null });
     if (this.timer === null) return;
     this.deps.clearTimer(this.timer);
     this.timer = null;
+  }
+
+  /** The card's bar mirrors main's timer; main stays the one that hides the card. */
+  private sendTimer(timer: CaptureToastTimer): void {
+    if (!this.window || this.window.isDestroyed() || !this.rendererReady) return;
+    this.window.webContents.send(IPC_CHANNELS.screenshotToastTimer, timer);
   }
 
   /** Join every Space, full-screen ones included, while shown; leave them when hidden. */
@@ -382,6 +439,9 @@ export type CaptureToastAppDeps = Pick<
   | "title"
   | "openSaved"
   | "openQuietCapture"
+  | "revealSaved"
+  | "copySaved"
+  | "copyBytes"
 >;
 
 /**

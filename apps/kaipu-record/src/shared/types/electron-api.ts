@@ -11,6 +11,7 @@ import type {
   CaptureResult,
   CaptureToastAction,
   CaptureToastPayload,
+  CaptureToastTimer,
   OpenSavedScreenshotRequest,
   OverlayAnswer,
   OverlayState,
@@ -123,6 +124,8 @@ export interface CaptureToastBridge {
   action(action: CaptureToastAction): void;
   /** The pointer entered (`true`, pause the auto-hide) or left (`false`, restart it) the card. */
   hover(paused: boolean): void;
+  /** Main's auto-hide timer, for the card's bar. Returns an unsubscribe fn. */
+  onTimer(callback: (timer: CaptureToastTimer) => void): () => void;
 }
 
 /**

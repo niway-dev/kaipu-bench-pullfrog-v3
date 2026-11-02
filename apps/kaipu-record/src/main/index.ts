@@ -1,4 +1,16 @@
-import { app, shell, dialog, BrowserWindow, ipcMain, Notification, screen, Tray } from "electron";
+import {
+  app,
+  shell,
+  clipboard,
+  dialog,
+  BrowserWindow,
+  ipcMain,
+  nativeImage,
+  Notification,
+  screen,
+  Tray,
+} from "electron";
+import { readFile } from "fs/promises";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { IPC_CHANNELS } from "@shared/types";
@@ -722,6 +734,22 @@ function openSavedScreenshot(target: "editor" | "library", id: string): void {
     .catch((error: unknown) => console.error("[screenshot] toast: open saved failed", error));
 }
 
+/** The preview card's Saved: show the item's file in Finder / Explorer. */
+async function revealSavedScreenshot(id: string): Promise<void> {
+  const path = await vaultActivity.run("library", () => currentVault().filePath(id));
+  shell.showItemInFolder(path);
+}
+
+/** The preview card's Copy on a saved shot: its file as it is now, onto the clipboard. */
+async function copySavedScreenshot(id: string): Promise<void> {
+  const png = await vaultActivity.run("library", async () =>
+    readFile(await currentVault().filePath(id)),
+  );
+  const image = nativeImage.createFromBuffer(png);
+  if (image.isEmpty()) throw new Error(`screenshot ${id} is not a readable image`);
+  clipboard.writeImage(image);
+}
+
 /** Annotate on a copy-only toast: hand the kept bytes to the editor (it reveals the window). */
 function openQuietCapture(capture: QuietCapture): void {
   if (!mainWindow || mainWindow.isDestroyed()) createWindow(false);
@@ -964,6 +992,9 @@ app.whenReady().then(async () => {
     title: () => screenshotTitle(),
     openSaved: openSavedScreenshot,
     openQuietCapture,
+    revealSaved: revealSavedScreenshot,
+    copySaved: copySavedScreenshot,
+    copyBytes: (png) => clipboard.writeImage(nativeImage.createFromBuffer(png)),
   });
   captureToast = toast;
   registerWorkspaceHandlers({

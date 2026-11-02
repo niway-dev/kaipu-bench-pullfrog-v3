@@ -568,12 +568,14 @@ export const IPC_CHANNELS = {
   // Capture toast (main/screenshots/capture-toast-window.ts), shown after a quiet capture.
   // Main → toast: `CaptureToastPayload` to render; sent again with `saved` after Save.
   screenshotToastShow: "screenshot:toast-show",
-  // Toast → main: `{ action: "annotate" | "open-library" | "save" | "dismiss" }`.
+  // Toast → main: `{ action: "edit" | "reveal" | "copy" | "save" | "dismiss" }`.
   screenshotToastAction: "screenshot:toast-action",
   // Toast → main: `{ paused: boolean }`, the pointer entered (true) or left (false) the card.
   screenshotToastHover: "screenshot:toast-hover",
   // Toast → main (no payload): the toast's listener is up; main sends the current payload.
   screenshotToastReady: "screenshot:toast-ready",
+  // Main → toast: `CaptureToastTimer`, sent from every start, restart and stop of the auto-hide.
+  screenshotToastTimer: "screenshot:toast-timer",
   // Main → main window: `OpenSavedScreenshotRequest`, open a saved shot in the editor or Library.
   screenshotOpenSaved: "screenshot:open-saved",
   // Main → main window: `QuietCaptureHandOff`, a copy-only capture's bytes for the editor.

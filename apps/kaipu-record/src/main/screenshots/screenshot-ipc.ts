@@ -32,6 +32,7 @@ import { saveCaptureToWorkspace, saveEditedScreenshot } from "./screenshot-save"
 import { vaultActivity } from "../library/vault-activity";
 import type { CaptureToastShowRequest } from "./capture-toast-window";
 import { deferToastUntilAfterCapture } from "./toast-after-capture";
+import { PREVIEW_THUMBNAIL_MAX_SIDE } from "@shared/capture-preview-layout";
 
 let overlayWindows: CaptureOverlayWindows | null = null;
 /** Whether something (a take) would rather the overlay windows did not load now. */
@@ -127,9 +128,6 @@ export interface ScreenshotHandlers {
   supportedModes(): CaptureMode[];
 }
 
-/** Longest side of the toast thumbnail, in px. */
-const TOAST_THUMBNAIL_WIDTH = 160;
-
 export function registerScreenshotHandlers(
   appWindows: CaptureWindowHooks,
   /**
@@ -172,12 +170,18 @@ export function registerScreenshotHandlers(
       return { id: active.id, name: active.name };
     },
     copyToClipboard: (png) => clipboard.writeImage(nativeImage.createFromBuffer(png)),
+    // Twice the card's largest image area on its longest side, so it is sharp on HiDPI.
     thumbnail: (png) => {
       const image = nativeImage.createFromBuffer(png);
-      const { width } = image.getSize();
-      return (
-        width > TOAST_THUMBNAIL_WIDTH ? image.resize({ width: TOAST_THUMBNAIL_WIDTH }) : image
-      ).toDataURL();
+      const { width, height } = image.getSize();
+      if (Math.max(width, height) <= PREVIEW_THUMBNAIL_MAX_SIDE) return image.toDataURL();
+      return image
+        .resize(
+          width >= height
+            ? { width: PREVIEW_THUMBNAIL_MAX_SIDE, quality: "best" }
+            : { height: PREVIEW_THUMBNAIL_MAX_SIDE, quality: "best" },
+        )
+        .toDataURL();
     },
     onQuietCapture: toastSeam.onQuietCapture,
     onRecordTarget,
