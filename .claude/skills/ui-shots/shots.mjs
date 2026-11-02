@@ -12,7 +12,7 @@
 // Options:
 //   --viewport=1440x720   window size (default 1440x720)
 //   --scale=2             deviceScaleFactor (default 2)
-//   --wait=300            ms to wait after a hover (default 300)
+//   --wait=300            ms to let the UI settle before every shot (default 300)
 //   --css=<file|text>     extra CSS injected after the freeze (file path or inline text)
 //   --no-freeze           do not pause animations / disable transitions
 //
@@ -90,7 +90,10 @@ function parseArgs(argv) {
 }
 
 function parseStep(raw) {
-  const [body, name] = raw.split(/ as /);
+  // The last " as " names the PNG, so a selector may contain the text itself ("Save as draft").
+  const at = raw.lastIndexOf(" as ");
+  const body = at === -1 ? raw : raw.slice(0, at);
+  const name = at === -1 ? undefined : raw.slice(at + 4);
   const idx = body.indexOf(":");
   const kind = idx === -1 ? body : body.slice(0, idx);
   const selector = idx === -1 ? "" : body.slice(idx + 1);
@@ -140,30 +143,59 @@ try {
     });
   }
   await page.evaluate(() => document.fonts.ready);
+  if (opts.freeze) {
+    // `animation-play-state: paused` stops an animation where load left it; rewinding makes
+    // every run start from the same frame (a negative delay from --css still applies on top).
+    await page.evaluate(() =>
+      document.getAnimations().forEach((animation) => {
+        animation.pause();
+        animation.currentTime = 0;
+      }),
+    );
+  }
 
-  const shoot = async (shooter, file) => {
+  const shoot = async (shooter, file, options = {}) => {
     const path = join(outDir, file);
-    await shooter.screenshot({ path });
+    await shooter.screenshot({ path, ...options });
     written.push(path);
+  };
+
+  /** Move the pointer to a viewport corner outside `box`, so nothing under it stays hovered. */
+  const park = async (box) => {
+    const corners = [
+      [0, 0],
+      [width - 1, 0],
+      [0, height - 1],
+      [width - 1, height - 1],
+    ];
+    const inside = ([x, y]) =>
+      box && x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height;
+    const corner = corners.find((point) => !inside(point));
+    if (!corner)
+      console.warn("ui-shots: the target covers the viewport; its rest shot may be hovered");
+    const [x, y] = corner ?? corners[3];
+    await page.mouse.move(x, y);
+    // Let the UI settle (a delayed modal, a hover transition ending) before every shot.
+    await page.waitForTimeout(wait);
   };
 
   for (const step of parsedSteps) {
     if (step.kind === "full") {
-      await page.mouse.move(0, 0);
-      await shoot(page, `${step.name}.png`);
+      await park(null);
+      await shoot(page, `${step.name}.png`, { fullPage: true });
       continue;
     }
     const el = page.locator(step.selector).first();
     if ((await page.locator(step.selector).count()) === 0)
       fail(`no element matches "${step.selector}"`);
     if (step.kind === "el") {
-      await page.mouse.move(0, 0);
+      await park(await el.boundingBox());
       await shoot(el, `${step.name}.png`);
       continue;
     }
     const subject = step.kind === "hoverctx" ? el.locator("xpath=..") : el;
-    await page.mouse.move(0, 0); // park the pointer so the first shot is a true rest state
-    await page.waitForTimeout(wait);
+    // Outside the shot's subject, so the first shot is a true rest state.
+    await park(await subject.boundingBox());
     await shoot(subject, `${step.name}-rest.png`);
     await el.hover();
     await page.waitForTimeout(wait);

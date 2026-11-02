@@ -44,7 +44,7 @@ Steps (default `full`); add ` as <name>` to name the PNG:
 | `hover:<selector>`    | `<name>-rest.png` and `<name>-hover.png`   |
 | `hoverctx:<selector>` | same, but the shot is the element's parent |
 
-Options: `--viewport=1440x720` (use the owner's window size for layout bugs), `--scale=2`, `--wait=300` (ms after a hover), `--css=<file|text>` (extra CSS after the freeze), `--no-freeze`.
+Options: `--viewport=1440x720` (use the owner's window size for layout bugs), `--scale=2`, `--wait=300` (ms to let the UI settle before every shot, hover or not), `--css=<file|text>` (extra CSS after the freeze), `--no-freeze`.
 
 Example (illustrative selectors):
 
@@ -53,7 +53,7 @@ bun .claude/skills/ui-shots/shots.mjs /tmp/mock/capture-preview.html /tmp/mock-s
   full "hover:.card.live as live"
 ```
 
-By default animations are paused at their first frame and transitions are off, so shots are deterministic. If an animation must show a mid state (a draining progress bar), override it: `--css='.live .bar i{animation-delay:-4s!important}'`.
+By default every animation is paused and rewound to its first frame (after the page loads and the fonts are ready) and transitions are off, so shots are deterministic. `full` captures the whole page, not only the viewport; before each shot the pointer is parked in a viewport corner outside the shot's subject. If an animation must show a mid state (a draining progress bar), override it: `--css='.live .bar i{animation-delay:-4s!important}'`.
 
 A static page that has no mockup yet: write one that inlines `packages/tokens/css/tokens.css` plus the component's `*.module.css` (unhashed class names) and mimics its container (the modal shell, `max-height`, flex column, `overflow`). It proves the CSS (flex and `min-height` chains, scroll containers), **not** the React markup; say so in the report.
 
