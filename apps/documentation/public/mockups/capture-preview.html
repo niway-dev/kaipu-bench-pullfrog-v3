@@ -85,6 +85,7 @@
       .pill .hover { display: none; }
       .live:hover .pill .rest { display: none; }
       .live:hover .pill .hover { display: inline; }
+      .live:hover .pill svg.hover { display: block; }
       .dim { position: absolute; inset: 0; background: rgba(10,10,12,.45); opacity: 0; transition: opacity 150ms ease; }
       .is-hover .dim, .live:hover .dim { opacity: 1; }
 
@@ -158,7 +159,7 @@
               <button class="edit" type="button"><svg><use href="#pen" /></svg>Edit</button>
               <span class="close" role="button" aria-label="Close"><svg><use href="#x" /></svg></span>
               <div class="pills">
-                <span class="pill"><svg class="ok"><use href="#check" /></svg>Saved</span>
+                <span class="pill"><svg class="ok rest"><use href="#check" /></svg><svg class="ok hover"><use href="#folder" /></svg>Saved</span>
                 <span class="pill"><svg class="ok"><use href="#check" /></svg><span class="rest">Copied · ⌘V</span><span class="hover">Copied</span></span>
               </div>
             </div>

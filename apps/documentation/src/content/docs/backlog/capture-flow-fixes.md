@@ -9,9 +9,10 @@ description: "Production audit of the desktop capture flow (v0.14.0) and the fix
 > "save automatically or on click" preference ([settings-screenshots](./settings-screenshots)).
 > Parent: [screenshots](./screenshots).
 
-> **Proposed reversal (2026-11-02):** [ADR 0042](/architecture/decisions/0042-capture-ends-in-the-preview-card/)
-> sends Capture to the preview card instead of the editor ([NIW2-606](https://linear.app/niway/issue/NIW2-606)).
-> Until it ships, the table below is what the app does.
+> **Superseded in part (2026-11-02):** [ADR 0042](/architecture/decisions/0042-capture-ends-in-the-preview-card/)
+> sends Capture to the [preview card](./capture-preview-card) instead of the editor
+> ([NIW2-606](https://linear.app/niway/issue/NIW2-606)). The Capture row below no longer holds once that
+> ships; the rest of this page does.
 
 ## What production (desktop v0.14.0) did
 
