@@ -107,9 +107,16 @@
   color: var(--text-muted);
 }
 
-/* ── The one-time hint (decision 19): no backdrop, never blocks a click elsewhere ── */
+/*
+ * ── The one-time hint (decision 19): no backdrop, never blocks a click elsewhere ──
+ * It floats over the top of the page, where the item page keeps its Rename pencil. With
+ * pointer events on, the card swallowed that click until the hint was dismissed (the
+ * release-candidate E2E for 0.16.0 timed out on it). Only "Got it" takes clicks; the rest
+ * of the card lets them through to whatever sits under it.
+ */
 
 .hint {
+  pointer-events: none;
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
@@ -130,6 +137,7 @@
 }
 
 .hintDismiss {
+  pointer-events: auto;
   flex-shrink: 0;
   padding: 4px 8px;
   border: none;
