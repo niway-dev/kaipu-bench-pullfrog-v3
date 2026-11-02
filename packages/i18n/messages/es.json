@@ -2614,13 +2614,13 @@
   },
   "move": {
     "chipIn": "En",
-    "chipLabel": "En {name}. Mover a otro workspace",
+    "chipLabel": "En {name}. Mover a otro espacio de trabajo",
     "belongsHere": "Está aquí",
     "moveTo": "Mover a",
     "costSameDrive": "Mismo disco · al instante",
     "costOtherDrive": "Otro disco · copia",
     "costNotConnected": "No conectado",
-    "newWorkspace": "Nuevo workspace…",
+    "newWorkspace": "Nuevo espacio de trabajo…",
     "closesEditor": "Al moverlo se cierra este editor. Sus etiquetas lo acompañan por nombre.",
     "closesPage": "Al moverlo se cierra esta página. Sus etiquetas lo acompañan por nombre.",
     "lockedRecording": "Termina la grabación primero",
@@ -2659,7 +2659,7 @@
     "reason_tags-unreadable": "las etiquetas del destino no se pueden leer",
     "reason_checksum-mismatch": "la copia no coincidió con el original; el original no se tocó",
     "reason_maintenance": "Kaipu está reparando tus archivos",
-    "reason_stale": "el workspace cambió",
+    "reason_stale": "el espacio de trabajo cambió",
     "reason_io": "no se pudo copiar un archivo; el original no se tocó",
     "closeRefused": "El editor siguió abierto, así que no se movió nada."
   }
