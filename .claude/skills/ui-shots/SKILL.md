@@ -37,12 +37,12 @@ bun .claude/skills/ui-shots/shots.mjs <html-file-or-url> <out-dir> [options] [st
 
 Steps (default `full`); add ` as <name>` to name the PNG:
 
-| Step                  | Writes                                     |
-| --------------------- | ------------------------------------------ |
-| `full`                | `full.png`, the whole page                 |
-| `el:<selector>`       | one element                                |
-| `hover:<selector>`    | `<name>-rest.png` and `<name>-hover.png`   |
-| `hoverctx:<selector>` | same, but the shot is the element's parent |
+| Step                  | Writes                                                                                                                                                      |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `full`                | `full.png`, the whole page                                                                                                                                  |
+| `el:<selector>`       | one element                                                                                                                                                 |
+| `hover:<selector>`    | `<name>-rest.png` and `<name>-hover.png`                                                                                                                    |
+| `hoverctx:<selector>` | same, but the shot is the element's parent (the hover shot is clipped to what is on screen, so a parent taller than the viewport loses its off-screen part) |
 
 Options: `--viewport=1440x720` (use the owner's window size for layout bugs), `--scale=2`, `--wait=300` (ms to let the UI settle before every shot, hover or not), `--css=<file|text>` (extra CSS after the freeze), `--no-freeze`.
 
@@ -53,7 +53,7 @@ bun .claude/skills/ui-shots/shots.mjs /tmp/mock/capture-preview.html /tmp/mock-s
   full "hover:.card.live as live"
 ```
 
-By default transitions are off and, right before every shot, each animation is put in a fixed state: a finite one jumps to its end (an entrance such as a fade-in or a pop shows the settled UI), an infinite one is paused at its start. Shots are deterministic. `full` captures the whole page, not only the viewport; before each shot the pointer is parked in a viewport corner outside the shot's subject. To show a mid state (a half-drained progress bar), skip the freeze and pin it yourself: `--no-freeze --css='*{transition:none!important} .live .bar i{animation-delay:-4s!important;animation-play-state:paused!important}'`.
+By default transitions are off and, right before every shot, each animation is put in a fixed state: a finite one jumps to its end (an entrance such as a fade-in or a pop shows the settled UI), an infinite one is paused at its start. Shots are deterministic. `full` captures the whole page, not only the viewport; before each shot the pointer is parked in a viewport corner outside the shot's subject. To show a mid state (a half-drained progress bar), skip the freeze and pin it yourself: `--no-freeze --css='*{transition:none!important} .live .bar i{animation-delay:-4s!important;animation-play-state:paused!important}'`. This lands on exactly that frame only for an animation that starts after the CSS is injected (on hover, or added by the page later); one already running at load also carries the time load took, so for those shoot with the default freeze, or give the page its own pinned state.
 
 A static page that has no mockup yet: write one that inlines `packages/tokens/css/tokens.css` plus the component's `*.module.css` (unhashed class names) and mimics its container (the modal shell, `max-height`, flex column, `overflow`). It proves the CSS (flex and `min-height` chains, scroll containers), **not** the React markup; say so in the report.
 

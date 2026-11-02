@@ -223,7 +223,11 @@ try {
     await el.hover();
     await page.waitForTimeout(wait);
     if (opts.freeze) await settleAnimations();
-    await shoot(subject, `${step.name}-hover.png`);
+    // A clip of the page where the subject is now, not a locator shot: that would scroll again
+    // and could move a tall hoverctx parent (and its hovered child) away from the pointer.
+    const hovered = await subject.boundingBox();
+    if (!hovered) fail(`"${step.selector}" has no box to shoot after the hover`);
+    await shoot(page, `${step.name}-hover.png`, { clip: hovered });
   }
 } finally {
   await browser.close();
