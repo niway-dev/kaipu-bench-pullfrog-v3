@@ -662,4 +662,32 @@ describe("a refresh racing a write", () => {
     expect(all).toEqual(allBefore);
     expect(await readFile(folderFile(personal), "utf-8")).toBe(before);
   });
+
+  it("a refresh in flight cannot undo the answer the user just gave to a changed file", async () => {
+    await putFolderFile(work, { screenshotCopy: "manual" });
+    const current = await overridesModule.readFolderOverrides(work.path);
+    if (current.kind !== "ok") throw new Error("fixture file unreadable");
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const spy = vi
+      .spyOn(overridesModule, "readFolderOverrides")
+      .mockImplementationOnce(async () => {
+        await gate; // read before a sync replaced the file
+        return { kind: "ok", overrides: { screenshotCopy: "auto" }, sha256: "0".repeat(64) };
+      });
+    const slow = settings.refresh("work");
+    await settings.resolvePending("work", "use", current.sha256);
+    release();
+    await slow;
+    spy.mockRestore();
+    expect(settings.activeOverrides()).toEqual({ screenshotCopy: "manual" });
+  });
+
+  it("copies uploadMode even when the folder file cannot be read (it is machine-bound)", async () => {
+    await mkdir(join(work.path, ".kaipu", "workspace"), { recursive: true });
+    await writeFile(folderFile(work), "{broken");
+    await settings.setOverride("work", "uploadMode", "automatic");
+    await expect(settings.copyToAll("work", ["uploadMode"])).resolves.toMatchObject({ ok: true });
+    expect(all.uploadMode).toBe("automatic");
+  });
 });

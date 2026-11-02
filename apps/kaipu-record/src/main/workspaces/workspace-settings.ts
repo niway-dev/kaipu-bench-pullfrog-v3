@@ -80,6 +80,14 @@ export class WorkspaceSettings {
    */
   private readonly frozen = new Map<string, SettingsOverrides>();
 
+  /**
+   * A fresh read taken on the write path (an answer, or the read an edit starts from) is newer
+   * than any refresh already in flight: bumping the epoch makes those drop what they read.
+   */
+  private fence(id: string): void {
+    this.writeEpochs.set(id, (this.writeEpochs.get(id) ?? 0) + 1);
+  }
+
   private beginWrite(id: string): void {
     this.frozen.set(id, this.computeOverrides(id));
     this.writing.set(id, (this.writing.get(id) ?? 0) + 1);
@@ -317,6 +325,7 @@ export class WorkspaceSettings {
     // Always from the disk: the cache may predate a sync.
     const read = await this.read(ws.path);
     this.remember(ws.id, read);
+    this.fence(ws.id);
     const state = folderState(read, this.deps.machine.get(ws.id).folderOverrides);
     if (state === "unreadable") return "unreadable";
     // The user has not seen these values: writing now would activate them by the back door.
@@ -393,6 +402,7 @@ export class WorkspaceSettings {
     if (!(await this.deps.isAvailable(id))) return { ok: false, reason: "nothing-pending" };
     const read = await this.read(ws.path);
     this.remember(id, read);
+    this.fence(id);
     const state = folderState(read, this.deps.machine.get(id).folderOverrides);
     if (read.kind !== "ok" || state === "none" || state === "unreadable") {
       this.deps.changed();
@@ -444,7 +454,10 @@ export class WorkspaceSettings {
     const wanted = [...new Set(keys)];
     await this.refresh(id);
     // A file that cannot be read cannot say what the workspace shows: refuse before any write.
-    if (this.reads.get(id)?.kind === "unreadable") return { ok: false, reason: "unreadable" };
+    // (`uploadMode` is machine-bound, so an unreadable folder file does not stop it.)
+    if (wanted.some((key) => key !== "uploadMode") && this.reads.get(id)?.kind === "unreadable") {
+      return { ok: false, reason: "unreadable" };
+    }
     const shown = resolveEffective(this.deps.getAll(), this.overridesOf(id));
     const patch: Record<string, unknown> = {};
     for (const key of wanted) patch[key] = shown[key];
