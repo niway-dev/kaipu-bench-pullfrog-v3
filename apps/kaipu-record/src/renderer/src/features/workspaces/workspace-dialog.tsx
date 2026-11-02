@@ -69,9 +69,11 @@ export function WorkspaceDialog({
   const [busy, setBusy] = useState(false);
   const [relocating, setRelocating] = useState(false);
   const [folderError, setFolderError] = useState<string | null>(null);
-  const [refusal, setRefusal] = useState<WorkspaceCreateRefusal | WorkspaceEditRefusal | null>(
-    null,
-  );
+  // `*-uncertain`: the call itself rejected (the IPC closed, main threw), so what it did is
+  // unknown. A rejected create may already have registered the workspace.
+  const [refusal, setRefusal] = useState<
+    WorkspaceCreateRefusal | WorkspaceEditRefusal | "create-uncertain" | "edit-uncertain" | null
+  >(null);
 
   const check = validateWorkspaceName(name, state.workspaces, editing?.id);
   const validName = check.ok ? check.name : null;
@@ -125,6 +127,8 @@ export function WorkspaceDialog({
         if (result.ok) onCreated(result);
         else setRefusal(result.reason);
       }
+    } catch {
+      setRefusal(editing ? "edit-uncertain" : "create-uncertain");
     } finally {
       setBusy(false);
     }
@@ -328,7 +332,7 @@ function LocationSummary({
 }
 
 function refusalMessage(
-  reason: WorkspaceCreateRefusal | WorkspaceEditRefusal,
+  reason: WorkspaceCreateRefusal | WorkspaceEditRefusal | "create-uncertain" | "edit-uncertain",
   editing: boolean,
   t: ReturnType<typeof useTranslations<"workspaces">>,
 ): string {
@@ -345,6 +349,10 @@ function refusalMessage(
       return t("removeRefusedUnknown");
     case "not-writable":
       return t(editing ? "editNotWritable" : "createNotWritable");
+    case "create-uncertain":
+      return t("createUncertain");
+    case "edit-uncertain":
+      return t("editUncertain");
     default:
       return t(editing ? "editFailed" : "createFailed");
   }

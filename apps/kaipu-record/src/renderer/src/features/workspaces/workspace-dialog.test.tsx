@@ -190,6 +190,21 @@ describe("New workspace dialog", () => {
     expect(createButton()).toBeEnabled();
   });
 
+  it("a rejected create says the result is unknown and to check before retrying, never 'failed'", async () => {
+    create.mockRejectedValue(new Error("ipc closed"));
+    type("Work");
+    await waitFor(() => expect(createButton()).toBeEnabled());
+    fireEvent.click(createButton());
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/can't tell whether the workspace was created/);
+    expect(alert).toHaveTextContent(/Check the Workspaces list before trying again/);
+    expect(alert).not.toHaveTextContent(/couldn't create|failed/i);
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(createButton()).toBeEnabled();
+  });
+
   it("offers an existing folder (Google Drive, OneDrive) as a secondary way", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use an existing folder…" }));
     expect(onUseExisting).toHaveBeenCalledOnce();
@@ -395,6 +410,19 @@ describe("Edit workspace dialog", () => {
     type("default workspace");
     expect(screen.getByText("Another workspace is already called that.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("a rejected edit says the result is unknown and to check the workspace before retrying", async () => {
+    edit.mockRejectedValue(new Error("ipc closed"));
+    type("Acme Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/can't tell whether the changes were saved/);
+    expect(alert).toHaveTextContent(/Check this workspace before trying again/);
+    expect(alert).not.toHaveTextContent(/couldn't save|failed/i);
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
   it("stays open and says so when the folder cannot take the change", async () => {
