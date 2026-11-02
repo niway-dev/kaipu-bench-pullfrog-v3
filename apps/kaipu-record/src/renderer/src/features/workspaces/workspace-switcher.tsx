@@ -111,7 +111,9 @@ export function WorkspaceSwitcher(): React.JSX.Element | null {
 
       {showHint && (
         <div className={styles.hint} role="status">
-          <span>{t("hint")}</span>
+          <span className={styles.hintText} title={t("hint")}>
+            {t("hint")}
+          </span>
           <button type="button" className={styles.hintDismiss} onClick={dismissHint}>
             {t("hintDismiss")}
           </button>
