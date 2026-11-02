@@ -81,6 +81,10 @@
           #fbfbfd;
       }
       .shot .fake.tall::after { left: 14px; top: 40px; width: 44px; }
+      /* Pill text that changes on hover (decision 6: the paste hint at rest, "Copied ✓" on hover). */
+      .pill .hover { display: none; }
+      .live:hover .pill .rest { display: none; }
+      .live:hover .pill .hover { display: inline; }
       .dim { position: absolute; inset: 0; background: rgba(10,10,12,.45); opacity: 0; transition: opacity 150ms ease; }
       .is-hover .dim, .live:hover .dim { opacity: 1; }
 
@@ -155,7 +159,7 @@
               <span class="close" role="button" aria-label="Close"><svg><use href="#x" /></svg></span>
               <div class="pills">
                 <span class="pill"><svg class="ok"><use href="#check" /></svg>Saved</span>
-                <span class="pill"><svg class="ok"><use href="#check" /></svg>Copied · ⌘V</span>
+                <span class="pill"><svg class="ok"><use href="#check" /></svg><span class="rest">Copied · ⌘V</span><span class="hover">Copied</span></span>
               </div>
             </div>
             <div class="meta"><span>1440 × 900 · Frame</span><span>Personal</span></div>
