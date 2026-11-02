@@ -62,10 +62,15 @@ export function VideoRow({
     <div
       className={cx(styles.row, !isLast && styles.divided)}
       data-selected={selected || selection?.checked}
+      aria-pressed={selection ? selection.checked : undefined}
+      aria-disabled={selection?.disabledReason ? true : undefined}
       onClick={(e) => activate(e.shiftKey)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
+        // A key pressed on a control inside (the "⋯" menu, portaled or not, bubbles through
+        // React) belongs to that control, not to the card.
+        if (e.target !== e.currentTarget) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           activate(e.shiftKey);

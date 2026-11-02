@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { VideoCard } from "./video-card";
 import type { LibraryVideo } from "../types";
@@ -210,5 +210,49 @@ describe("VideoCard tags", () => {
     await userEvent.click(screen.getByTitle("Tags"));
     expect(onTags).toHaveBeenCalledOnce();
     expect(onNavigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("VideoCard keyboard and select mode (PR 479)", () => {
+  it("Enter on a control inside the card does not open the card", () => {
+    const onNavigate = vi.fn();
+    render(
+      <VideoCard
+        video={video}
+        onNavigate={onNavigate}
+        onDelete={vi.fn()}
+        moveMenu={<button type="button">menu</button>}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "menu" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "menu" }), { key: " " });
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("Enter on the card itself still opens it", () => {
+    const onNavigate = vi.fn();
+    const { container } = render(
+      <VideoCard video={video} onNavigate={onNavigate} onDelete={vi.fn()} />,
+    );
+    fireEvent.keyDown(container.firstElementChild!, { key: "Enter" });
+    expect(onNavigate).toHaveBeenCalledOnce();
+  });
+
+  it("in select mode the card says whether it is checked", () => {
+    const selection = { checked: true, disabledReason: null, label: "Select", onToggle: vi.fn() };
+    const { container, rerender } = render(
+      <VideoCard video={video} onNavigate={vi.fn()} onDelete={vi.fn()} selection={selection} />,
+    );
+    expect(container.firstElementChild).toHaveAttribute("aria-pressed", "true");
+    rerender(
+      <VideoCard
+        video={video}
+        onNavigate={vi.fn()}
+        onDelete={vi.fn()}
+        selection={{ ...selection, checked: false, disabledReason: "cloud" }}
+      />,
+    );
+    expect(container.firstElementChild).toHaveAttribute("aria-pressed", "false");
+    expect(container.firstElementChild).toHaveAttribute("aria-disabled", "true");
   });
 });
