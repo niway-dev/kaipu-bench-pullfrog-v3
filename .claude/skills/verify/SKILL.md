@@ -1,21 +1,83 @@
 ---
 name: verify
-description: 'Run when the user or another agent says "verify" or names verify. Also use when a kaipu-record PR needs proof rows: screenshots or video of a criterion on the real app.'
+description: 'Run when the user or another agent says "verify" or names verify. Also use when kaipu-record work needs evidence: a mockup or design idea to show, a renderer component or card to screenshot (rest and hover), a before/after of a visible change, or proof rows with screenshots or video of the real app. cs-capture-evidence loads this skill as the project''s evidence configuration.'
 ---
 
-# verify
+# verify — Kaipu Record's evidence skill
 
-Produce screenshots and a video of the real Kaipu Record desktop app for the `## Proof` table of a PR.
+The one place kaipu-record configures evidence. `cs-capture-evidence` (`produce`, Step 0) looks for
+this skill and follows it; the generic procedure, the script and the stack traps live there and in
+the hub recipes, not here:
+
+- procedure: `cs-capture-evidence` → `references/produce.md` (deliver, record, secrets, layout);
+- browser recipe: [general-knowledge `verification/web-playwright.md`](https://github.com/csdev19/general-knowledge/blob/main/verification/web-playwright.md);
+- Electron recipe: [general-knowledge `verification/electron.md`](https://github.com/csdev19/general-knowledge/blob/main/verification/electron.md).
+
+## Configuration
+
+| Setting           | Value                                                                                                                                                                                                                                                                                          |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surfaces          | Browser (mockups, renderer components in a harness) and the Electron app                                                                                                                                                                                                                       |
+| Owner's machine   | **Browser scenarios only.** Never launch Electron, the Playwright desktop suite or the Electron scenarios below there (owner rule): a killed Electron leaves a macOS dialog. Electron proof comes from CI (`gh workflow run "PR checks" --ref <branch>` runs the macOS E2E) or another machine |
+| Shot script       | `cs-capture-evidence/scripts/shots.mjs` (symlinked from the skills clone into `~/.claude*/skills/`; `<skills>` below), run with `bun` from the repo root (rest + hover, settled animations)                                                                                                    |
+| `playwright-core` | `node_modules/.bun/playwright-core@<v>/node_modules/playwright-core` (bun, not hoisted); the script finds it, also from a fresh worktree via the main checkout                                                                                                                                 |
+| Browser           | System Google Chrome (`executablePath`). Never `playwright install`                                                                                                                                                                                                                            |
+| Evidence folder   | `.evidence/<branch-or-topic>/` at the repo root (git-ignored)                                                                                                                                                                                                                                  |
+| Mockups           | `apps/documentation/public/mockups/*.html`                                                                                                                                                                                                                                                     |
+| Tokens            | `packages/tokens/css/tokens.css` (dark is `:root`)                                                                                                                                                                                                                                             |
+| Renderer aliases  | `@renderer` → `apps/kaipu-record/src/renderer/src`, `@shared` → `apps/kaipu-record/src/shared`                                                                                                                                                                                                 |
+| Delivery          | Chat: `![state](<absolute path>)`. PR: `gh pr edit <n> --attach '<file>#<alt>'`. One row per state, growing down: `State \| Before \| After` or `State \| Capture`                                                                                                                             |
 
 ## When to use
 
-- A PR criterion is visible UI behavior and its proof row needs a picture, not just a test log.
+- A design idea or mockup is on the table and the owner should see it, not read about it.
+- A UI change is about to be reported done or a PR's proof row needs a picture.
 - The user or another agent says "verify".
 
 Not for: pure logic (a unit test is the proof), and not a CI gate. Per ADR 0006 and ADR 0027 the macOS e2e
 suite runs only on release candidates; this skill runs on demand and changes nothing in CI.
 
-## Overview
+## Browser scenarios (no Electron)
+
+### Mockup
+
+```bash
+bun <skills>/cs-capture-evidence/scripts/shots.mjs apps/documentation/public/mockups/<name>.html \
+  .evidence/<topic> full "hover:<card selector> as card"
+```
+
+Copy a mockup that is not committed yet into its own `/tmp` folder first; run the script from the
+repo root either way, so it finds `playwright-core`.
+
+### Renderer component in a harness
+
+For a real component (a card, a floating window, a dialog), without Electron. Proven on NIW2-606
+(the capture preview card):
+
+1. In a worktree of the branch (`bun install --frozen-lockfile`, never symlinked `node_modules`),
+   add a throwaway `apps/kaipu-record/harness-tmp/` with `index.html`, `harness.tsx` and a
+   `vite.config.ts` that sets the `@renderer` / `@shared` aliases and `@vitejs/plugin-react`
+   (components on CSS modules need no StyleX plugin; add it when the component uses StyleX).
+2. `harness.tsx` imports `../src/renderer/src/assets/main.css`, wraps the component in
+   `I18nProvider` (`@kaipu/i18n`, `messages/es` and `messages/en`) and passes a **fake bridge**
+   (the component's `api` prop, or a stub `window.electronAPI`) that sends the payload of the scene
+   in `?s=<scene>`. Set `document.body.dataset.window` like `main.tsx` does for that window.
+3. `node_modules/.bin/vite build --config harness-tmp/vite.config.ts`, then serve `harness-tmp/dist`
+   with `python3 -m http.server <free port>` (module scripts do not load from `file://`).
+4. Shoot at the **window's real size**: the viewport main gives that window, or a page `clip` of the
+   card plus its window padding.
+5. Delete `harness-tmp/` and stop the server. Never commit it.
+
+Say in the proof row that the shot proves what the component renders, not main's behaviour.
+
+### Before / after
+
+Stand up the base in a second worktree (`git worktree add --detach … origin/main`), build the same
+harness there with the same scenes and the same thumbnail, and shoot both at each side's real
+window size. A state the base did not have gets `—`; a "before" that only exists as the owner's
+screenshot is marked reported, not re-shot.
+
+## Electron app scenarios
 
 Each scenario is a Playwright script in `apps/kaipu-record/verify/`. It launches the built Electron app with
 `_electron.launch` (through the e2e `launchApp` helper, so userData and the vault are throwaway and seeded),
@@ -35,9 +97,8 @@ From `apps/kaipu-record`, in the worktree of the PR (use the PR's code, not the 
    `bun run proof` = `bun run build` then the same, and needs the `.env` file.
 3. Artifacts land in `apps/kaipu-record/test-results/verify/<scenario>/` (gitignored): `NN-<step>.png` per step
    and `video.webm` (main window). The folder is wiped at the start of each run of that scenario.
-4. Attach to the PR: Playwright artifacts are local files, so upload them. Drag the PNGs and the `.webm` into
-   the PR description or a comment in the browser (GitHub hosts them and gives a link), or use a gist or
-   release asset. Put the link in the proof row's Evidence cell. Never commit them.
+4. Attach to the PR: `gh pr edit <n> --attach '<file>#<alt>'` (gh ≥ 2.99, 10 MB per file), laid out one row
+   per state as in Configuration. Put the link in the proof row's Evidence cell. Never commit them.
 
 Environment: macOS or a dev machine for `export` (WebCodecs H.264; it self-skips on Linux). The app is
 launched with `KAIPU_DISABLE_SCREEN_CAPTURE=1`, so no OS permission dialog appears. A running Kaipu dev
