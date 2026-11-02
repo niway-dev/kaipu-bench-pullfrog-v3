@@ -469,6 +469,9 @@ describe("healing never deletes the only copy", () => {
   });
 });
 
+// chmod-based failures need an OS that enforces directory permissions (not Windows, not root).
+const enforcesPermissions = process.platform !== "win32" && process.getuid?.() !== 0;
+
 describe("review findings on a move (PR 479)", () => {
   async function crashAfterPlacement(): Promise<void> {
     await expect(
@@ -557,36 +560,39 @@ describe("review findings on a move (PR 479)", () => {
     expect(await stat(join(src.directory, ".kaipu", "Demo.json"))).toBeTruthy();
   });
 
-  it("healing keeps the journal and the source record when the source media cannot be removed", async () => {
-    await seedItem(src.directory);
-    // A copy, so the source is a separate file; then the source folder refuses deletions.
-    await expect(
-      moveItem(
-        { source: src, target: dst, id: "Demo" },
-        deps({
-          fs: { link: exdev },
-          hooks: {
-            after: (at) => {
-              if (at === "media-placed") throw new SimulatedCrash(at);
+  it.skipIf(!enforcesPermissions)(
+    "healing keeps the journal and the source record when the source media cannot be removed",
+    async () => {
+      await seedItem(src.directory);
+      // A copy, so the source is a separate file; then the source folder refuses deletions.
+      await expect(
+        moveItem(
+          { source: src, target: dst, id: "Demo" },
+          deps({
+            fs: { link: exdev },
+            hooks: {
+              after: (at) => {
+                if (at === "media-placed") throw new SimulatedCrash(at);
+              },
             },
-          },
-        }),
-      ),
-    ).rejects.toBeInstanceOf(SimulatedCrash);
-    await chmod(src.directory, 0o500);
-    try {
-      const report = await heal();
-      expect(report).toMatchObject({ healed: 0, waiting: 1 });
-      expect(await readdir(journalDir)).toHaveLength(1);
-      expect(await stat(join(src.directory, ".kaipu", "Demo.json"))).toBeTruthy();
-    } finally {
-      await chmod(src.directory, 0o700);
-    }
-    // A later run, once the file can be removed, finishes the move.
-    const later = await heal();
-    expect(later.healed).toBe(1);
-    expect(await filesOf(src.directory, "Demo")).toEqual([]);
-  });
+          }),
+        ),
+      ).rejects.toBeInstanceOf(SimulatedCrash);
+      await chmod(src.directory, 0o500);
+      try {
+        const report = await heal();
+        expect(report).toMatchObject({ healed: 0, waiting: 1 });
+        expect(await readdir(journalDir)).toHaveLength(1);
+        expect(await stat(join(src.directory, ".kaipu", "Demo.json"))).toBeTruthy();
+      } finally {
+        await chmod(src.directory, 0o700);
+      }
+      // A later run, once the file can be removed, finishes the move.
+      const later = await heal();
+      expect(later.healed).toBe(1);
+      expect(await filesOf(src.directory, "Demo")).toEqual([]);
+    },
+  );
 
   it("healing a move leaves other items' drag copies alone", async () => {
     await seedItem(src.directory);
@@ -600,25 +606,28 @@ describe("review findings on a move (PR 479)", () => {
     );
   });
 
-  it("reports a move whose post-commit healing throws as done, with the real mode", async () => {
-    const item = await seedItem(src.directory);
-    const outcome = await moveItem(
-      { source: src, target: dst, id: "Demo" },
-      deps({
-        hooks: {
-          // The media is placed (the commit); then the journal folder stops accepting writes.
-          after: async (at) => {
-            if (at !== "media-placed") return;
-            await chmod(journalDir, 0o500);
-            throw new Error("boom after the commit");
+  it.skipIf(!enforcesPermissions)(
+    "reports a move whose post-commit healing throws as done, with the real mode",
+    async () => {
+      const item = await seedItem(src.directory);
+      const outcome = await moveItem(
+        { source: src, target: dst, id: "Demo" },
+        deps({
+          hooks: {
+            // The media is placed (the commit); then the journal folder stops accepting writes.
+            after: async (at) => {
+              if (at !== "media-placed") return;
+              await chmod(journalDir, 0o500);
+              throw new Error("boom after the commit");
+            },
           },
-        },
-      }),
-    );
-    await chmod(journalDir, 0o700);
-    expect(outcome).toEqual({ ok: true, id: "Demo", newId: "Demo", mode: "linked" });
-    // The journal is left for the next healing run, which finishes the source side.
-    expect((await heal()).healed).toBe(1);
-    expect(await copiesOf(item.assetId)).toEqual([{ dir: dst.directory, id: "Demo" }]);
-  });
+        }),
+      );
+      await chmod(journalDir, 0o700);
+      expect(outcome).toEqual({ ok: true, id: "Demo", newId: "Demo", mode: "linked" });
+      // The journal is left for the next healing run, which finishes the source side.
+      expect((await heal()).healed).toBe(1);
+      expect(await copiesOf(item.assetId)).toEqual([{ dir: dst.directory, id: "Demo" }]);
+    },
+  );
 });
