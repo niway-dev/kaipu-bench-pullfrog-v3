@@ -840,9 +840,14 @@ export class WorkspaceRegistry {
     // The folder it already points at, whose identity file was deleted by hand: a probe
     // rewrites it, so this is not a move.
     if (samePath(entry.path, path)) return { ok: true };
-    return (await isDirectory(join(path, ".kaipu")))
-      ? { ok: false, reason: "has-items-no-identity" }
-      : { ok: false, reason: "not-a-workspace" };
+    if (await isDirectory(join(path, ".kaipu"))) {
+      // A workspace registered while its folder was away never got an identity.json, so a
+      // folder with Kaipu items and none is exactly where it can now be: the probe after the
+      // move writes the file under the registered id. Any other workspace has an identity to
+      // match, so a folder without one is not its own.
+      return entry.pendingInit ? { ok: true } : { ok: false, reason: "has-items-no-identity" };
+    }
+    return { ok: false, reason: "not-a-workspace" };
   }
 
   /**

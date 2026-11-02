@@ -197,6 +197,27 @@ describe("relocate refusals", () => {
     expect(await readIdentity(legacy)).toEqual({ kind: "absent" });
   });
 
+  it("accepts a moved folder that has Kaipu items but no identity when the workspace never got one (pendingInit)", async () => {
+    const { workId, workFolder } = await withWork();
+    // The folder was unplugged when the workspace was registered: no identity.json was ever written.
+    const prefs = await readPrefs();
+    prefs["workspaces"].entries.find((e: { id: string }) => e.id === workId).pendingInit = true;
+    await writeFile(join(userData, "preferences.json"), JSON.stringify(prefs, null, 2));
+    await rm(join(workFolder, ".kaipu"), { recursive: true, force: true });
+    const registry = await WorkspaceRegistry.open(env());
+    const remounted = join(root, "Remounted");
+    await mkdir(join(remounted, ".kaipu"), { recursive: true });
+    await writeFile(join(remounted, ".kaipu", "clip.json"), "{}");
+
+    expect(await registry.relocate(workId, remounted)).toMatchObject({
+      ok: true,
+      entry: { id: workId, path: remounted },
+    });
+    // The probe that follows writes the identity under the registered id.
+    expect((await registry.availability(workId)).availability).toEqual({ state: "available" });
+    expect(await readIdentity(remounted)).toMatchObject({ kind: "ok", identity: { id: workId } });
+  });
+
   it("refuses an empty folder, never adopting it as this workspace", async () => {
     const { registry, workId } = await withWork();
     const empty = join(root, "Empty");
