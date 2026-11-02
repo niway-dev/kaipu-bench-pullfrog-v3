@@ -2647,6 +2647,7 @@
     "resultNone": "No se movió nada a {target}. {list}",
     "resultSkipped": "{count, plural, one {# no se inició} other {# no se iniciaron}}",
     "resultItem": "{title} — {reason}",
+    "resultUnknown": "No se pudo leer el resultado del movimiento. Revisa ambos espacios de trabajo.",
     "switchAction": "Cambiar",
     "reason_not-found": "ya no está aquí",
     "reason_metadata-issue": "su registro no se puede leer",

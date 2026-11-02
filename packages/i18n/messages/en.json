@@ -2647,6 +2647,7 @@
     "resultNone": "Nothing moved to {target}. {list}",
     "resultSkipped": "{count, plural, one {# wasn't started} other {# weren't started}}",
     "resultItem": "{title} — {reason}",
+    "resultUnknown": "The result of the move could not be read. Check both workspaces.",
     "switchAction": "Switch",
     "reason_not-found": "it is no longer here",
     "reason_metadata-issue": "its record can't be read",

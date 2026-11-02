@@ -206,7 +206,7 @@ describe("moving a recording that has exports", () => {
     );
   });
 
-  it("an IPC failure is reported as a failed move, never as a changed workspace", async () => {
+  it("a lost IPC reply says the result is unknown, never 'changed workspace' or 'untouched'", async () => {
     setup(state());
     moveItems.mockRejectedValue(new Error("ipc went away"));
     const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -214,8 +214,11 @@ describe("moving a recording that has exports", () => {
     fireEvent.click(await screen.findByRole("button", { name: /In Work/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: /Personal/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Move only the recording" }));
-    await waitFor(() => expect(getToasts().at(-1)?.message).toContain("Nothing moved"));
-    expect(getToasts().at(-1)?.message).not.toContain("workspace changed");
+    await waitFor(() =>
+      expect(getToasts().at(-1)?.message).toBe(
+        "The result of the move could not be read. Check both workspaces.",
+      ),
+    );
     quiet.mockRestore();
   });
 

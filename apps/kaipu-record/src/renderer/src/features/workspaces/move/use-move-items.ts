@@ -86,13 +86,11 @@ export function useMoveItems(): MoveItemsFlow {
           targetId: target.id,
         });
       } catch (error) {
+        // The reply was lost: main may have moved some or all of the group, so no per-item
+        // reason can be given. The window refreshes from the library broadcast.
         console.error("move failed", error);
-        result = {
-          targetId: target.id,
-          moved: [],
-          failed: moving.map(({ id }) => ({ id, reason: "io" as const })),
-          skipped: [],
-        };
+        showToast({ message: t("resultUnknown"), durationMs: 12_000 });
+        return null;
       } finally {
         off();
         setMoveProgress(null);
