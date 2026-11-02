@@ -237,6 +237,33 @@ describe("fixVault — kept, not forced", () => {
   });
 });
 
+describe("fixVault — unticked findings (NIW2-598)", () => {
+  it("leaves every skipped path as it is, fixes the rest, and counts nothing skipped as failed", async () => {
+    directory = await makeVault({
+      "old.mp4": "v",
+      ".kaipu/old.json": sidecar({ assetId: "s1", title: "New" }),
+      "other.mp4": "w",
+      ".kaipu/other.json": sidecar({ assetId: "s2", title: "Other title" }),
+      "loose.png": "p",
+      ".kaipu/gone.json": sidecar({ assetId: "s3", title: "Gone" }),
+    });
+    const before = await fixable();
+    const byKind = (kind: string) => before.filter((f) => f.kind === kind).map((f) => f.path);
+    expect(byKind("name-mismatch").sort()).toEqual(["old.mp4", "other.mp4"]);
+    const skip = new Set(["old.mp4", ...byKind("missing-sidecar"), ...byKind("missing-media")]);
+
+    const report = await fix("unknown", { skip });
+    expect(report.failed).toEqual([]);
+    expect(report.fixed).toBe(1);
+    expect(report.movedToOrphans).toBe(0);
+    const files = await readdir(directory);
+    expect(files).toEqual(expect.arrayContaining(["old.mp4", "Other title.mp4", "loose.png"]));
+    expect(await readdir(join(directory, ".kaipu"))).toContain("gone.json");
+    // Whatever was skipped is still there for the next press.
+    expect((await fixable()).map((f) => f.path).sort()).toEqual([...skip].sort());
+  });
+});
+
 describe("fixVault — every payload survives a failure at any point", () => {
   it(
     "fails every rename from the n-th on, then a clean run finishes the job",

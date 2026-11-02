@@ -69,7 +69,7 @@
   transition: border-color 0.15s ease;
 }
 
-.group[open] {
+.group[data-open] {
   border-color: color-mix(in srgb, var(--tone) 40%, var(--border));
 }
 
@@ -77,23 +77,45 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 14px;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-
-.groupHeader::-webkit-details-marker {
-  display: none;
+  padding-left: 14px;
 }
 
 .groupHeader:hover {
   background: var(--bg-card-hover);
 }
 
-.groupHeader:focus-visible {
+.groupToggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px 11px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.groupToggle:focus-visible {
   outline: 2px solid var(--accent-primary-ring);
   outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.groupOff {
+  opacity: 0.5;
 }
 
 .groupIcon {
@@ -146,7 +168,7 @@
   transition: transform 0.15s ease;
 }
 
-.group[open] .chevron {
+.group[data-open] .chevron {
   transform: rotate(180deg);
 }
 
@@ -172,8 +194,12 @@
 }
 
 .rows {
+  /* A group with hundreds of files scrolls on its own; the dialog keeps its size. */
+  max-height: 264px;
   margin: 0;
   padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
   font-size: var(--font-size-sm);
   /* Dates in names line up row under row, so the pattern reads at a glance. */
@@ -184,12 +210,28 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 14px 7px 60px;
+  padding: 7px 14px 7px 42px;
   border-top: 1px solid var(--border-light);
 }
 
 .row:hover {
   background: var(--bg-card-hover);
+}
+
+/* Unticked: left as it is this run. */
+.rowOff .rowNow,
+.rowOff .rowAfter,
+.rowOff .rowNote,
+.rowOff .rowIcon {
+  opacity: 0.5;
+}
+
+.rowOff .rowAfter {
+  text-decoration: line-through;
+}
+
+.rowOff .rowArrow {
+  color: var(--text-muted);
 }
 
 .rowIcon {
@@ -239,7 +281,7 @@
 
 .more {
   margin: 0;
-  padding: 8px 14px 10px 60px;
+  padding: 8px 14px 10px 42px;
   border-top: 1px solid var(--border-light);
   font-size: var(--font-size-sm);
   color: var(--text-muted);

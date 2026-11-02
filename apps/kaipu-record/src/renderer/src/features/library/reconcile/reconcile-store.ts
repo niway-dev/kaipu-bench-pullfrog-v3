@@ -18,6 +18,8 @@ export interface ReconcileState {
   run: ReconcileRun;
   /** "Not now": hidden for the rest of the session. */
   bannerHidden: boolean;
+  /** Fixable finding paths the user unticked (NIW2-598). Cleared by every new scan. */
+  skipped: ReadonlySet<string>;
 }
 
 const INITIAL: ReconcileState = {
@@ -26,6 +28,7 @@ const INITIAL: ReconcileState = {
   dialogOpen: false,
   run: { phase: "idle" },
   bannerHidden: false,
+  skipped: new Set(),
 };
 
 /** The listed-only set the user already saw; the banner returns when it changes. */
@@ -61,7 +64,8 @@ export async function rescan(): Promise<void> {
   if (state.scanning) return;
   set({ scanning: true });
   try {
-    set({ scan: await window.electronAPI.reconcileScan(), scanning: false });
+    // A new list means new choices: whatever was unticked described the old one.
+    set({ scan: await window.electronAPI.reconcileScan(), scanning: false, skipped: new Set() });
   } catch (error) {
     set({ scan: { status: "error", message: String(error) }, scanning: false });
   }
@@ -104,6 +108,17 @@ export function hideBanner(): void {
   set({ bannerHidden: true });
 }
 
+/** Tick (`fix: true`) or untick these finding paths; a group passes all of its own. */
+export function setFixing(paths: readonly string[], fix: boolean): void {
+  if (isRunning()) return;
+  const skipped = new Set(state.skipped);
+  for (const path of paths) {
+    if (fix) skipped.delete(path);
+    else skipped.add(path);
+  }
+  set({ skipped });
+}
+
 export function cancelWaiting(): void {
   if (state.run.phase === "waiting") void window.electronAPI.reconcileCancel();
 }
@@ -118,7 +133,7 @@ export async function fixAll(): Promise<void> {
   });
   let result: ReconcileFixResult;
   try {
-    result = await window.electronAPI.reconcileFix();
+    result = await window.electronAPI.reconcileFix([...state.skipped]);
   } catch (error) {
     result = { status: "error", message: String(error) };
   } finally {

@@ -71,6 +71,15 @@ export function scoped<A extends unknown[], R>(
 }
 
 /**
+ * The paths "Check and fix files" leaves alone, from the renderer: only strings count, so a
+ * malformed payload skips nothing rather than failing the run.
+ */
+export function skipPaths(value: unknown): ReadonlySet<string> {
+  if (!Array.isArray(value)) return new Set();
+  return new Set(value.filter((path): path is string => typeof path === "string"));
+}
+
+/**
  * An item-scoped handler that also enters the vault: the workspace gate binds it to the
  * active workspace and holds a switch off until it ends (ADR 0032), and inside it one
  * activity lease refuses it while "Check and fix files" runs (NIW2-561).
@@ -191,7 +200,7 @@ export function registerLibraryVaultHandlers(deps: {
   let reconcileWait: AbortController | null = null;
   ipcMain.handle(
     IPC_CHANNELS.libraryReconcileFix,
-    scoped(async (): Promise<ReconcileFixResult> => {
+    scoped(async (skip?: unknown): Promise<ReconcileFixResult> => {
       // A second call (another window, a double trigger) must not take the running run's cancel
       // handle: it is answered here and leaves the slot alone.
       if (reconcileWait) return { status: "already-running" };
@@ -202,6 +211,7 @@ export function registerLibraryVaultHandlers(deps: {
           signal: wait.signal,
           onProgress: (progress) => broadcast(IPC_CHANNELS.libraryReconcileProgress, progress),
           isEditing: (id, assetId) => editorSessions.isOpen(id, assetId),
+          skip: skipPaths(skip),
         });
         if (result.status === "done") broadcastLibraryChanged();
         return result;
