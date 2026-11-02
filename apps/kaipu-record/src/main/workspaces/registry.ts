@@ -5,6 +5,7 @@ import type {
   LocationCheck,
   WorkspaceCreateRefusal,
   WorkspaceEditRefusal,
+  WorkspaceRelocateRefusal,
   WorkspaceUnavailableReason,
 } from "@shared/types/workspaces";
 import { newWorkspaceFolderName, validateWorkspaceName } from "@shared/workspace-name";
@@ -166,6 +167,15 @@ export type CreateOutcome =
 export type EditOutcome =
   | { ok: true; entry: WorkspaceEntry; savedToFolder: boolean }
   | { ok: false; reason: WorkspaceEditRefusal };
+
+/** Whether a folder may become a workspace's new location; `workspaceName` names the other one. */
+export type RelocateCheck =
+  | { ok: true }
+  | { ok: false; reason: WorkspaceRelocateRefusal; workspaceName?: string };
+
+export type RelocateOutcome =
+  | { ok: true; entry: WorkspaceEntry }
+  | { ok: false; reason: WorkspaceRelocateRefusal; workspaceName?: string };
 
 export type RemoveOutcome =
   | { ok: true }
@@ -770,6 +780,59 @@ export class WorkspaceRegistry {
     const entry = entryFromIdentity(minted, path, now);
     await this.update((key) => void key.entries.push(entry));
     return { ok: true, entry, created: true };
+  }
+
+  /**
+   * May `id` be pointed at `path`? Read-only: nothing is written, not even an identity file.
+   * Only a folder whose `.kaipu/workspace/identity.json` carries this workspace's id qualifies.
+   * An empty or plain folder is refused, never adopted: the workspace's items are not in it,
+   * so every one of them would disappear from the library.
+   */
+  async checkRelocate(id: string, path: string): Promise<RelocateCheck> {
+    if (this.readOnly) return { ok: false, reason: "read-only" };
+    const entry = this.get(id);
+    if (!entry) return { ok: false, reason: "unknown" };
+    if (!(await isDirectory(path))) return { ok: false, reason: "not-a-folder" };
+    const other = this.key.entries.find((e) => e.id !== id && samePath(e.path, path));
+    if (other) return { ok: false, reason: "already-registered", workspaceName: other.name };
+
+    const identity = await readIdentity(path);
+    if (identity.kind === "unreadable") return { ok: false, reason: "unreadable" };
+    if (identity.kind === "ok") {
+      return identity.identity.id === id
+        ? { ok: true }
+        : { ok: false, reason: "different", workspaceName: identity.identity.name };
+    }
+    // The folder it already points at, whose identity file was deleted by hand: a probe
+    // rewrites it, so this is not a move.
+    if (samePath(entry.path, path)) return { ok: true };
+    return (await isDirectory(join(path, ".kaipu")))
+      ? { ok: false, reason: "has-items-no-identity" }
+      : { ok: false, reason: "not-a-workspace" };
+  }
+
+  /**
+   * "Change folder…": point `id` at the folder where it now lives (moved in Finder, put in a
+   * Google Drive folder, a drive mounted elsewhere). Only the registry changes: no file is
+   * moved, copied or written. Name, color and id stay. The active workspace's path is mirrored
+   * into `vaultDirectory`; the caller runs that one inside the switch transaction.
+   */
+  async relocate(id: string, path: string): Promise<RelocateOutcome> {
+    const checked = await this.checkRelocate(id, path);
+    if (!checked.ok) return checked;
+    try {
+      await this.update(
+        (key) => {
+          const target = key.entries.find((e) => e.id === id);
+          if (target) target.path = path;
+        },
+        { mirrorVault: id === this.key.activeId },
+      );
+    } catch {
+      return { ok: false, reason: "not-writable" };
+    }
+    const entry = this.get(id);
+    return entry ? { ok: true, entry } : { ok: false, reason: "unknown" };
   }
 
   /** Remove from list: unregister only. Nothing on disk changes, so re-adding restores it. */

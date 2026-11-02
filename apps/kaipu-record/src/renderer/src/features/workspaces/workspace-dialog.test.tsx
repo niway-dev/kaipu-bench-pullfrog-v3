@@ -5,6 +5,7 @@ import type {
   WorkspaceEditRequest,
   WorkspaceCreateResult,
   WorkspaceEditResult,
+  WorkspaceRelocateResult,
   WorkspacesState,
   WorkspaceView,
 } from "@shared/types/workspaces";
@@ -44,6 +45,9 @@ let create: ReturnType<
   typeof vi.fn<(input: { name: string; color: TagColor }) => Promise<WorkspaceCreateResult>>
 >;
 let edit: ReturnType<typeof vi.fn<(input: WorkspaceEditRequest) => Promise<WorkspaceEditResult>>>;
+let relocate: ReturnType<typeof vi.fn<(id: string) => Promise<WorkspaceRelocateResult>>>;
+let openFolder: ReturnType<typeof vi.fn<(id: string) => Promise<void>>>;
+let onRelocated: ReturnType<typeof vi.fn<WorkspaceDialogProps["onRelocated"]>>;
 let onClose: ReturnType<typeof vi.fn<() => void>>;
 let onUseExisting: ReturnType<typeof vi.fn<() => void>>;
 let onCreated: ReturnType<typeof vi.fn<WorkspaceDialogProps["onCreated"]>>;
@@ -59,13 +63,17 @@ function renderDialog(editing: WorkspaceView | null = null, state = STATE): void
   checkLocation = vi.fn(async (name: string) => free(name.trim()));
   create = vi.fn(async () => createdOk);
   edit = vi.fn(async () => ({ ok: true as const, workspace: ACME, savedToFolder: true }));
+  relocate = vi.fn(async () => ({ ok: false as const, reason: "cancelled" as const }));
+  openFolder = vi.fn(async () => {});
+  onRelocated = vi.fn();
   onClose = vi.fn();
   onUseExisting = vi.fn();
   onCreated = vi.fn();
   onSaved = vi.fn();
   window.electronAPI = {
-    ...realApi,
-    workspaces: { ...realApi.workspaces, checkLocation, create, edit },
+    // The current bridge, not `realApi`: a test may have set the platform first.
+    ...window.electronAPI,
+    workspaces: { ...realApi.workspaces, checkLocation, create, edit, relocate, openFolder },
   };
   render(
     <WorkspaceDialog
@@ -75,6 +83,7 @@ function renderDialog(editing: WorkspaceView | null = null, state = STATE): void
       onUseExisting={onUseExisting}
       onCreated={onCreated}
       onSaved={onSaved}
+      onRelocated={onRelocated}
     />,
   );
 }
@@ -103,7 +112,7 @@ describe("New workspace dialog", () => {
 
   it("shows the full path of the new folder as the name is typed", async () => {
     type("  Work ");
-    expect(await screen.findByText(`${PARENT}/Kaipu Record — Work`)).toBeInTheDocument();
+    expect(await screen.findByTitle(`${PARENT}/Kaipu Record — Work`)).toBeInTheDocument();
     expect(checkLocation).toHaveBeenLastCalledWith("  Work ");
     expect(screen.getByText("Kaipu creates this folder.")).toBeInTheDocument();
     await waitFor(() => expect(createButton()).toBeEnabled());
@@ -125,7 +134,7 @@ describe("New workspace dialog", () => {
     });
     type("Work");
     expect(await screen.findByText(/already exists and isn't an empty folder/)).toBeInTheDocument();
-    expect(screen.getByText(`${PARENT}/Kaipu Record — Work`)).toBeInTheDocument();
+    expect(screen.getByTitle(`${PARENT}/Kaipu Record — Work`)).toBeInTheDocument();
     expect(createButton()).toBeDisabled();
   });
 
@@ -150,12 +159,12 @@ describe("New workspace dialog", () => {
     );
     type("Wo");
     type("Work");
-    expect(await screen.findByText(`${PARENT}/Kaipu Record — Work`)).toBeInTheDocument();
+    expect(await screen.findByTitle(`${PARENT}/Kaipu Record — Work`)).toBeInTheDocument();
     // Resolve inside act and let React flush: without the guard the stale path would render.
     await act(async () => {
       answerFirst({ path: `${PARENT}/Kaipu Record — Wo`, state: "not-empty" });
     });
-    expect(screen.queryByText(`${PARENT}/Kaipu Record — Wo`)).toBeNull();
+    expect(screen.queryByTitle(`${PARENT}/Kaipu Record — Wo`)).toBeNull();
     expect(createButton()).toBeEnabled();
   });
 
@@ -193,6 +202,157 @@ describe("New workspace dialog", () => {
   });
 });
 
+describe("the folder is text, never a fake input", () => {
+  it("New workspace: the computed path is plain selectable text beside the existing-folder button", async () => {
+    renderDialog();
+    type("Work");
+    const path = await screen.findByTitle(`${PARENT}/Kaipu Record — Work`);
+
+    // Whole path in the text (the middle ellipsis is CSS), so copying it gives the full path.
+    expect(path).toHaveTextContent(`${PARENT}/Kaipu Record — Work`);
+    expect(path.closest("input,textarea")).toBeNull();
+    // The name is the only box you can type in.
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Use an existing folder…" })).toBeInTheDocument();
+  });
+
+  it("New workspace: 'Use an existing folder…' still hands over to the adopt flow", () => {
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Use an existing folder…" }));
+    expect(onUseExisting).toHaveBeenCalledOnce();
+  });
+
+  it("Edit workspace: the folder is read-only text with the full path as its tooltip", () => {
+    renderDialog(ACME);
+    const path = screen.getByTitle(ACME.path);
+
+    expect(path).toHaveTextContent(ACME.path);
+    expect(path.closest("input,textarea")).toBeNull();
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+  });
+});
+
+describe("Edit workspace: Show in Finder and Change folder…", () => {
+  afterEach(() => {
+    window.electronAPI = realApi;
+  });
+
+  it("reveals the folder from Show in Finder", () => {
+    renderDialog(ACME);
+    fireEvent.click(screen.getByRole("button", { name: "Show in Finder" }));
+    expect(openFolder).toHaveBeenCalledWith("ws-acme");
+  });
+
+  it("says Explorer on Windows", () => {
+    window.electronAPI = { ...realApi, platform: "win32" };
+    renderDialog(ACME);
+    expect(screen.getByRole("button", { name: "Show in Explorer" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show in Finder" })).toBeNull();
+  });
+
+  it("Change folder… asks main to pick (the picker lives there) for this workspace", async () => {
+    renderDialog(ACME);
+    fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
+    await waitFor(() => expect(relocate).toHaveBeenCalledWith("ws-acme"));
+    // The user closed the picker: no message, nothing to report.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(onRelocated).not.toHaveBeenCalled();
+  });
+
+  it("hands the result on when the workspace now points at the new folder, and stays open", async () => {
+    renderDialog(ACME);
+    const moved = { ...ACME, path: "/Volumes/Drive/Client Acme" };
+    relocate.mockResolvedValue({ ok: true, workspace: moved });
+    fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
+
+    await waitFor(() => expect(onRelocated).toHaveBeenCalledWith({ ok: true, workspace: moved }));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("an empty folder is refused with the way out: it is for a moved workspace, Move to is for items", async () => {
+    renderDialog(ACME);
+    relocate.mockResolvedValue({ ok: false, reason: "not-a-workspace" });
+    fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("a workspace folder that was moved");
+    expect(alert).toHaveTextContent("“Move to”");
+    expect(onRelocated).not.toHaveBeenCalled();
+  });
+
+  it("another workspace's folder is refused, naming that workspace", async () => {
+    renderDialog(ACME);
+    relocate.mockResolvedValue({ ok: false, reason: "different", workspaceName: "Personal" });
+    fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("“Personal”");
+  });
+
+  it("a folder that is another registered workspace is refused, naming it", async () => {
+    renderDialog(ACME);
+    relocate.mockResolvedValue({
+      ok: false,
+      reason: "already-registered",
+      workspaceName: "Default workspace",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "already the workspace “Default workspace”",
+    );
+  });
+
+  it("explains each remaining refusal", async () => {
+    renderDialog(ACME);
+    const cases: Array<[WorkspaceRelocateResult & { ok: false }, RegExp]> = [
+      [{ ok: false, reason: "has-items-no-identity" }, /has Kaipu items but isn't one of your/],
+      [{ ok: false, reason: "unreadable" }, /can't be read/],
+      [{ ok: false, reason: "not-a-folder" }, /isn't a folder/],
+      [{ ok: false, reason: "recording" }, /Finish the recording/],
+      [{ ok: false, reason: "exporting" }, /Wait for the export/],
+      [{ ok: false, reason: "read-only" }, /preferences file/],
+      [{ ok: false, reason: "not-writable" }, /nothing changed/],
+    ];
+    for (const [result, message] of cases) {
+      relocate.mockResolvedValue(result);
+      fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    }
+  });
+
+  it("is not available while preferences are read-only", () => {
+    renderDialog(ACME, { ...STATE, readOnly: true });
+    expect(screen.getByRole("button", { name: "Change folder…" })).toBeDisabled();
+  });
+
+  it("Save does not depend on the folder: only name and color enable it", async () => {
+    renderDialog(ACME);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+});
+
+describe("Edit workspace that is not connected", () => {
+  const away: WorkspaceView = {
+    ...ACME,
+    state: "unavailable",
+    reason: "missing",
+    path: "/Volumes/Old drive/Client Acme",
+  };
+
+  it("offers Change folder… as the fix, says why, and cannot reveal a folder that is not there", () => {
+    renderDialog(away, { ...STATE, workspaces: [DEFAULT, away] });
+
+    expect(screen.getByRole("button", { name: "Change folder…" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Show in Finder" })).toBeDisabled();
+    expect(screen.getByText(/This folder isn't connected/)).toBeInTheDocument();
+  });
+
+  it("does not say it is disconnected for a connected workspace", () => {
+    renderDialog(ACME);
+    expect(screen.queryByText(/This folder isn't connected/)).toBeNull();
+  });
+});
+
 describe("New workspace dialog when preferences are read-only", () => {
   it("cannot create", () => {
     renderDialog(null, { ...STATE, readOnly: true });
@@ -208,7 +368,7 @@ describe("Edit workspace dialog", () => {
     expect(screen.getByRole("alertdialog", { name: "Edit workspace" })).toBeInTheDocument();
     expect(nameInput()).toHaveValue("Client Acme");
     expect(screen.getByRole("radio", { name: "Sky" })).toBeChecked();
-    expect(screen.getByText(ACME.path)).toBeInTheDocument();
+    expect(screen.getByTitle(ACME.path)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Use an existing folder…" })).toBeNull();
     expect(checkLocation).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();

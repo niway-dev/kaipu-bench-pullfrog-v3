@@ -484,6 +484,7 @@ export const IPC_CHANNELS = {
   workspacesRemove: "workspaces:remove",
   workspacesCreate: "workspaces:create",
   workspacesEdit: "workspaces:edit",
+  workspacesRelocate: "workspaces:relocate",
   workspacesCheckLocation: "workspaces:check-location",
   workspacesOpenFolder: "workspaces:open-folder",
   workspacesDismissHint: "workspaces:dismiss-hint",

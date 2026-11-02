@@ -11,12 +11,14 @@ import { useTranslations } from "@kaipu/i18n";
 import type {
   WorkspaceCreateResult,
   WorkspaceEditResult,
+  WorkspaceRelocateResult,
   WorkspaceRemoveResult,
   WorkspacesState,
   WorkspaceSwitchRefusal,
   WorkspaceView,
 } from "@shared/types/workspaces";
 import { showToast } from "@renderer/ui/toast-store";
+import { relocateRefusalMessage } from "./relocate-copy";
 import { WorkspaceDialog } from "./workspace-dialog";
 
 export interface Workspaces {
@@ -41,6 +43,11 @@ export interface Workspaces {
   openEditDialog(id: string): void;
   remove(id: string): Promise<WorkspaceRemoveResult>;
   openFolder(id: string): void;
+  /**
+   * "Change folder…": the native picker, then the workspace points at the folder where it now
+   * lives (never moves files). A refusal is explained in a toast.
+   */
+  changeFolder(id: string): Promise<void>;
   dismissHint(): void;
 }
 
@@ -155,6 +162,27 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
     [t],
   );
 
+  const onRelocated = useCallback(
+    (result: Extract<WorkspaceRelocateResult, { ok: true }>): void => {
+      showToast({ message: t("folderChanged", { name: result.workspace.name }) });
+    },
+    [t],
+  );
+
+  const changeFolder = useCallback(
+    async (id: string): Promise<void> => {
+      const result = await window.electronAPI.workspaces.relocate(id);
+      if (result.ok) {
+        onRelocated(result);
+        return;
+      }
+      const name = state?.workspaces.find((w) => w.id === id)?.name ?? "";
+      const message = relocateRefusalMessage(result, name, t);
+      if (message) showToast({ message });
+    },
+    [onRelocated, state, t],
+  );
+
   const remove = useCallback(
     async (id: string): Promise<WorkspaceRemoveResult> => {
       const result = await window.electronAPI.workspaces.remove(id);
@@ -190,9 +218,21 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
       openEditDialog,
       remove,
       openFolder: (id) => void window.electronAPI.workspaces.openFolder(id),
+      changeFolder,
       dismissHint: () => void window.electronAPI.workspaces.dismissHint(),
     }),
-    [state, epoch, active, menuOpen, switchTo, add, openCreateDialog, openEditDialog, remove],
+    [
+      state,
+      epoch,
+      active,
+      menuOpen,
+      switchTo,
+      add,
+      openCreateDialog,
+      openEditDialog,
+      remove,
+      changeFolder,
+    ],
   );
 
   const editing =
@@ -218,6 +258,7 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
           }}
           onCreated={onCreated}
           onSaved={onSaved}
+          onRelocated={onRelocated}
         />
       )}
     </WorkspacesContext.Provider>
