@@ -365,6 +365,13 @@ describe("choosing what to fix", () => {
     expect(box).not.toBeChecked();
     fireEvent.click(within(first!).getByLabelText("renamed to"));
     expect(box).toBeChecked();
+    // Selecting a name to copy it ends in a click on the row: that is not a toggle.
+    const selection = vi.spyOn(window, "getSelection").mockReturnValue({
+      toString: () => "Kaipu Recording",
+    } as Selection);
+    fireEvent.click(within(first!).getByLabelText("renamed to"));
+    expect(box).toBeChecked();
+    selection.mockRestore();
     // The box itself still toggles once, not twice.
     fireEvent.click(box);
     expect(box).not.toBeChecked();

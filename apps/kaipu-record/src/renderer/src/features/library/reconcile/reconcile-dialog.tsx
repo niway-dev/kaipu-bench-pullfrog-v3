@@ -212,6 +212,8 @@ function FindingItem({
         selectable
           ? (event) => {
               if ((event.target as HTMLElement).closest("input")) return;
+              // A drag that selected a name to copy it ends in a click too: not a toggle.
+              if (window.getSelection()?.toString()) return;
               setFixing([finding.path], !fixing);
             }
           : undefined
