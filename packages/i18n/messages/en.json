@@ -819,7 +819,6 @@
     "reconcileBusyRecording": "A recording is in progress. Check again when it ends.",
     "reconcileBusyExport": "An export is in progress. Check again when it ends.",
     "reconcileAlreadyRunning": "Kaipu is already fixing your files.",
-    "reconcileMore": "…and {count} more",
     "reconcileGroupCount": "{count, plural, one {# file} other {# files}}",
     "reconcileGroupCountPartial": "{on} of {count, plural, one {# file} other {# files}}",
     "reconcileFixGroup": "Fix: {group}",

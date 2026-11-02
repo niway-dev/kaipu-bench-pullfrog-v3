@@ -45,6 +45,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  /* Fallback only: when a very short window cannot fit even the minimum list, this scrolls
+     instead of the list drawing over the summary and the Fix button. Normally nothing here
+     overflows, so the open group's list stays the one scroll. */
+  overflow-y: auto;
 }
 
 /* Each group carries one tone: the icon chip, the arrow and the open border use it. */
@@ -329,14 +333,6 @@
 .toneListed .rowNow {
   white-space: normal;
   overflow-wrap: anywhere;
-}
-
-.more {
-  margin: 0;
-  padding: 8px 14px 10px 42px;
-  border-top: 1px solid var(--border-light);
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
 }
 
 .summary {

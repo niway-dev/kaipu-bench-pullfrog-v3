@@ -333,6 +333,21 @@ describe("choosing what to fix", () => {
     expect(window.electronAPI.reconcileFix).toHaveBeenCalledWith(["Loose.png"]);
   });
 
+  it("every file in a long group has its own checkbox, so none is fixed out of sight", async () => {
+    scanResult = ok(
+      Array.from({ length: 250 }, (_, i) => ({ ...rename, path: `recording-${i}.mp4` })),
+    );
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Check and fix" }));
+    const renames = (await screen.findByText("Names that don't match their title")).closest(
+      "section",
+    )!;
+    expect(within(renames).getAllByRole("listitem")).toHaveLength(250);
+    fireEvent.click(within(renames).getByRole("checkbox", { name: "Fix recording-249" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fix 249 files" }));
+    expect(window.electronAPI.reconcileFix).toHaveBeenCalledWith(["recording-249.mp4"]);
+  });
+
   it("a new scan forgets what was unticked", async () => {
     scanResult = ok([rename, adopt]);
     mount();

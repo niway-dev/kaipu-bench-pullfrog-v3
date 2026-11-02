@@ -34,9 +34,6 @@ import {
 } from "./reconcile-store";
 import styles from "./reconcile.module.css";
 
-/** Rows rendered per table; a vault with hundreds of findings shows "…and N more". */
-const MAX_ROWS = 200;
-
 type LibraryT = Translator<"library">;
 
 const fileName = (path: string): string => path.split("/").pop() ?? path;
@@ -216,7 +213,9 @@ function FindingItem({
         />
       )}
       <Icon size={13} strokeWidth={1.8} aria-hidden className={styles.rowIcon} />
-      <span className={styles.rowNow}>{row.now}</span>
+      <span className={styles.rowNow} title={row.now}>
+        {row.now}
+      </span>
       {renamed ? (
         <>
           <ArrowRight
@@ -225,10 +224,14 @@ function FindingItem({
             aria-label={t("reconcileRenamedTo")}
             className={styles.rowArrow}
           />
-          <span className={styles.rowAfter}>{row.renamedTo}</span>
+          <span className={styles.rowAfter} title={row.renamedTo}>
+            {row.renamedTo}
+          </span>
         </>
       ) : (
-        <span className={styles.rowNote}>{row.note}</span>
+        <span className={styles.rowNote} title={row.note}>
+          {row.note}
+        </span>
       )}
     </li>
   );
@@ -304,9 +307,9 @@ function FindingGroup({
             <Info size={13} strokeWidth={2} aria-hidden className={styles.groupWhatIcon} />
             {t(group.what)}
           </p>
-          {/* Hundreds of files scroll inside their group; the header stays in view. */}
+          {/* Every finding gets a row (and its own checkbox): the list scrolls, nothing is cut. */}
           <ul className={styles.rows}>
-            {findings.slice(0, MAX_ROWS).map((finding) => (
+            {findings.map((finding) => (
               <FindingItem
                 key={`${finding.kind}:${finding.path}`}
                 finding={finding}
@@ -315,11 +318,6 @@ function FindingGroup({
                 t={t}
               />
             ))}
-            {findings.length > MAX_ROWS && (
-              <li className={styles.more}>
-                {t("reconcileMore", { count: findings.length - MAX_ROWS })}
-              </li>
-            )}
           </ul>
         </div>
       )}
