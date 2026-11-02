@@ -238,6 +238,11 @@ export async function openEditor(page: Page): Promise<void> {
     location.hash = `#/library/${assetId}`;
   }, RECORDING_ASSET_ID);
   await page.getByRole("button", { name: "Edit video" }).click();
+  // Wait for the editor route, not just any <video>: the recording's page has its own video
+  // preview, so a bare `waitForSelector("video")` could return before the editor mounted. A
+  // test that then asked for the "Export" button found the page's seven "Export a copy for …"
+  // cards instead and failed in strict mode (CI run 41405170429).
+  await page.waitForFunction(() => location.hash.startsWith("#/editor/video/"));
   await page.waitForSelector("video");
 }
 

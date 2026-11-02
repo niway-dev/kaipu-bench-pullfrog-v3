@@ -30,7 +30,7 @@ test("export produces a valid MP4 with in-sync video and audio", async () => {
       .toBeGreaterThan(0);
 
     // Start the export from the toolbar; it opens the export sheet (NIW2-217).
-    await page.getByRole("button", { name: "Export" }).click();
+    await page.getByRole("button", { name: "Export", exact: true }).click();
     // The sheet's primary action carries the size ("Export ~24 MB").
     await page
       .getByRole("alertdialog")
