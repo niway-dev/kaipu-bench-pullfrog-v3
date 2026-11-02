@@ -134,6 +134,15 @@ Three more traps are about things that run **beside** the move:
    | absent       | present, identity does not match     | Do not delete anything. Quarantine the entry and surface it: this is the only copy.                                           |
    | absent       | absent                               | Do not delete anything. Look for the verified copy in the move's staging folder; if it is not there, surface the entry.       |
 
+   The two rows that delete the source add a check of their own, because the source may have
+   changed while the target was unplugged and the entry waited. The source media goes only
+   when it still matches the journal (size and mtime), the source sidecar still carries the
+   moved `assetId` (or is missing), and the source's edit project is byte-identical to the
+   copy in the target. A source that changed is quarantined with everything in it intact; a
+   source whose stem now belongs to another item is left alone and the entry is dropped. If
+   the source media cannot be removed (open elsewhere, read-only), the source sidecar stays and
+   the entry waits, so the file is never listed again under a new identity.
+
    One rule covers every row: **a side is deleted only when the other side is verified
    complete**, and a journal phase of `copying` never justifies deleting a target. A missing
    target sidecar next to a verified target media is rebuilt from the source sidecar, which is
@@ -170,9 +179,11 @@ Three more traps are about things that run **beside** the move:
       link and the copy fallback are the same case: the whole `.kaipu/drag/<uuid>/` goes),
       before step 2. A hard link shares the media's inode, so deleting the source media alone
       would not free the bytes or remove the titled file.
-    - Healing, before it deletes the source media of a committed move, also empties the
-      source's `.kaipu/drag/` (startup already does the same sweep, `main/index.ts:713`), so a
-      crash after a drag cannot leave an artifact behind.
+    - Healing does not touch `.kaipu/drag/`. It also runs while the app is open (before every
+      group, and after a failed commit), when another item's drag copy may still be read by a
+      drop target, and the drag folders are named by a uuid, not by item. Startup and quit
+      already sweep the whole folder (`main/index.ts:713`), so a crash after a drag cannot leave
+      an artifact behind for long.
     - When `createDragCopy` returns the vault file itself (EXDEV, read-only vault), there is
       no artifact. The 10-second rule still applies, since the original is the dragged file.
 12. **One item lock for every writer of the item.** A per-item async lock, keyed by
