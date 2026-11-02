@@ -18,7 +18,14 @@ description: "Proposal: keep several workspaces (folders with Kaipu files), one 
 > **Part 1b (NIW2-599, 🟢 Ready to validate):** "New workspace…" dialog (name, color, a new folder
 > `Kaipu Record — <name>` next to the Default workspace's, or "Use an existing folder…"), editing a
 > workspace's name and color from Settings → Workspaces, and the Default workspace in Kaipu's
-> brand color `#F6055C`. Parts 2–4 (Move to, per-workspace settings, cloud) are still to build.
+> brand color `#F6055C`.
+>
+> **Part 2 (NIW2-600, 🟡 In progress, stacked on #478):** "Move to" for local folders. The
+> mover (same drive: a hard link; another drive: copy, sha256, then delete; a journal that
+> heals a move the app died in), the "IN · Work ▾" chip in both editors and on the item page,
+> the Library's "⋯" menu and select mode with "N selected · Move to ▸", the exports question
+> and the result toast. Not in it: synced folders and cloud-only items (part 4). Parts 3–4
+> (per-workspace settings, cloud) are still to build.
 
 ## Why
 
