@@ -130,6 +130,26 @@ describe("the Default workspace's brand color", () => {
     expect((await readPrefs())["workspaces"].kaipuColorApplied).toBe(true);
   });
 
+  it("leaves a Default that another Mac renamed alone: the folder's name is not overwritten", async () => {
+    const id = await ownerMachineWithRose();
+    // Renamed on another Mac and still rose; this Mac's registry still caches the old name.
+    await writeIdentity(defaultDir, {
+      version: 1,
+      id,
+      name: "Studio",
+      color: "rose",
+      createdAt: 1,
+    });
+
+    const registry = await WorkspaceRegistry.open(env());
+
+    expect(await readIdentity(defaultDir)).toMatchObject({
+      identity: { name: "Studio", color: "rose" },
+    });
+    expect(registry.get(id)?.pendingIdentity).toBeUndefined();
+    expect((await readPrefs())["workspaces"].kaipuColorApplied).toBe(true);
+  });
+
   it("upgrades the registry now and the folder when it is plugged in again", async () => {
     await ownerMachineWithRose();
     const unplugged = `${defaultDir}-away`;

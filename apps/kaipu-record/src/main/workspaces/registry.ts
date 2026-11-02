@@ -407,8 +407,14 @@ export class WorkspaceRegistry {
     let upgrade = owner?.name === DEFAULT_WORKSPACE_NAME && owner.color === "rose";
     if (owner && upgrade) {
       const file = await readIdentity(owner.path);
-      // The folder's own file wins; a probe will refresh the cache from it.
-      if (file.kind === "ok" && file.identity.color !== "rose") upgrade = false;
+      // The folder's own file wins (renamed or recolored on another Mac): leave it as it is,
+      // and a probe will refresh this Mac's cache from it.
+      if (
+        file.kind === "ok" &&
+        (file.identity.color !== "rose" || file.identity.name !== DEFAULT_WORKSPACE_NAME)
+      ) {
+        upgrade = false;
+      }
       if (file.kind === "unreadable") upgrade = false;
     }
     try {
