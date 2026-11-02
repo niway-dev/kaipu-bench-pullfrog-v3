@@ -110,7 +110,7 @@ the existing `!saved && !copied` branch.
 
 ### The window
 
-`CaptureToastWindow` keeps its contract and gains two things:
+`CaptureToastWindow` keeps its contract and gains three things:
 
 - **Size from the payload.** `toastBounds` takes the card's height: the image height from
   decision 3, plus the meta line and the timer bar, plus 16 DIP of transparent padding around the
@@ -123,19 +123,22 @@ the existing `!saved && !copied` branch.
   - `copy`: a saved shot is read from the vault by id at press time; a copy-only shot uses the kept
     bytes (`peekLastQuietCapture`, not take, so Edit still works). Both write with the handler's
     `copyToClipboard`, then send the payload again with `copied: true`.
-  - The timer channel above; `desktop/ipc-contract.mdx` gains it.
   - `TOAST_AUTO_HIDE_MS` becomes 10 000.
+- **A timer channel, main → card.** `screenshot:toast-timer` carries `{ remainingMs: number | null }`
+  and is sent from every place main starts, restarts or stops the timer (`restartTimer`,
+  `stopTimer`), not from a list of events: today that is renderer ready, re-target, pointer in,
+  pointer out, and Edit pressed while that shot's Save is still writing (the card then stays until
+  the write ends). A timestamp in the payload would not do: the timer starts when the renderer
+  reports ready, not when `show` runs, and a pause resets it to a full 10 s.
+  `desktop/ipc-contract.mdx` gains the row.
 
 ### The card (renderer)
 
 `capture-toast.tsx` is rewritten around the image. It still only renders main's payload and
 reports presses and hover. Pills, ✕ and Edit are buttons inside the one hover region. The
-timer bar only mirrors main's timer, which stays the one that hides the card: main sends a
-`screenshot:toast-timer` message `{ remainingMs: number | null }` each time it starts, restarts or
-stops the timer (renderer ready, re-target, pointer in, pointer out), and the bar animates from
-`remainingMs` to zero, or freezes on `null`. A timestamp in the payload would not do: the timer
-starts when the renderer reports ready, not when `show` runs, and a pause resets it to a full
-10 s. The card does not follow the app theme, as today: it floats over
+timer bar only mirrors main's timer, which stays the one that hides the card: on each
+`screenshot:toast-timer` message (see "The window") the bar animates from `remainingMs` to zero,
+or freezes on `null`. The card does not follow the app theme, as today: it floats over
 arbitrary screen content. Visual values come from the StatusCard family (`--bg-modal`,
 `--border-light`, 14 px corner, `--accent-primary-ring` on hover).
 
