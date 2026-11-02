@@ -149,6 +149,18 @@ describe("relocateWorkspace, the active workspace", () => {
     expect(h.registry.active().path).toBe(moved);
   });
 
+  it("does nothing when the picked folder is the one it already points at", async () => {
+    const h = await harness();
+    const id = h.registry.active().id;
+
+    const outcome = await relocateWorkspace(h.deps, id, defaultDir);
+
+    expect(outcome).toMatchObject({ ok: true, entry: { id, path: defaultDir } });
+    // No window is asked to save, no capture is dropped, and no route remounts.
+    expect(h.log).toEqual([]);
+    expect(h.gate.stamp).toEqual({ workspaceId: id, generation: 1 });
+  });
+
   it("is refused while a recording runs, before asking any window", async () => {
     const h = await harness();
     const id = h.registry.active().id;
