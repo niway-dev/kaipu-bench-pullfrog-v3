@@ -56,8 +56,28 @@ type Changes = Partial<Record<OverridableKey, unknown>>;
  */
 export class WorkspaceSettings {
   private readonly reads = new Map<string, FolderRead>();
+  /** The last read that actually saw the file (present or absent): what an unplugged drive held. */
+  private readonly lastSeen = new Map<string, FolderRead>();
+  /** The last write of each workspace: read → write → record must not interleave with itself. */
+  private readonly queues = new Map<string, Promise<unknown>>();
 
   constructor(private readonly deps: WorkspaceSettingsDeps) {}
+
+  private remember(id: string, read: FolderRead): void {
+    this.reads.set(id, read);
+    if (read.kind !== "unreadable") this.lastSeen.set(id, read);
+  }
+
+  /** Run `job` after every earlier write of the same workspace; a failure does not block the next. */
+  private serialize<T>(id: string, job: () => Promise<T>): Promise<T> {
+    const run = (this.queues.get(id) ?? Promise.resolve()).then(job);
+    const tail = run.catch(() => undefined);
+    this.queues.set(id, tail);
+    void tail.then(() => {
+      if (this.queues.get(id) === tail) this.queues.delete(id);
+    });
+    return run;
+  }
 
   private known(id: string): { id: string; name: string; path: string } | undefined {
     return this.deps.workspaces().find((ws) => ws.id === id);
@@ -89,12 +109,33 @@ export class WorkspaceSettings {
     const ws = this.known(id);
     if (!ws) return;
     const before = JSON.stringify(this.overridesOf(id));
-    this.reads.set(
-      id,
-      (await this.deps.isAvailable(id)) ? await this.read(ws.path) : { kind: "unreadable" },
-    );
+    const read = await this.probe(id, ws.path);
+    this.remember(id, read);
     if (id === this.deps.activeId() && before !== JSON.stringify(this.overridesOf(id))) {
       this.deps.changed();
+    }
+  }
+
+  /**
+   * The folder file as it reads now. The WHOLE probe is bounded (is the folder reachable, then
+   * the read): a capture waits on this, and an unreachable or evicted folder must not hold the
+   * overlay back. A probe that runs out of time counts as an unreadable file.
+   */
+  private async probe(id: string, path: string): Promise<FolderRead> {
+    const timeout = this.deps.readTimeoutMs ?? READ_TIMEOUT_MS;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        (async (): Promise<FolderRead> =>
+          (await this.deps.isAvailable(id)) ? await this.read(path) : { kind: "unreadable" })(),
+        new Promise<FolderRead>((resolve) => {
+          timer = setTimeout(() => resolve({ kind: "unreadable" }), timeout);
+        }),
+      ]);
+    } catch {
+      return { kind: "unreadable" };
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -175,7 +216,11 @@ export class WorkspaceSettings {
    * folder file in a single write, `uploadMode` to the machine file. Nothing is written when
    * nothing would change.
    */
-  private async apply(id: string, changes: Changes): Promise<SetOverrideResult> {
+  private apply(id: string, changes: Changes): Promise<SetOverrideResult> {
+    return this.serialize(id, () => this.applyNow(id, changes));
+  }
+
+  private async applyNow(id: string, changes: Changes): Promise<SetOverrideResult> {
     const ws = this.known(id);
     if (!ws) return { ok: false, reason: "unknown-workspace" };
     const checked: Changes = {};
@@ -195,10 +240,8 @@ export class WorkspaceSettings {
       (FOLDER_OVERRIDE_KEYS as readonly string[]).includes(key),
     );
     try {
-      if (folderKeys.length > 0) {
-        const refused = await this.applyFolder(ws, folderKeys, checked);
-        if (refused) return { ok: false, reason: refused };
-      }
+      // The machine-bound key does not depend on the folder file, so a pending or unreadable
+      // file never keeps it from changing.
       if ("uploadMode" in checked) {
         const next = checked["uploadMode"];
         await this.deps.machine.update(id, (entry) => {
@@ -207,8 +250,16 @@ export class WorkspaceSettings {
           return next === null ? rest : { ...rest, uploadMode: next as AppSettings["uploadMode"] };
         });
       }
+      if (folderKeys.length > 0) {
+        const refused = await this.applyFolder(ws, folderKeys, checked);
+        if (refused) {
+          this.deps.changed();
+          return { ok: false, reason: refused };
+        }
+      }
     } catch (error) {
       console.error("[workspace-settings] write failed", error);
+      this.deps.changed();
       return { ok: false, reason: "failed" };
     }
     this.deps.changed();
@@ -222,7 +273,7 @@ export class WorkspaceSettings {
   ): Promise<"pending" | "unreadable" | null> {
     // Always from the disk: the cache may predate a sync.
     const read = await this.read(ws.path);
-    this.reads.set(ws.id, read);
+    this.remember(ws.id, read);
     const state = folderState(read, this.deps.machine.get(ws.id).folderOverrides);
     if (state === "unreadable") return "unreadable";
     // The user has not seen these values: writing now would activate them by the back door.
@@ -238,12 +289,28 @@ export class WorkspaceSettings {
       JSON.stringify(next) === JSON.stringify(base) &&
       (state === "active" || Object.keys(next).length === 0);
     if (unchanged) return null;
-    const sha256 = await writeFolderOverrides(ws.path, next as FolderOverrides);
-    this.reads.set(ws.id, { kind: "ok", overrides: next as FolderOverrides, sha256 });
-    await this.deps.machine.update(ws.id, (entry) => ({
-      ...entry,
-      folderOverrides: { sha256, decision: "use", at: this.deps.now() },
-    }));
+    const previous = this.deps.machine.get(ws.id).folderOverrides;
+    let sha256: string;
+    try {
+      // The new hash is recorded BEFORE the file changes (see `writeFolderOverrides`), so this
+      // Mac's own edit is never mistaken for a change made by a sync.
+      sha256 = await writeFolderOverrides(ws.path, next as FolderOverrides, (hash) =>
+        this.deps.machine.update(ws.id, (entry) => ({
+          ...entry,
+          folderOverrides: { sha256: hash, decision: "use", at: this.deps.now() },
+        })),
+      );
+    } catch (error) {
+      // The file did not change: put the record of the file that is still there back.
+      await this.deps.machine
+        .update(ws.id, ({ folderOverrides: _drop, ...rest }) => {
+          void _drop;
+          return previous ? { ...rest, folderOverrides: previous } : rest;
+        })
+        .catch(() => undefined);
+      throw error;
+    }
+    this.remember(ws.id, { kind: "ok", overrides: next as FolderOverrides, sha256 });
     return null;
   }
 
@@ -262,7 +329,15 @@ export class WorkspaceSettings {
    * "Use them" / "Ignore" for a folder file (ADR 0034, decision 8). `sha256` names the file the
    * user saw: a file that changed since is not confirmed by an answer meant for the old one.
    */
-  async resolvePending(
+  resolvePending(
+    id: string,
+    decision: "use" | "ignore",
+    sha256: string,
+  ): Promise<ResolvePendingResult> {
+    return this.serialize(id, () => this.resolvePendingNow(id, decision, sha256));
+  }
+
+  private async resolvePendingNow(
     id: string,
     decision: "use" | "ignore",
     sha256: string,
@@ -271,7 +346,7 @@ export class WorkspaceSettings {
     if (!ws) return { ok: false, reason: "unknown-workspace" };
     if (!(await this.deps.isAvailable(id))) return { ok: false, reason: "nothing-pending" };
     const read = await this.read(ws.path);
-    this.reads.set(id, read);
+    this.remember(id, read);
     const state = folderState(read, this.deps.machine.get(id).folderOverrides);
     if (read.kind !== "ok" || state === "none" || state === "unreadable") {
       this.deps.changed();
@@ -295,6 +370,20 @@ export class WorkspaceSettings {
   }
 
   /**
+   * Whether a workspace whose override could not be cleared may still hold one of `keys`: its
+   * machine-bound upload mode, the valid entries of its last read file, or, with no read at all,
+   * the honest "cannot rule it out".
+   */
+  private mayHoldOwn(id: string, keys: readonly OverridableKey[]): boolean {
+    if (keys.includes("uploadMode") && this.deps.machine.get(id).uploadMode) return true;
+    const read = this.lastSeen.get(id);
+    // Never seen: nothing rules it out.
+    if (!read) return true;
+    if (read.kind === "absent") return false;
+    return read.kind === "ok" && keys.some((key) => key in read.overrides);
+  }
+
+  /**
    * "Copy to all workspaces": the value `id` shows becomes the All level's, and every workspace
    * drops its own override of the key, so all of them inherit it and cannot drift apart later.
    * A workspace whose override cannot be cleared (not connected, unreadable file, an answer
@@ -304,6 +393,8 @@ export class WorkspaceSettings {
   async copyToAll(id: string, keys: readonly OverridableKey[]): Promise<CopyToAllResult> {
     if (!this.known(id)) return { ok: false, reason: "unknown-workspace" };
     if (!keys.every(isOverridableKey)) return { ok: false, reason: "not-overridable" };
+    // A workspace that is not connected cannot say what it shows: nothing is copied from it.
+    if (!(await this.deps.isAvailable(id))) return { ok: false, reason: "unavailable" };
     const wanted = [...new Set(keys)];
     await this.refresh(id);
     const shown = resolveEffective(this.deps.getAll(), this.overridesOf(id));
@@ -319,16 +410,8 @@ export class WorkspaceSettings {
     for (const ws of this.deps.workspaces()) {
       const result = await this.resetOverrides(ws.id, wanted);
       if (result.ok) continue;
-      if (result.reason === "unavailable" || result.reason === "unreadable") {
-        keptOwn.push(ws.name);
-      } else if (result.reason === "pending") {
-        // Only a file that actually holds one of these keys keeps a value of its own.
-        const read = this.reads.get(ws.id);
-        if (read?.kind === "ok" && wanted.some((key) => key in read.overrides))
-          keptOwn.push(ws.name);
-      } else {
-        keptOwn.push(ws.name);
-      }
+      // Named only when it really keeps a value of its own for one of the copied keys.
+      if (this.mayHoldOwn(ws.id, wanted)) keptOwn.push(ws.name);
     }
     this.deps.changed();
     return { ok: true, settings: this.deps.effective(), keptOwn };

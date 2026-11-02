@@ -164,11 +164,6 @@ export type AccessibilityStatus = "granted" | "denied" | "not-required";
  */
 export type AuthAttemptResult = { ok: true; status: AuthStatus } | { ok: false; error: AuthError };
 
-/**
- * Workspaces (ADR 0032). Item-scoped calls elsewhere on this bridge carry the window's
- * workspace stamp, added by the preload: a call made before a switch and answered after it
- * rejects with `stale-workspace` instead of resolving with the other workspace's data.
- */
 /** Per-workspace setting overrides (ADR 0034). Every call names the scope or workspace it acts on. */
 export interface SettingsScopeBridge {
   /** One scope: "all" (the All workspaces level) or a workspace id. */
@@ -194,6 +189,11 @@ export interface SettingsScopeBridge {
   ): Promise<ResolvePendingResult>;
 }
 
+/**
+ * Workspaces (ADR 0032). Item-scoped calls elsewhere on this bridge carry the window's
+ * workspace stamp, added by the preload: a call made before a switch and answered after it
+ * rejects with `stale-workspace` instead of resolving with the other workspace's data.
+ */
 export interface WorkspacesBridge {
   list(): Promise<WorkspacesState>;
   /** The workspace this window's stamp names, read synchronously (null until it is known). */

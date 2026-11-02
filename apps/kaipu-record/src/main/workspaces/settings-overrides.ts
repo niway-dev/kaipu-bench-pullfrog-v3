@@ -125,19 +125,27 @@ async function mkdirOne(path: string): Promise<boolean> {
  * Write the folder's overrides atomically and return the sha256 of the written bytes, which
  * the caller records so this Mac's own edit never asks for confirmation. A missing root means
  * "not connected" and throws: recreating it would turn an unplugged drive into an empty folder.
+ *
+ * `beforeWrite` receives the hash of the bytes about to be written, before the file changes: a
+ * caller that records the hash there can never end with a new file and a stale record (which
+ * would read as "changed by sync" and switch this Mac's own overrides off). If recording throws,
+ * the file is untouched.
  */
 export async function writeFolderOverrides(
   root: string,
   overrides: FolderOverrides,
+  beforeWrite?: (sha256: string) => Promise<void>,
 ): Promise<string> {
   if (!(await isDirectory(root))) {
     throw Object.assign(new Error(`workspace folder is missing: ${root}`), { code: "ENOENT" });
   }
+  const text = `${JSON.stringify({ version: 1, overrides }, null, 2)}\n`;
+  const sha256 = sha256Of(text);
+  await beforeWrite?.(sha256);
   const meta = join(root, ".kaipu");
   const dir = dirname(join(root, SETTINGS_FILE));
   const createdMeta = await mkdirOne(meta);
   let createdDir = false;
-  const text = `${JSON.stringify({ version: 1, overrides }, null, 2)}\n`;
   try {
     createdDir = await mkdirOne(dir);
     await atomicWriteFile(join(root, SETTINGS_FILE), text);
@@ -146,7 +154,7 @@ export async function writeFolderOverrides(
     if (createdMeta) await rmdir(meta).catch(() => {});
     throw error;
   }
-  return sha256Of(text);
+  return sha256;
 }
 
 export interface FolderRecord {

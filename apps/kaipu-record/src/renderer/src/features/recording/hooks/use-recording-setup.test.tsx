@@ -274,7 +274,7 @@ describe("useRecordingSetup", () => {
       }
     });
 
-    it("a settings change after the take started does not reach the input it was built from", async () => {
+    it("the quality is read when the start is requested, not when the hook mounted", async () => {
       const stored = await window.electronAPI.getSettings();
       vi.spyOn(window.electronAPI, "getSettings").mockResolvedValue({
         ...stored,
@@ -289,9 +289,12 @@ describe("useRecordingSetup", () => {
         const resolveInput = recorderRequestStart.mock.calls[0][0] as () => {
           frameRate: number;
         };
-        const take = resolveInput();
+        // A take that asks for its input after a switch gets the new workspace's quality; one
+        // that asked before keeps what it was handed (the recorder holds that object).
+        const before = resolveInput();
         broadcast({ recordingQuality: SHARP as never });
-        expect(take.frameRate).toBe(24);
+        const after = resolveInput();
+        expect([before.frameRate, after.frameRate]).toEqual([24, 60]);
       } finally {
         restore();
       }

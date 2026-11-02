@@ -2686,7 +2686,7 @@
     "bannerCopyAll": "Copy all to every workspace",
     "bannerReset": "Reset to default",
     "copied": "Copied. Every workspace now uses this value.",
-    "copiedKept": "Copied. {names} keep their own value because they couldn't be changed.",
+    "copiedKept": "{count, plural, one {Copied. {names} keeps its own value because it couldn't be changed.} other {Copied. {names} keep their own value because they couldn't be changed.}}",
     "saveFailed": "Couldn't save the setting.",
     "refusedPending": "Review this workspace's settings first.",
     "refusedUnreadable": "This workspace's settings file can't be read, so nothing was written over it.",

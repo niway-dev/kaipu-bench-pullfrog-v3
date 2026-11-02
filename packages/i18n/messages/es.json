@@ -2686,7 +2686,7 @@
     "bannerCopyAll": "Copiar todo a cada espacio",
     "bannerReset": "Restablecer al predeterminado",
     "copied": "Copiado. Todos los espacios usan ahora este valor.",
-    "copiedKept": "Copiado. {names} conservan su propio valor porque no se pudieron cambiar.",
+    "copiedKept": "{count, plural, one {Copiado. {names} conserva su propio valor porque no se pudo cambiar.} other {Copiado. {names} conservan su propio valor porque no se pudieron cambiar.}}",
     "saveFailed": "No se pudo guardar el ajuste.",
     "refusedPending": "Revisa primero los ajustes de este espacio.",
     "refusedUnreadable": "El archivo de ajustes de este espacio no se puede leer, así que no se escribió nada encima.",

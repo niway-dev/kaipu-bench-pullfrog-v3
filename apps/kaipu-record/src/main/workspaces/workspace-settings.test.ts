@@ -23,6 +23,8 @@ let active: string;
 let all: AppSettings;
 let changed: ReturnType<typeof vi.fn<() => void>>;
 let settings: WorkspaceSettings;
+let machineStore: MachineSettingsStore;
+let availabilityGate: Promise<void> | null;
 let clock: number;
 
 const folderFile = (ws: Ws): string => join(ws.path, SETTINGS_FILE);
@@ -37,11 +39,15 @@ async function putFolderFile(ws: Ws, overrides: Record<string, unknown>): Promis
 
 async function build(): Promise<WorkspaceSettings> {
   const machine = await MachineSettingsStore.open(machineFile());
+  machineStore = machine;
   const instance = new WorkspaceSettings({
     machine,
     workspaces: () => [work, personal],
     activeId: () => active,
-    isAvailable: async (id) => [work, personal].find((ws) => ws.id === id)?.available ?? false,
+    isAvailable: async (id) => {
+      await availabilityGate;
+      return [work, personal].find((ws) => ws.id === id)?.available ?? false;
+    },
     getAll: () => all,
     writeAll: (patch) => {
       all = { ...all, ...patch };
@@ -67,6 +73,7 @@ beforeEach(async () => {
   all = { ...DEFAULTS, screenshotCopy: "auto", showBrandBadge: true };
   changed = vi.fn<() => void>();
   clock = 1000;
+  availabilityGate = null;
   settings = await build();
 });
 
@@ -462,5 +469,115 @@ describe("the All scope", () => {
     await putFolderFile(personal, { screenshotCopy: "manual" });
     const scoped = await settings.getScoped("all");
     expect(scoped.overriddenIn).toEqual({});
+  });
+});
+
+describe("review fixes", () => {
+  it("a failed machine record writes nothing to the folder and leaves the active overrides alone", async () => {
+    await settings.setOverride("work", "screenshotCopy", "manual");
+    const before = await readFile(folderFile(work), "utf-8");
+    vi.spyOn(machineStore, "update").mockRejectedValueOnce(new Error("disk full"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(settings.setOverride("work", "showBrandBadge", false)).resolves.toEqual({
+      ok: false,
+      reason: "failed",
+    });
+    // The hash is recorded before the file is replaced, so a failed record leaves the file as it was.
+    expect(await readFile(folderFile(work), "utf-8")).toBe(before);
+    expect(settings.activeOverrides()).toEqual({ screenshotCopy: "manual" });
+    expect((await settings.getScoped("work")).folder).toBe("active");
+  });
+
+  it("clears uploadMode even when the folder file is pending", async () => {
+    await settings.setOverride("work", "uploadMode", "automatic");
+    await putFolderFile(work, { screenshotCopy: "manual" });
+    await settings.refresh("work");
+    const result = await settings.resetOverrides("work", ["screenshotCopy", "uploadMode"]);
+    expect(result).toEqual({ ok: false, reason: "pending" });
+    expect(settings.activeOverrides()).toEqual({});
+    expect(machineStore.get("work").uploadMode).toBeUndefined();
+  });
+
+  it("two edits of one workspace at once both land and the file stays confirmed", async () => {
+    await Promise.all([
+      settings.setOverride("work", "screenshotCopy", "manual"),
+      settings.setOverride("work", "showBrandBadge", false),
+      settings.setOverride("work", "exportQuality", "maximum"),
+    ]);
+    const scoped = await settings.getScoped("work");
+    expect(scoped.folder).toBe("active");
+    expect(scoped.overrides).toEqual({
+      screenshotCopy: "manual",
+      showBrandBadge: false,
+      exportQuality: "maximum",
+    });
+  });
+
+  it("does not name a disconnected workspace that holds no override of the copied keys", async () => {
+    await settings.setOverride("work", "screenshotCopy", "manual");
+    await settings.refresh("personal");
+    personal.available = false;
+    const result = await settings.copyToAll("work", ["screenshotCopy"]);
+    expect(result).toMatchObject({ ok: true, keptOwn: [] });
+  });
+
+  it("a workspace seen without an override stays ruled out after the Settings page looked at it unplugged", async () => {
+    await settings.refresh("personal");
+    personal.available = false;
+    await settings.getScoped("all");
+    await settings.setOverride("work", "screenshotCopy", "manual");
+    await expect(settings.copyToAll("work", ["screenshotCopy"])).resolves.toMatchObject({
+      keptOwn: [],
+    });
+  });
+
+  it("names a disconnected workspace whose state is unknown, because it cannot be ruled out", async () => {
+    // Never read: nothing says it has no override.
+    await settings.setOverride("work", "screenshotCopy", "manual");
+    personal.available = false;
+    const fresh = await build();
+    const result = await fresh.copyToAll("work", ["screenshotCopy"]);
+    expect(result).toMatchObject({ ok: true, keptOwn: ["Personal"] });
+  });
+
+  it("names a disconnected workspace whose machine-bound upload mode is its own", async () => {
+    await settings.setOverride("personal", "uploadMode", "manual");
+    personal.available = false;
+    const result = await settings.copyToAll("work", ["uploadMode"]);
+    expect(result).toMatchObject({ ok: true, keptOwn: ["Personal"] });
+  });
+
+  it("refuses to copy from a workspace that is not connected", async () => {
+    work.available = false;
+    await expect(settings.copyToAll("work", ["screenshotCopy"])).resolves.toEqual({
+      ok: false,
+      reason: "unavailable",
+    });
+  });
+
+  it("a refresh bounds the availability probe too, so a capture never waits on a slow folder", async () => {
+    const slow = new Promise<void>(() => {});
+    availabilityGate = slow;
+    const fast = new WorkspaceSettings({
+      machine: machineStore,
+      workspaces: () => [work, personal],
+      activeId: () => active,
+      isAvailable: async () => {
+        await slow;
+        return true;
+      },
+      getAll: () => all,
+      writeAll: () => {},
+      effective: () => all,
+      changed: () => changed(),
+      now: () => 1,
+      readTimeoutMs: 30,
+    });
+    await putFolderFile(work, { screenshotCopy: "manual" });
+    const started = Date.now();
+    await fast.refresh("work");
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(fast.activeOverrides()).toEqual({});
   });
 });

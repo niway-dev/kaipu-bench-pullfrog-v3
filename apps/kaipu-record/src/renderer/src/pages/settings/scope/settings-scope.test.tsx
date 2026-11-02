@@ -269,7 +269,7 @@ describe("two or more workspaces", () => {
     await waitFor(() => expect(copyToAll).toHaveBeenCalledWith("ws-a", ["screenshotCopy"]));
     await waitFor(() =>
       expect(showToast).toHaveBeenCalledWith({
-        message: "Copied. Bravo keep their own value because they couldn't be changed.",
+        message: "Copied. Bravo keeps its own value because it couldn't be changed.",
       }),
     );
   });

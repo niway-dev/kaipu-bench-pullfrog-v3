@@ -61,7 +61,6 @@ const ScopeContext = createContext<SettingsScopeState | null>(null);
 function useScopeState(enabled: boolean): SettingsScopeState {
   const t = useTranslations("settingsScope");
   const workspacesContext = useOptionalWorkspaces();
-  const { update } = useAppSettings();
   const workspaces = useMemo(
     () => workspacesContext?.state?.workspaces ?? [],
     [workspacesContext?.state?.workspaces],
@@ -157,10 +156,13 @@ function useScopeState(enabled: boolean): SettingsScopeState {
         afterWrite(await window.electronAPI.settingsScope.setOverride(scope, key, value));
         return;
       }
-      await update({ [key]: value } as Partial<AppSettings>);
+      // The All level, straight through IPC: every window follows the `settings:changed` it causes,
+      // and this hook keeps no settings state of its own (so a provider costs one read, not one
+      // per component that uses it).
+      await window.electronAPI.updateSettings({ [key]: value } as Partial<AppSettings>);
       refresh();
     },
-    [afterWrite, mode, refresh, scope, scoped, scopeIsCurrent, update],
+    [afterWrite, mode, refresh, scope, scoped, scopeIsCurrent],
   );
 
   const reset = useCallback(
@@ -179,7 +181,7 @@ function useScopeState(enabled: boolean): SettingsScopeState {
       showToast({
         message:
           result.keptOwn.length > 0
-            ? t("copiedKept", { names: result.keptOwn.join(", ") })
+            ? t("copiedKept", { names: result.keptOwn.join(", "), count: result.keptOwn.length })
             : t("copied"),
       });
     },
