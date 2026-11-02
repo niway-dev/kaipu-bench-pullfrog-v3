@@ -3,7 +3,10 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { createMainTranslator } from "@kaipu/i18n/main";
 import { IPC_CHANNELS } from "@shared/types";
 import type {
+  LocationCheck,
   WorkspaceAddResult,
+  WorkspaceCreateResult,
+  WorkspaceEditResult,
   WorkspacePrepareResult,
   WorkspaceRemoveResult,
   WorkspacesState,
@@ -251,6 +254,49 @@ async function addWorkspace(sender: Electron.WebContents): Promise<WorkspaceAddR
   return { ok: true, workspace: toWorkspaceView(outcome.entry, availability, null) };
 }
 
+/**
+ * New workspace: a new folder next to the Default workspace's, only Kaipu's files in it, then
+ * the same switch as any other. A refused switch (a recording running) leaves it registered.
+ */
+async function createWorkspace(input: unknown): Promise<WorkspaceCreateResult> {
+  const reg = requireRegistry();
+  const { name, color } = (input ?? {}) as { name?: unknown; color?: unknown };
+  if (typeof name !== "string" || typeof color !== "string") {
+    return { ok: false, reason: "invalid-name" };
+  }
+  const outcome = await reg.create({ name, color });
+  if (!outcome.ok) return outcome;
+  await reg.dismissHint();
+  const { availability } = await reg.availability(outcome.entry.id);
+  const switchResult = await runSwitch(outcome.entry.id);
+  await broadcastState();
+  return {
+    ok: true,
+    workspace: toWorkspaceView(outcome.entry, availability, null),
+    switchResult,
+  };
+}
+
+async function editWorkspace(input: unknown): Promise<WorkspaceEditResult> {
+  const reg = requireRegistry();
+  const { id, name, color } = (input ?? {}) as { id?: unknown; name?: unknown; color?: unknown };
+  if (typeof id !== "string") return { ok: false, reason: "unknown" };
+  const outcome = await reg.edit(id, {
+    ...(typeof name === "string" ? { name } : {}),
+    ...(typeof color === "string" ? { color } : {}),
+  });
+  if (!outcome.ok) return outcome;
+  const { availability } = await reg.availability(outcome.entry.id);
+  // The window title shows the active workspace's name, and the tiles show the initials.
+  refreshTitles();
+  await broadcastState();
+  return {
+    ok: true,
+    workspace: toWorkspaceView(outcome.entry, availability, null),
+    savedToFolder: outcome.savedToFolder,
+  };
+}
+
 export function registerWorkspaceHandlers(deps: WorkspaceHost): void {
   host = deps;
   ipcMain.handle(IPC_CHANNELS.workspacesList, () => listState());
@@ -258,6 +304,15 @@ export function registerWorkspaceHandlers(deps: WorkspaceHost): void {
     typeof id === "string" ? runSwitch(id) : { ok: false, reason: "unknown" },
   );
   ipcMain.handle(IPC_CHANNELS.workspacesAdd, (event) => addWorkspace(event.sender));
+  ipcMain.handle(IPC_CHANNELS.workspacesCreate, (_event, input: unknown) => createWorkspace(input));
+  ipcMain.handle(IPC_CHANNELS.workspacesEdit, (_event, input: unknown) => editWorkspace(input));
+  ipcMain.handle(
+    IPC_CHANNELS.workspacesCheckLocation,
+    (_event, name: unknown): Promise<LocationCheck> =>
+      typeof name === "string"
+        ? requireRegistry().checkNewLocation(name)
+        : Promise.resolve({ path: null, state: "parent-missing" }),
+  );
   ipcMain.handle(
     IPC_CHANNELS.workspacesRemove,
     async (_event, id: unknown): Promise<WorkspaceRemoveResult> => {

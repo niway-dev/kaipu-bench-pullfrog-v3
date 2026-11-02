@@ -46,6 +46,12 @@ describe("palette", () => {
     expect(isTagColor("#ff0000")).toBe(false);
   });
 
+  it("has Kaipu's brand color, last so the tag sequence is unchanged", () => {
+    expect(isTagColor("kaipu")).toBe(true);
+    expect(TAG_COLORS.at(-1)).toBe("kaipu");
+    expect(TAG_COLORS.slice(0, 3)).toEqual(["rose", "coral", "amber"]);
+  });
+
   it("picks the least used color, palette order on ties", () => {
     expect(nextTagColor([])).toBe(TAG_COLORS[0]);
     expect(nextTagColor(["rose"])).toBe("coral");

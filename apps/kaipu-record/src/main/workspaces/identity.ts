@@ -1,7 +1,10 @@
-import { mkdir, readFile, rmdir, stat } from "node:fs/promises";
+import { mkdir, readFile, rm, rmdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { isTagColor, TAG_COLORS, type TagColor } from "@kaipu/domain/constants";
+import { normalizeWorkspaceName } from "@shared/workspace-name";
 import { atomicWriteFile } from "../library/atomic-write";
+
+export { normalizeWorkspaceName };
 
 /**
  * `.kaipu/workspace/identity.json`: the workspace's id, name, color and initials, inside the
@@ -15,7 +18,8 @@ export const IDENTITY_FILE = join(IDENTITY_DIR, "identity.json");
 /** The migrated library's name (spec decision 22), and its initials. */
 export const DEFAULT_WORKSPACE_NAME = "Default workspace";
 
-const NAME_MAX_LENGTH = 64;
+/** Kaipu's brand color (#F6055C): the migrated library wears it, the user can change it. */
+export const DEFAULT_WORKSPACE_COLOR: TagColor = "kaipu";
 
 export interface WorkspaceIdentity {
   version: 1;
@@ -60,14 +64,6 @@ export function isValidInitials(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const length = Array.from(value.trim()).length;
   return length >= 1 && length <= 2;
-}
-
-/** The workspace's display name, or null when nothing usable is left. */
-export function normalizeWorkspaceName(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const name = raw.normalize("NFKC").trim().replace(/\s+/g, " ");
-  if (name.length === 0 || /\p{Cc}/u.test(name)) return null;
-  return name.slice(0, NAME_MAX_LENGTH);
 }
 
 /** The next palette color no registered workspace uses yet (cycles once all are taken). */
@@ -161,4 +157,14 @@ export async function writeIdentity(root: string, identity: WorkspaceIdentity): 
     if (createdMeta) await rmdir(meta).catch(() => {});
     throw error;
   }
+}
+
+/**
+ * Undo a `writeIdentity` into a folder Kaipu does not own: the file, then each of Kaipu's own
+ * folders if it is left empty. `rmdir` refuses a non-empty folder, so user content is safe.
+ */
+export async function removeIdentity(root: string): Promise<void> {
+  await rm(join(root, IDENTITY_FILE), { force: true }).catch(() => {});
+  await rmdir(join(root, IDENTITY_DIR)).catch(() => {});
+  await rmdir(join(root, ".kaipu")).catch(() => {});
 }

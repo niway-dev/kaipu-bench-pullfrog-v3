@@ -88,7 +88,7 @@ describe("migration (first launch after the upgrade)", () => {
     expect(entry).toMatchObject({
       path: defaultDir,
       name: "Default workspace",
-      color: "rose",
+      color: "kaipu",
       initials: "DW",
     });
     expect(registry.active().id).toBe(entry!.id);
@@ -330,7 +330,7 @@ describe("add workspace", () => {
     expect(result).toMatchObject({
       ok: true,
       created: true,
-      entry: { path: folder, name: "Client X", initials: "CX", color: "coral" },
+      entry: { path: folder, name: "Client X", initials: "CX", color: "rose" },
     });
     const after = await snapshot(folder);
     expect(Object.keys(after).sort()).toEqual([IDENTITY_FILE, "notes.txt"].sort());

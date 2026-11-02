@@ -25,6 +25,9 @@ export const TAG_COLORS = [
   "iris",
   "orchid",
   "slate",
+  // Kaipu's own brand color (#F6055C). Last, so `nextTagColor` keeps handing out the same
+  // sequence it always did; the "Default workspace" wears it (ADR 0032).
+  "kaipu",
 ] as const;
 
 export type TagColor = (typeof TAG_COLORS)[number];
