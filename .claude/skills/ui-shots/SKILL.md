@@ -53,7 +53,7 @@ bun .claude/skills/ui-shots/shots.mjs /tmp/mock/capture-preview.html /tmp/mock-s
   full "hover:.card.live as live"
 ```
 
-By default every animation is paused and rewound to its first frame (after the page loads and the fonts are ready) and transitions are off, so shots are deterministic. `full` captures the whole page, not only the viewport; before each shot the pointer is parked in a viewport corner outside the shot's subject. If an animation must show a mid state (a draining progress bar), override it: `--css='.live .bar i{animation-delay:-4s!important}'`.
+By default transitions are off and, right before every shot, each animation is put in a fixed state: a finite one jumps to its end (an entrance such as a fade-in or a pop shows the settled UI), an infinite one is paused at its start. Shots are deterministic. `full` captures the whole page, not only the viewport; before each shot the pointer is parked in a viewport corner outside the shot's subject. To show a mid state (a half-drained progress bar), skip the freeze and pin it yourself: `--no-freeze --css='*{transition:none!important} .live .bar i{animation-delay:-4s!important;animation-play-state:paused!important}'`.
 
 A static page that has no mockup yet: write one that inlines `packages/tokens/css/tokens.css` plus the component's `*.module.css` (unhashed class names) and mimics its container (the modal shell, `max-height`, flex column, `overflow`). It proves the CSS (flex and `min-height` chains, scroll containers), **not** the React markup; say so in the report.
 
@@ -64,7 +64,7 @@ Better when the markup matters. A throwaway harness renders the real React compo
 1. In a worktree, add `src/renderer/harness.html` and `src/renderer/src/harness.tsx`: mock `window.electronAPI`, wrap in `I18nProvider`, and drive the store per `?s=<scene>`.
 2. Add `harness.vite.config.ts` that copies the renderer's StyleX babel and postcss config.
 3. `vite build` with the pinned binary, then serve the output (`python3 -m http.server <port>` from the build dir).
-4. Run the script against `http://localhost:<port>/harness.html?s=<scene>`, once per scene. Wait for the UI to settle (modals fade in): use `--wait=800` or a longer wait.
+4. Run the script against `http://localhost:<port>/harness.html?s=<scene>`, once per scene. Give the UI time to mount and fetch (`--wait=800` or longer); entrance animations are finished by the freeze, so they never come out half-faded.
 5. Delete the harness before committing. Stage explicit paths only.
 
 ## Send the PNGs
@@ -79,6 +79,6 @@ Better when the markup matters. A throwaway harness renders the real React compo
 - Shooting a hover without parking the pointer first: the script does this; a hand-rolled one must too, or the "rest" shot is already hovered.
 - Installing Playwright browsers or launching Electron: neither is needed or allowed.
 - Pinning `playwright-core@<version>` in a path: the version changes; glob it.
-- Shooting before the UI settles (fade-ins, toasts): wait, then shoot.
+- Shooting before the UI has mounted or fetched its data: raise `--wait`. (Entrance animations are finished for you; do not pass `--no-freeze` to "let them play".)
 - Presenting a CSS-only page as proof of the React component, or a harness as proof of the real app.
 - Pasting `/tmp/...` paths into a PR as evidence: a reviewer cannot open them. Upload.

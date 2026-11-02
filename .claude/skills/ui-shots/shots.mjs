@@ -143,16 +143,32 @@ try {
     });
   }
   await page.evaluate(() => document.fonts.ready);
-  if (opts.freeze) {
-    // `animation-play-state: paused` stops an animation where load left it; rewinding makes
-    // every run start from the same frame (a negative delay from --css still applies on top).
-    await page.evaluate(() =>
-      document.getAnimations().forEach((animation) => {
-        animation.pause();
-        animation.currentTime = 0;
-      }),
-    );
-  }
+  /**
+   * Put every running animation in a fixed state, right before each shot (so one started during
+   * --wait is caught too): a finite one jumps to its end, so an entrance (a fade-in, a pop) shows
+   * the settled UI; an infinite one is paused at its start. Scroll-driven timelines take a
+   * percentage, not milliseconds. An animation that refuses is left alone, never fatal.
+   */
+  const settleAnimations = () =>
+    page.evaluate(() => {
+      for (const animation of document.getAnimations()) {
+        try {
+          const iterations = animation.effect?.getComputedTiming().iterations;
+          if (iterations !== Infinity) {
+            animation.finish();
+            continue;
+          }
+          animation.pause();
+          const scrollDriven =
+            typeof DocumentTimeline === "undefined" ||
+            !(animation.timeline instanceof DocumentTimeline);
+          animation.currentTime =
+            scrollDriven && typeof CSS !== "undefined" && CSS.percent ? CSS.percent(0) : 0;
+        } catch {
+          // A scroll-driven or detached animation that rejects the change keeps its own state.
+        }
+      }
+    });
 
   const shoot = async (shooter, file, options = {}) => {
     const path = join(outDir, file);
@@ -177,6 +193,13 @@ try {
     await page.mouse.move(x, y);
     // Let the UI settle (a delayed modal, a hover transition ending) before every shot.
     await page.waitForTimeout(wait);
+    if (opts.freeze) await settleAnimations();
+  };
+
+  /** The subject's box where the shot is taken: Playwright scrolls it into view first. */
+  const boxInView = async (locator) => {
+    await locator.scrollIntoViewIfNeeded();
+    return locator.boundingBox();
   };
 
   for (const step of parsedSteps) {
@@ -189,16 +212,17 @@ try {
     if ((await page.locator(step.selector).count()) === 0)
       fail(`no element matches "${step.selector}"`);
     if (step.kind === "el") {
-      await park(await el.boundingBox());
+      await park(await boxInView(el));
       await shoot(el, `${step.name}.png`);
       continue;
     }
     const subject = step.kind === "hoverctx" ? el.locator("xpath=..") : el;
     // Outside the shot's subject, so the first shot is a true rest state.
-    await park(await subject.boundingBox());
+    await park(await boxInView(subject));
     await shoot(subject, `${step.name}-rest.png`);
     await el.hover();
     await page.waitForTimeout(wait);
+    if (opts.freeze) await settleAnimations();
     await shoot(subject, `${step.name}-hover.png`);
   }
 } finally {
