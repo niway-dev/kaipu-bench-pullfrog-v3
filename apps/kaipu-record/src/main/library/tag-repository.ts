@@ -220,6 +220,40 @@ export class VaultTagRepository implements TagRepository {
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }
 
+  /** Live tags, without counting items. Throws `TagRegistryError` for a registry it cannot trust. */
+  async liveTags(): Promise<Tag[]> {
+    return (await this.serial(() => this.read())).filter((t) => t.deletedAt === null);
+  }
+
+  /**
+   * The live tag for each name, by slug, creating the missing ones with the given color in
+   * one registry write (ADR 0033, decision 7: a moved item's tags are remapped by name). An
+   * invalid name is dropped; the result keeps `wanted`'s order without duplicates.
+   */
+  ensureByName(wanted: readonly { name: string; color: TagColor }[]): Promise<Tag[]> {
+    return this.serial(async () => {
+      if (wanted.length === 0) return [];
+      const tags = await this.read();
+      const result: Tag[] = [];
+      let created = false;
+      for (const { name: raw, color } of wanted) {
+        const name = normalizeTagName(raw);
+        if (name === null) continue;
+        const slug = tagSlug(name);
+        let tag = tags.find((t) => t.deletedAt === null && t.slug === slug);
+        if (!tag) {
+          const live = tags.filter((t) => t.deletedAt === null);
+          tag = this.mint(name, isTagColor(color) ? color : nextTagColor(live.map((t) => t.color)));
+          tags.push(tag);
+          created = true;
+        }
+        if (!result.includes(tag)) result.push(tag);
+      }
+      if (created) await this.write(tags);
+      return result.slice(0, TAGS_PER_ITEM_MAX);
+    });
+  }
+
   create(rawName: string, color?: TagColor): Promise<Tag> {
     return this.serial(async () => {
       const name = this.validName(rawName);
