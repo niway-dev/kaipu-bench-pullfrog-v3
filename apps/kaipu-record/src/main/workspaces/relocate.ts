@@ -40,7 +40,9 @@ export async function relocateWorkspace(
   // window is asked to save, no capture is dropped and no route remounts. The caller's probe
   // still runs, which rewrites an identity file deleted by hand.
   const current = deps.registry.get(id);
-  if (current && resolve(current.path) === resolve(chosen)) return { ok: true, entry: current };
+  if (current && resolve(current.path) === resolve(chosen)) {
+    return { ok: true, entry: current, unchanged: true };
+  }
   if (id !== deps.registry.active().id) return deps.registry.relocate(id, chosen);
   // The active workspace's items are open in the windows: same transaction as a switch.
   return relocateActive(deps, id, () => deps.registry.relocate(id, chosen));

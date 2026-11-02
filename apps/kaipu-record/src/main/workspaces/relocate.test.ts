@@ -155,7 +155,7 @@ describe("relocateWorkspace, the active workspace", () => {
 
     const outcome = await relocateWorkspace(h.deps, id, defaultDir);
 
-    expect(outcome).toMatchObject({ ok: true, entry: { id, path: defaultDir } });
+    expect(outcome).toMatchObject({ ok: true, unchanged: true, entry: { id, path: defaultDir } });
     // No window is asked to save, no capture is dropped, and no route remounts.
     expect(h.log).toEqual([]);
     expect(h.gate.stamp).toEqual({ workspaceId: id, generation: 1 });

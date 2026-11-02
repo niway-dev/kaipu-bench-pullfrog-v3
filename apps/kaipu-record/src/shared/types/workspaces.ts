@@ -161,7 +161,12 @@ export type WorkspaceRelocateRefusal =
 
 /** `workspaces:relocate`: the folder picker, then the workspace is pointed at the folder. */
 export type WorkspaceRelocateResult =
-  | { ok: true; workspace: WorkspaceView }
+  | {
+      ok: true;
+      workspace: WorkspaceView;
+      /** The picked folder is the one it already points at: nothing changed, so no "now points" toast. */
+      unchanged?: true;
+    }
   | {
       ok: false;
       reason: WorkspaceRelocateRefusal;

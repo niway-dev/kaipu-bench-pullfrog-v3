@@ -346,6 +346,7 @@ async function relocateFolder(
   return {
     ok: true,
     workspace: toWorkspaceView(reg.get(outcome.entry.id) ?? outcome.entry, availability, null),
+    ...(outcome.unchanged ? { unchanged: true as const } : {}),
   };
 }
 

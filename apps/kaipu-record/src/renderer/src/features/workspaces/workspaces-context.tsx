@@ -164,6 +164,8 @@ export function WorkspacesProvider({ children }: { children: React.ReactNode }):
 
   const onRelocated = useCallback(
     (result: Extract<WorkspaceRelocateResult, { ok: true }>): void => {
+      // The picker opens on the current folder, so picking it as-is is easy: say nothing.
+      if (result.unchanged) return;
       showToast({ message: t("folderChanged", { name: result.workspace.name }) });
     },
     [t],
