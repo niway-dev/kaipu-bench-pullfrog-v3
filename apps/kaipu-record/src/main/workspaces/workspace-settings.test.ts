@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AppSettings } from "@shared/types";
 import { mergeSettings } from "../services/settings.service";
+import * as overridesModule from "./settings-overrides";
 import { MachineSettingsStore, SETTINGS_FILE, resolveEffective } from "./settings-overrides";
 import { WorkspaceSettings } from "./workspace-settings";
 
@@ -579,5 +580,29 @@ describe("review fixes", () => {
     await fast.refresh("work");
     expect(Date.now() - started).toBeLessThan(1000);
     expect(fast.activeOverrides()).toEqual({});
+  });
+});
+
+describe("a refresh racing a write", () => {
+  it("never puts an older read over the write that finished first", async () => {
+    await settings.setOverride("work", "screenshotCopy", "manual");
+    const realRead = overridesModule.readFolderOverrides;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const spy = vi
+      .spyOn(overridesModule, "readFolderOverrides")
+      .mockImplementationOnce(async (path) => {
+        const old = await realRead(path); // the old bytes, read before the write below
+        await held;
+        return old;
+      });
+    const refreshing = settings.refresh("work");
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled());
+    await settings.setOverride("work", "showBrandBadge", false);
+    release();
+    await refreshing;
+    spy.mockRestore();
+    // The cache, as captures and snapshots read it (no fresh read to mask the race).
+    expect(settings.activeOverrides()).toEqual({ screenshotCopy: "manual", showBrandBadge: false });
   });
 });

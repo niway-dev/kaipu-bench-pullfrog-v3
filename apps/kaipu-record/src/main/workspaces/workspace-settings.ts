@@ -63,7 +63,15 @@ export class WorkspaceSettings {
 
   constructor(private readonly deps: WorkspaceSettingsDeps) {}
 
+  /**
+   * Bumped by every `remember`, so a `refresh` whose probe started before a write finished can
+   * tell its read is older than the cache and drop it (it would otherwise put the old sha256
+   * back, and this Mac's own overrides would read as pending).
+   */
+  private readonly generations = new Map<string, number>();
+
   private remember(id: string, read: FolderRead): void {
+    this.generations.set(id, (this.generations.get(id) ?? 0) + 1);
     this.reads.set(id, read);
     if (read.kind !== "unreadable") this.lastSeen.set(id, read);
   }
@@ -109,7 +117,10 @@ export class WorkspaceSettings {
     const ws = this.known(id);
     if (!ws) return;
     const before = JSON.stringify(this.overridesOf(id));
+    const generation = this.generations.get(id) ?? 0;
     const read = await this.probe(id, ws.path);
+    // A write (or another refresh) landed while this probe ran: its read is the newer one.
+    if ((this.generations.get(id) ?? 0) !== generation) return;
     this.remember(id, read);
     if (id === this.deps.activeId() && before !== JSON.stringify(this.overridesOf(id))) {
       this.deps.changed();
