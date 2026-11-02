@@ -399,12 +399,8 @@ function ScanBody({
       if (scan.findings.length === 0) {
         return <ModalText>{t("reconcileEverythingMatches")}</ModalText>;
       }
-      // The intro describes a finished scan, so it only sits above an actual list.
       return (
         <>
-          <ModalText>
-            {t(scan.fixableCount > 0 ? "reconcileIntro" : "reconcileIntroListedOnly")}
-          </ModalText>
           <SafetyNote t={t} />
           <Findings findings={scan.findings} skipped={skipped} t={t} />
         </>
@@ -522,6 +518,8 @@ export function ReconcileDialogHost(): React.JSX.Element | null {
   const fixing = run.phase === "fixing";
   const canFix =
     run.phase === "idle" && !scanning && scan?.status === "ok" && scan.fixableCount > 0;
+  const listShown =
+    run.phase === "idle" && !scanning && scan?.status === "ok" && scan.findings.length > 0;
   const selected = canFix
     ? scan.findings.filter((f) => f.fixable && !skipped.has(f.path)).length
     : 0;
@@ -533,15 +531,28 @@ export function ReconcileDialogHost(): React.JSX.Element | null {
       size="wide"
     >
       <div className={styles.sheet}>
-        <ModalIcon tone="accent">
-          <FolderSync size={20} strokeWidth={1.8} />
-        </ModalIcon>
-        <ModalTitle id="reconcile-dialog-title">{t("reconcileTitle")}</ModalTitle>
-        {run.phase === "idle" ? (
-          <ScanBody scan={scanning ? null : scan} skipped={skipped} t={t} />
-        ) : (
-          <RunBody run={run} t={t} />
-        )}
+        {/* Icon beside the title, as in the design: the list gets the height instead. */}
+        <header className={styles.header}>
+          <ModalIcon tone="accent">
+            <FolderSync size={20} strokeWidth={1.8} />
+          </ModalIcon>
+          <div className={styles.headerText}>
+            <ModalTitle id="reconcile-dialog-title">{t("reconcileTitle")}</ModalTitle>
+            {/* The intro describes a finished scan, so it only shows above an actual list. */}
+            {listShown && (
+              <p className={styles.intro}>
+                {t(scan.fixableCount > 0 ? "reconcileIntro" : "reconcileIntroListedOnly")}
+              </p>
+            )}
+          </div>
+        </header>
+        <div className={styles.body}>
+          {run.phase === "idle" ? (
+            <ScanBody scan={scanning ? null : scan} skipped={skipped} t={t} />
+          ) : (
+            <RunBody run={run} t={t} />
+          )}
+        </div>
         {canFix && (
           <p className={styles.summary}>
             {selected === scan.fixableCount
