@@ -218,6 +218,30 @@ describe("relocate refusals", () => {
     expect(await readIdentity(remounted)).toMatchObject({ kind: "ok", identity: { id: workId } });
   });
 
+  it("keeps accepting the moved folder after an offline edit of a workspace that never got an identity", async () => {
+    // Registered while its drive was unplugged: pendingInit, and no identity.json anywhere.
+    const drive = join(root, "Volumes", "T7", "Kaipu");
+    await writeFile(join(userData, "preferences.json"), JSON.stringify({ vaultDirectory: drive }));
+    const registry = await WorkspaceRegistry.open(env());
+    const id = registry.active().id;
+    expect(registry.active().pendingInit).toBe(true);
+
+    // The user renames it while the drive is still away: only the registry can take the change.
+    const edited = await registry.edit(id, { name: "Archive", color: "sky" });
+    expect(edited).toMatchObject({ ok: true, savedToFolder: false });
+    expect(registry.get(id)?.pendingInit).toBe(true);
+
+    // The drive comes back at another path, with Kaipu items and no identity.
+    const remounted = join(root, "Remounted");
+    await mkdir(join(remounted, ".kaipu"), { recursive: true });
+    await writeFile(join(remounted, ".kaipu", "clip.json"), "{}");
+
+    expect(await registry.relocate(id, remounted)).toMatchObject({
+      ok: true,
+      entry: { id, path: remounted },
+    });
+  });
+
   it("refuses an empty folder, never adopting it as this workspace", async () => {
     const { registry, workId } = await withWork();
     const empty = join(root, "Empty");

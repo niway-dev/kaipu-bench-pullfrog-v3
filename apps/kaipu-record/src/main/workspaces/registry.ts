@@ -182,7 +182,12 @@ export type RelocateCheck =
   | { ok: false; reason: WorkspaceRelocateRefusal; workspaceName?: string };
 
 export type RelocateOutcome =
-  | { ok: true; entry: WorkspaceEntry }
+  | {
+      ok: true;
+      entry: WorkspaceEntry;
+      /** The picked folder is the one the workspace already points at: nothing changed. */
+      unchanged?: true;
+    }
   | { ok: false; reason: WorkspaceRelocateRefusal; workspaceName?: string };
 
 export type RemoveOutcome =
@@ -624,7 +629,9 @@ export class WorkspaceRegistry {
         target.name = name;
         target.color = color;
         if (initials) target.initials = initials;
-        delete target.pendingInit;
+        // Still no identity.json in the folder when it was not written: the init stays pending,
+        // or "Change folder…" would refuse the folder the workspace is later moved to.
+        if (savedToFolder) delete target.pendingInit;
         // An edit owns the folder's identity from here, so a deferred upgrade has nothing left to decide.
         delete target.pendingColorUpgrade;
         if (savedToFolder) delete target.pendingIdentity;
