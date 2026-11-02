@@ -250,6 +250,16 @@ describe("VaultTagRepository", () => {
     expect(await readdir(join(directory, ".kaipu"))).toEqual(["tags.json"]);
   });
 
+  it("ensureByName stops minting at the per-item cap, so no tag is created for nobody", async () => {
+    const names = Array.from({ length: TAGS_PER_ITEM_MAX + 5 }, (_, i) => ({
+      name: `tag-${i}`,
+      color: "amber" as const,
+    }));
+    const result = await repo.ensureByName(names);
+    expect(result).toHaveLength(TAGS_PER_ITEM_MAX);
+    expect(await repo.liveTags()).toHaveLength(TAGS_PER_ITEM_MAX);
+  });
+
   it("serializes concurrent creates so none is lost", async () => {
     await Promise.all(["a", "b", "c", "d"].map((name) => repo.create(name)));
     expect((await repo.list()).map((t) => t.name).sort()).toEqual(["a", "b", "c", "d"]);

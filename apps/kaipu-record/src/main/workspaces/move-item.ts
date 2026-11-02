@@ -21,6 +21,7 @@ import { sha256FileBase64 } from "../library/content-hash";
 import type { DragLedger } from "../library/drag-ledger";
 import { withItemLock } from "../library/item-lock";
 import {
+  isPlainItemId,
   LibraryVault,
   META_DIR,
   readSidecarStrict,
@@ -197,6 +198,8 @@ const NO_HARD_LINK = new Set(["EXDEV", "EPERM", "ENOTSUP", "EOPNOTSUPP", "ENOSYS
 export async function moveItem(request: MoveRequest, deps: MoverDeps): Promise<MoveOutcome> {
   const { source, target, id } = request;
   const refuse = (reason: MoveRefusal): MoveOutcome => ({ ok: false, id, reason });
+  // The id comes from the renderer and is joined into paths on both sides (and `rm` follows).
+  if (!isPlainItemId(id)) return refuse("not-found");
   if (source.workspaceId === target.workspaceId) return refuse("same-workspace");
   return withItemLock(source.workspaceId, id, async () => {
     try {
@@ -301,6 +304,7 @@ async function moveLocked(request: MoveRequest, deps: MoverDeps): Promise<MoveOu
 
   const finalMedia = (newId: string): string => join(target.directory, `${newId}${ext}`);
   let mediaPlaced = false;
+  let committedMode: "linked" | "copied" = "copied";
   try {
     // ── 3. Tags, then the target record: the stem is taken from here on.
     const tags = await targetTags.ensureByName(wanted);
@@ -381,6 +385,7 @@ async function moveLocked(request: MoveRequest, deps: MoverDeps): Promise<MoveOu
       if (placed === "taken") throw new Error(`target media taken: ${finalMedia(newId)}`);
     }
     mediaPlaced = true;
+    committedMode = mode;
     await after("media-placed");
 
     // Freshness caches follow the new file (decision 8). Best effort: a cache, not the item.
@@ -406,12 +411,16 @@ async function moveLocked(request: MoveRequest, deps: MoverDeps): Promise<MoveOu
     if (mediaPlaced) {
       // Past the commit: the target holds the item. Healing finishes the source side.
       console.error(`move of "${id}" failed after its commit; healing finishes it`, error);
+      // The item is in the target whatever happens next: a failing heal leaves the journal for
+      // the next run (startup, or before the next group) and must not turn this into "io".
       await healEntry(journal, {
         journalDir: deps.journalDir,
         fs,
         resolve: async (w) => w.directory,
-      });
-      return { ok: true, id, newId: journal.targetId!, mode: "copied" };
+      }).catch((healError: unknown) =>
+        console.error(`healing move ${journal.moveId} failed; it is retried later`, healError),
+      );
+      return { ok: true, id, newId: journal.targetId!, mode: committedMode };
     }
     if (journal.targetId) {
       await rollBackTarget(
@@ -670,10 +679,34 @@ async function healEntry(
       await writeJournal(deps.journalDir, { ...journal, phase: "committed" });
     }
     await refreshFreshness(to, targetId, journal).catch(() => {});
-    // A drag copy of the item could still name its bytes in the source (decision 11).
-    await rm(join(sourceDir, META_DIR, "drag"), { recursive: true, force: true }).catch(() => {});
-    if (sourcePresent) await unlink(sourceMedia).catch(() => {});
-    await removeCompanions(from.companionPaths(journal.sourceId));
+    // The source goes only while it is still the item this journal moved. Its stem may be
+    // someone else's by now (a new recording, a rename), and while the target was unplugged
+    // the user may have kept editing the item here: those edits are not ours to delete.
+    const sourceRecord = await readSidecarStrict(from.sidecarPath(journal.sourceId));
+    if (sourceRecord.status !== "ok" && sourceRecord.status !== "missing") {
+      return quarantine("source record unreadable");
+    }
+    const sourceIsOurs =
+      sourceRecord.status === "missing" || sourceRecord.sidecar.assetId === journal.assetId;
+    if (sourceIsOurs) {
+      if (sourcePresent) {
+        if (!sourceMatches) return quarantine("source media changed after the move committed");
+        if (await editProjectChanged(from, to, journal.sourceId, targetId)) {
+          return quarantine("source edit project changed after the move committed");
+        }
+        try {
+          await unlink(sourceMedia);
+        } catch (error) {
+          if (codeOf(error) !== "ENOENT") {
+            // Still there (open elsewhere, read-only): the record stays with it and the
+            // journal stays for a later run, so the file is never listed under a new identity.
+            console.error(`move ${journal.moveId}: cannot remove "${sourceMedia}"`, error);
+            return "waiting";
+          }
+        }
+      }
+      await removeCompanions(from.companionPaths(journal.sourceId));
+    }
     return done();
   }
 
@@ -706,6 +739,29 @@ async function healEntry(
     }
   }
   return quarantine("no media on either side");
+}
+
+/**
+ * The source's edit project is not the one that was copied: it was saved again after the
+ * move committed (the target was unplugged and the item stayed editable here).
+ */
+async function editProjectChanged(
+  from: LibraryVault,
+  to: LibraryVault,
+  sourceId: string,
+  targetId: string,
+): Promise<boolean> {
+  const sourcePath = from.companionPaths(sourceId).editSession;
+  if (!(await existsStrict(sourcePath).catch(() => true))) return false;
+  try {
+    const [mine, theirs] = await Promise.all([
+      readFile(sourcePath),
+      readFile(to.companionPaths(targetId).editSession),
+    ]);
+    return !mine.equals(theirs);
+  } catch {
+    return true;
+  }
 }
 
 /** The file at `path` is the journal's media: same size, and the same mtime or sha256. */

@@ -24,6 +24,7 @@ export function ItemMoveMenu({
   const lock = useMoveLock(workspaces?.state ?? null);
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   // A card clips its content (rounded poster): the menu is placed on the page, by the button.
   const [place, setPlace] = useState<React.CSSProperties>({});
 
@@ -34,6 +35,15 @@ export function ItemMoveMenu({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // The menu is portaled to the end of the page: focus goes into it on open, and comes back
+  // to the "⋯" button on close, so the keyboard does not have to tab through the page.
+  useEffect(() => {
+    if (!open) return;
+    const button = buttonRef.current;
+    menuRef.current?.querySelector<HTMLElement>("[role='menuitem']:not(:disabled)")?.focus();
+    return () => button?.focus();
   }, [open]);
 
   if (!workspaces?.state || !workspaces.active) return null;
@@ -82,6 +92,7 @@ export function ItemMoveMenu({
           <div onClick={(event) => event.stopPropagation()}>
             <div className={styles.backdrop} onClick={() => setOpen(false)} aria-hidden />
             <div
+              ref={menuRef}
               className={styles.menu}
               data-align="end"
               role="menu"

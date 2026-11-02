@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sha256FileBase64 } from "../library/content-hash";
@@ -467,4 +467,167 @@ describe("healing never deletes the only copy", () => {
     expect(report).toMatchObject({ healed: 0, waiting: 1 });
     expect(await readdir(journalDir)).toHaveLength(1);
   });
+});
+
+// chmod-based failures need an OS that enforces directory permissions (not Windows, not root).
+const enforcesPermissions = process.platform !== "win32" && process.getuid?.() !== 0;
+
+describe("review findings on a move (PR 479)", () => {
+  async function crashAfterPlacement(): Promise<void> {
+    await expect(
+      moveItem(
+        { source: src, target: dst, id: "Demo" },
+        deps({
+          hooks: {
+            after: (at) => {
+              if (at === "media-placed") throw new SimulatedCrash(at);
+            },
+          },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(SimulatedCrash);
+  }
+
+  it("refuses an id that is not a plain stem, and never touches a file outside the workspace", async () => {
+    await seedItem(src.directory);
+    const outside = join(root, "outside.mp4");
+    await writeFile(outside, "not yours");
+    for (const id of ["../outside", "..", "a/b", ".hidden", ""]) {
+      const outcome = await moveItem({ source: src, target: dst, id }, deps());
+      expect(outcome).toEqual({ ok: false, id, reason: "not-found" });
+    }
+    expect(await readFile(outside, "utf-8")).toBe("not yours");
+    // No record was minted outside the vault either.
+    await expect(stat(join(root, "outside.json"))).rejects.toThrow();
+    expect(await readdir(journalDir).catch(() => [])).toEqual([]);
+  });
+
+  it("healing leaves a different item that took the source stem alone", async () => {
+    const item = await seedItem(src.directory);
+    await crashAfterPlacement();
+    // The stem is free again in the source (the app was closed, the item deleted) and a new
+    // recording takes it before the roll-forward gets to run.
+    await rm(join(src.directory, "Demo.mp4"));
+    for (const name of await readdir(join(src.directory, ".kaipu"))) {
+      if (name.startsWith("Demo")) {
+        await rm(join(src.directory, ".kaipu", name), { recursive: true, force: true });
+      }
+    }
+    await writeFile(join(src.directory, "Demo.mp4"), "a newer recording");
+    await writeFile(
+      join(src.directory, ".kaipu", "Demo.json"),
+      JSON.stringify({ sidecarVersion: 2, assetId: "someone-else", title: "New" }),
+    );
+
+    const report = await heal();
+    expect(report.quarantined).toEqual([]);
+    expect(await readFile(join(src.directory, "Demo.mp4"), "utf-8")).toBe("a newer recording");
+    expect(
+      JSON.parse(await readFile(join(src.directory, ".kaipu", "Demo.json"), "utf-8")).assetId,
+    ).toBe("someone-else");
+    // The moved item is whole in the target, and the journal is done.
+    expect((await new LibraryVault(dst.directory).describe("Demo"))?.assetId).toBe(item.assetId);
+    expect(await readdir(journalDir)).toEqual([]);
+  });
+
+  it("healing keeps and surfaces a source whose edit project changed after the commit", async () => {
+    const item = await seedItem(src.directory);
+    await crashAfterPlacement();
+    // The target was unplugged at the next start; the user kept editing the item in the source.
+    const edited = join(src.directory, ".kaipu", "Demo.edit.json");
+    await rm(edited);
+    await writeFile(edited, '{"scene":2,"newer":true}');
+
+    const report = await heal();
+    expect(report.healed).toBe(0);
+    expect(report.quarantined).toHaveLength(1);
+    expect(await readFile(edited, "utf-8")).toBe('{"scene":2,"newer":true}');
+    expect(await readFile(join(src.directory, "Demo.mp4"))).toEqual(item.media);
+    expect(await readdir(journalDir)).toHaveLength(1);
+  });
+
+  it("healing keeps and surfaces a source whose media changed after the commit", async () => {
+    await seedItem(src.directory);
+    await crashAfterPlacement();
+    await rm(join(src.directory, "Demo.mp4"));
+    await writeFile(join(src.directory, "Demo.mp4"), "overwritten screenshot, longer than before");
+
+    const report = await heal();
+    expect(report.quarantined).toHaveLength(1);
+    expect(await readFile(join(src.directory, "Demo.mp4"), "utf-8")).toBe(
+      "overwritten screenshot, longer than before",
+    );
+    expect(await stat(join(src.directory, ".kaipu", "Demo.json"))).toBeTruthy();
+  });
+
+  it.skipIf(!enforcesPermissions)(
+    "healing keeps the journal and the source record when the source media cannot be removed",
+    async () => {
+      await seedItem(src.directory);
+      // A copy, so the source is a separate file; then the source folder refuses deletions.
+      await expect(
+        moveItem(
+          { source: src, target: dst, id: "Demo" },
+          deps({
+            fs: { link: exdev },
+            hooks: {
+              after: (at) => {
+                if (at === "media-placed") throw new SimulatedCrash(at);
+              },
+            },
+          }),
+        ),
+      ).rejects.toBeInstanceOf(SimulatedCrash);
+      await chmod(src.directory, 0o500);
+      try {
+        const report = await heal();
+        expect(report).toMatchObject({ healed: 0, waiting: 1 });
+        expect(await readdir(journalDir)).toHaveLength(1);
+        expect(await stat(join(src.directory, ".kaipu", "Demo.json"))).toBeTruthy();
+      } finally {
+        await chmod(src.directory, 0o700);
+      }
+      // A later run, once the file can be removed, finishes the move.
+      const later = await heal();
+      expect(later.healed).toBe(1);
+      expect(await filesOf(src.directory, "Demo")).toEqual([]);
+    },
+  );
+
+  it("healing a move leaves other items' drag copies alone", async () => {
+    await seedItem(src.directory);
+    const otherDrag = join(src.directory, ".kaipu", "drag", "u-other");
+    await mkdir(otherDrag, { recursive: true });
+    await writeFile(join(otherDrag, "Other.mp4"), "being read by a drop target");
+    await crashAfterPlacement();
+    expect((await heal()).healed).toBe(1);
+    expect(await readFile(join(otherDrag, "Other.mp4"), "utf-8")).toBe(
+      "being read by a drop target",
+    );
+  });
+
+  it.skipIf(!enforcesPermissions)(
+    "reports a move whose post-commit healing throws as done, with the real mode",
+    async () => {
+      const item = await seedItem(src.directory);
+      const outcome = await moveItem(
+        { source: src, target: dst, id: "Demo" },
+        deps({
+          hooks: {
+            // The media is placed (the commit); then the journal folder stops accepting writes.
+            after: async (at) => {
+              if (at !== "media-placed") return;
+              await chmod(journalDir, 0o500);
+              throw new Error("boom after the commit");
+            },
+          },
+        }),
+      );
+      await chmod(journalDir, 0o700);
+      expect(outcome).toEqual({ ok: true, id: "Demo", newId: "Demo", mode: "linked" });
+      // The journal is left for the next healing run, which finishes the source side.
+      expect((await heal()).healed).toBe(1);
+      expect(await copiesOf(item.assetId)).toEqual([{ dir: dst.directory, id: "Demo" }]);
+    },
+  );
 });

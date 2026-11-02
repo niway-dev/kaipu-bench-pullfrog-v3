@@ -12,6 +12,7 @@ import { dismissToast, getToasts } from "@renderer/ui/toast-store";
 import { setHeaderEndElement } from "../header-slot";
 import { registerItemPageCloser } from "../prepare-switch";
 import { WorkspacesProvider } from "../workspaces-context";
+import { ItemMoveMenu } from "./item-move-menu";
 import { ItemWorkspaceChip } from "./item-workspace-chip";
 import { resetMoveUi } from "./move-store";
 
@@ -171,8 +172,8 @@ describe("moving a recording that has exports", () => {
       targetId: "ws-personal",
       items: [
         { id: "Demo", assetId: "asset-Demo" },
-        { id: "Demo Slack", assetId: "asset-Demo Slack" },
         { id: "Demo YouTube", assetId: "asset-Demo YouTube" },
+        { id: "Demo Slack", assetId: "asset-Demo Slack" },
       ],
     });
     await waitFor(() => expect(getToasts().at(-1)?.message).toBe("Moved 3 items to Personal"));
@@ -205,6 +206,22 @@ describe("moving a recording that has exports", () => {
     );
   });
 
+  it("a lost IPC reply says the result is unknown, never 'changed workspace' or 'untouched'", async () => {
+    setup(state());
+    moveItems.mockRejectedValue(new Error("ipc went away"));
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderChip();
+    fireEvent.click(await screen.findByRole("button", { name: /In Work/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Personal/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Move only the recording" }));
+    await waitFor(() =>
+      expect(getToasts().at(-1)?.message).toBe(
+        "The result of the move could not be read. Check both workspaces.",
+      ),
+    );
+    quiet.mockRestore();
+  });
+
   it("an editor that stays open (Keep editing) moves nothing", async () => {
     setup(state());
     close.mockResolvedValue(false);
@@ -216,5 +233,33 @@ describe("moving a recording that has exports", () => {
     });
     await waitFor(() => expect(close).toHaveBeenCalled());
     expect(moveItems).not.toHaveBeenCalled();
+  });
+});
+
+describe("the ⋯ menu from the keyboard (PR 479)", () => {
+  it("moves focus into the menu on open and back to the button on Escape", async () => {
+    setup(state());
+    render(
+      <MemoryRouter>
+        <WorkspacesProvider>
+          <ItemMoveMenu
+            item={{
+              id: "Demo",
+              assetId: "asset-Demo",
+              title: "Demo",
+              kind: "recording",
+              derivedFromAssetId: null,
+            }}
+            onPick={() => {}}
+          />
+        </WorkspacesProvider>
+      </MemoryRouter>,
+    );
+    const button = await screen.findByRole("button", { name: "More actions" });
+    fireEvent.click(button);
+    const first = await screen.findByRole("menuitem", { name: /Personal/ });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(button).toHaveFocus());
   });
 });

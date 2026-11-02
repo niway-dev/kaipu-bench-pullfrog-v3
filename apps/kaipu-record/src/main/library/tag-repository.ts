@@ -237,6 +237,8 @@ export class VaultTagRepository implements TagRepository {
       const result: Tag[] = [];
       let created = false;
       for (const { name: raw, color } of wanted) {
+        // Past the per-item cap nothing more is kept, so nothing more is minted.
+        if (result.length >= TAGS_PER_ITEM_MAX) break;
         const name = normalizeTagName(raw);
         if (name === null) continue;
         const slug = tagSlug(name);
@@ -250,7 +252,7 @@ export class VaultTagRepository implements TagRepository {
         if (!result.includes(tag)) result.push(tag);
       }
       if (created) await this.write(tags);
-      return result.slice(0, TAGS_PER_ITEM_MAX);
+      return result;
     });
   }
 

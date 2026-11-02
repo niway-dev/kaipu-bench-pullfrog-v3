@@ -30,7 +30,7 @@ import { dragLedger } from "../library/drag-ledger";
 import { LibraryVault } from "../library/library-vault";
 import { loadDeviceId } from "../library/tag-repository";
 import { vaultActivity } from "../library/vault-activity";
-import { runMoveGroup } from "./move-group";
+import { refusalOfError, runMoveGroup } from "./move-group";
 import { healMoves, moveItem, type MoveSide } from "./move-item";
 import { uuidv7 } from "../library/tag-repository";
 import { defaultVaultDirectory, forgetCachedPreferences } from "../library/vault-location";
@@ -220,7 +220,11 @@ async function moveItems(
       vaultActivity.run("library", async () => {
         await healPendingMoves();
         const source = reg.active();
-        deviceId ??= loadDeviceId(app.getPath("userData"));
+        // A rejected read is not kept: the next group asks again.
+        deviceId ??= loadDeviceId(app.getPath("userData")).catch((error: unknown) => {
+          deviceId = null;
+          throw error;
+        });
         const device = await deviceId;
         const result = await runMoveGroup(
           items,
@@ -260,7 +264,7 @@ async function moveItems(
     );
   } catch (error) {
     console.error("[workspaces] group move refused", error);
-    return refuseAll("stale");
+    return refuseAll(refusalOfError(error));
   } finally {
     moveRun = null;
     host?.broadcastLibraryChanged();
