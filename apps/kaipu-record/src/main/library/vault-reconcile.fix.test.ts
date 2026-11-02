@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { defaultCaptureName } from "@shared/default-capture-name";
 import { LibraryVault } from "./library-vault";
-import { fixVault, resumeOrphanManifests, scanVault } from "./vault-reconcile";
+import { fixVault, resumeOrphanManifests, scanVault, skipPaths } from "./vault-reconcile";
 import { listFiles, makeVault, sidecar, snapshot } from "./vault-reconcile.test-helpers";
 
 /** From the n-th call on, every `rename` fails: a crash (or a dead drive) at that point. */
@@ -238,6 +238,13 @@ describe("fixVault — kept, not forced", () => {
 });
 
 describe("fixVault — unticked findings (NIW2-598)", () => {
+  it("reads the renderer's skip list defensively: a malformed payload skips nothing", () => {
+    expect([...skipPaths(undefined)]).toEqual([]);
+    expect([...skipPaths("old.mp4")]).toEqual([]);
+    expect([...skipPaths({ 0: "old.mp4" })]).toEqual([]);
+    expect([...skipPaths(["a.mp4", 1, null, "b.png"])]).toEqual(["a.mp4", "b.png"]);
+  });
+
   it("leaves every skipped path as it is, fixes the rest, and counts nothing skipped as failed", async () => {
     directory = await makeVault({
       "old.mp4": "v",

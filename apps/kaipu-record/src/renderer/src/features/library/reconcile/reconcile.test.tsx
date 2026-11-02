@@ -310,7 +310,9 @@ describe("choosing what to fix", () => {
     expect(screen.getByRole("button", { name: "Fix all" })).toBeEnabled();
 
     fireEvent.click(
-      within(renames).getByRole("checkbox", { name: "Fix recording-2026-10-30-00-57-30" }),
+      within(renames).getByRole("checkbox", {
+        name: "Rename recording-2026-10-30-00-57-30 to Kaipu Recording 2026-10-29 at 19.57.30",
+      }),
     );
     const groupBox = within(renames).getByRole("checkbox", {
       name: "Fix: Names that don't match their title",
@@ -343,7 +345,7 @@ describe("choosing what to fix", () => {
       "section",
     )!;
     expect(within(renames).getAllByRole("listitem")).toHaveLength(250);
-    fireEvent.click(within(renames).getByRole("checkbox", { name: "Fix recording-249" }));
+    fireEvent.click(within(renames).getByRole("checkbox", { name: /^Rename recording-249 to / }));
     fireEvent.click(screen.getByRole("button", { name: "Fix 249 files" }));
     expect(window.electronAPI.reconcileFix).toHaveBeenCalledWith(["recording-249.mp4"]);
   });

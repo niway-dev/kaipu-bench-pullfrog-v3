@@ -823,6 +823,7 @@
     "reconcileGroupCountPartial": "{on} de {count, plural, one {# archivo} other {# archivos}}",
     "reconcileFixGroup": "Arreglar: {group}",
     "reconcileFixThis": "Arreglar {name}",
+    "reconcileFixRename": "Renombrar {name} a {newName}",
     "reconcileGroupRenameTitle": "Nombres que no coinciden con su título",
     "reconcileGroupRenameAction": "Se renombran con el título",
     "reconcileGroupRenameWhat": "Los nombró una versión anterior de Kaipu, o se renombraron fuera de Kaipu. El archivo y sus archivos de Kaipu toman el título del elemento, así la carpeta se lee igual que tu biblioteca.",

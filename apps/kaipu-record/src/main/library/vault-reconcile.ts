@@ -847,6 +847,15 @@ interface Planned {
  * 3. Scan again and rename from that inventory, in planner order (N10).
  * 4. Scan again: anything fixable left is reported, never retried in a loop.
  */
+/**
+ * The paths "Check and fix files" leaves alone, from the renderer: only strings count, so a
+ * malformed payload skips nothing rather than failing the run.
+ */
+export function skipPaths(value: unknown): ReadonlySet<string> {
+  if (!Array.isArray(value)) return new Set();
+  return new Set(value.filter((path): path is string => typeof path === "string"));
+}
+
 export async function fixVault(directory: string, options: FixOptions): Promise<ReconcileReport> {
   const now = options.now ?? Date.now;
   const vault = new LibraryVault(directory);

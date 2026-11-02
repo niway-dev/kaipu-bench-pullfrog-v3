@@ -208,7 +208,11 @@ function FindingItem({
       {selectable && (
         <Check
           checked={fixing}
-          label={t("reconcileFixThis", { name: row.now })}
+          label={
+            row.renamedTo !== undefined
+              ? t("reconcileFixRename", { name: row.now, newName: row.renamedTo })
+              : t("reconcileFixThis", { name: row.now })
+          }
           onChange={(checked) => setFixing([finding.path], checked)}
         />
       )}

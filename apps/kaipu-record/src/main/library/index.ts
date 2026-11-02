@@ -34,6 +34,7 @@ import { friendlyDragName } from "./drag-name";
 import { activeWorkspace, ownsLegacyCloud, workspaceGate } from "../workspaces";
 import { registerVideoEditSessionHandlers } from "./video-edit-session";
 import { MaintenanceError, vaultActivity, type ActivityKind } from "./vault-activity";
+import { skipPaths } from "./vault-reconcile";
 
 function broadcast(channel: string, ...args: unknown[]): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -68,15 +69,6 @@ export function scoped<A extends unknown[], R>(
   fn: (...args: A) => R | Promise<R>,
 ): (event: IpcMainInvokeEvent, stamp: unknown, ...args: A) => Promise<R> {
   return (_event, stamp, ...args) => workspaceGate().run(stamp, () => fn(...args));
-}
-
-/**
- * The paths "Check and fix files" leaves alone, from the renderer: only strings count, so a
- * malformed payload skips nothing rather than failing the run.
- */
-export function skipPaths(value: unknown): ReadonlySet<string> {
-  if (!Array.isArray(value)) return new Set();
-  return new Set(value.filter((path): path is string => typeof path === "string"));
 }
 
 /**

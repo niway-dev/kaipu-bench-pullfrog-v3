@@ -274,6 +274,15 @@
   background: var(--bg-card-hover);
 }
 
+/* Names are cut to one line; a hover shows them (title), and so does keyboard focus. */
+.row:focus-within .rowNow,
+.row:focus-within .rowAfter,
+.row:focus-within .rowNote {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* Unticked: left as it is this run. */
 .rowOff .rowNow,
 .rowOff .rowAfter,

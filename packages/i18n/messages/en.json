@@ -823,6 +823,7 @@
     "reconcileGroupCountPartial": "{on} of {count, plural, one {# file} other {# files}}",
     "reconcileFixGroup": "Fix: {group}",
     "reconcileFixThis": "Fix {name}",
+    "reconcileFixRename": "Rename {name} to {newName}",
     "reconcileGroupRenameTitle": "Names that don't match their title",
     "reconcileGroupRenameAction": "Renamed to match the title",
     "reconcileGroupRenameWhat": "Named by an older version of Kaipu, or renamed outside it. The file and its Kaipu files take the item's title, so the folder reads the same as your library.",
