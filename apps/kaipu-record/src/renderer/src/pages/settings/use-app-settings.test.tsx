@@ -81,4 +81,44 @@ describe("useAppSettings", () => {
     act(() => subscriber?.({ ...SETTINGS, theme: "light" }));
     expect(result.current.settings?.theme).toBe("light");
   });
+
+  describe("the snapshot is the active workspace's effective settings (ADR 0034)", () => {
+    it("a switch broadcast replaces the snapshot with the new workspace's values", async () => {
+      let subscriber: ((settings: AppSettings) => void) | null = null;
+      window.electronAPI.onSettingsChanged = ((callback: (settings: AppSettings) => void) => {
+        subscriber = callback;
+        return () => {};
+      }) as unknown as typeof window.electronAPI.onSettingsChanged;
+      // Work overrides screenshot copy to manual, Personal does not.
+      window.electronAPI.getSettings = vi.fn(async () => ({
+        ...SETTINGS,
+        screenshotCopy: "manual" as const,
+      }));
+
+      const { result } = renderHook(() => useAppSettings());
+      await waitFor(() => expect(result.current.settings?.screenshotCopy).toBe("manual"));
+
+      act(() => subscriber?.({ ...SETTINGS, screenshotCopy: "auto" }));
+      expect(result.current.settings?.screenshotCopy).toBe("auto");
+    });
+
+    it("an update's response keeps the workspace's override instead of flipping the cache to the All value", async () => {
+      // Main answers with the effective settings: Work's "manual", not the All level's "auto".
+      window.electronAPI.updateSettings = vi.fn(
+        async (patch: Partial<AppSettings>): Promise<AppSettings> => ({
+          ...SETTINGS,
+          ...patch,
+          screenshotCopy: "manual",
+        }),
+      );
+      const { result } = renderHook(() => useAppSettings());
+      await waitFor(() => expect(result.current.settings).not.toBeNull());
+
+      await act(async () => {
+        await result.current.update({ theme: "light" });
+      });
+      expect(result.current.settings?.theme).toBe("light");
+      expect(result.current.settings?.screenshotCopy).toBe("manual");
+    });
+  });
 });

@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { cx } from "@renderer/ui/cx";
+import { ScopeDot, ScopeLegend, ScopeSelector } from "./scope/scope-controls";
+import { SettingsScopeProvider } from "./scope/settings-scope";
 import styles from "./settings-layout.module.css";
 
 type SettingsNavKey =
@@ -24,12 +26,23 @@ type SettingsNavKey =
   | "app"
   | "developer";
 
-const NAV: ReadonlyArray<{ to: string; labelKey: SettingsNavKey; Icon: typeof Settings }> = [
+const NAV: ReadonlyArray<{
+  to: string;
+  labelKey: SettingsNavKey;
+  Icon: typeof Settings;
+  /** The page holds settings a workspace may override (ADR 0034): it gets the blue dot. */
+  perWorkspace?: boolean;
+}> = [
   { to: "general", labelKey: "general", Icon: Settings },
   { to: "permissions", labelKey: "permissions", Icon: Monitor },
-  { to: "recording-quality", labelKey: "recordingQuality", Icon: SlidersHorizontal },
-  { to: "recording", labelKey: "recording", Icon: Video },
-  { to: "screenshots", labelKey: "screenshots", Icon: Camera },
+  {
+    to: "recording-quality",
+    labelKey: "recordingQuality",
+    Icon: SlidersHorizontal,
+    perWorkspace: true,
+  },
+  { to: "recording", labelKey: "recording", Icon: Video, perWorkspace: true },
+  { to: "screenshots", labelKey: "screenshots", Icon: Camera, perWorkspace: true },
   { to: "workspaces", labelKey: "workspaces", Icon: Folder },
   { to: "app", labelKey: "app", Icon: AppWindow },
   // Dev-only page; `import.meta.env.DEV` is a build-time literal, so prod strips it.
@@ -42,13 +55,22 @@ const NAV: ReadonlyArray<{ to: string; labelKey: SettingsNavKey; Icon: typeof Se
  * capacity live in their own rail section (/cloud), not here.
  */
 export function SettingsLayout(): React.JSX.Element {
+  return (
+    <SettingsScopeProvider>
+      <SettingsLayoutBody />
+    </SettingsScopeProvider>
+  );
+}
+
+function SettingsLayoutBody(): React.JSX.Element {
   const t = useTranslations("settings");
   return (
     <div className={styles.layout}>
       <nav className={styles.nav} aria-label={t("title")}>
         <h1 className={styles.navTitle}>{t("title")}</h1>
+        <ScopeSelector />
         <ul className={styles.navList}>
-          {NAV.map(({ to, labelKey, Icon }) => (
+          {NAV.map(({ to, labelKey, Icon, perWorkspace }) => (
             <li key={to}>
               <NavLink
                 to={to}
@@ -56,10 +78,12 @@ export function SettingsLayout(): React.JSX.Element {
               >
                 <Icon size={16} strokeWidth={1.8} aria-hidden />
                 {t(labelKey)}
+                {perWorkspace && <ScopeDot />}
               </NavLink>
             </li>
           ))}
         </ul>
+        <ScopeLegend />
         <p className={styles.navNote}>{t("navCloudNote")}</p>
       </nav>
       <div className={styles.content}>

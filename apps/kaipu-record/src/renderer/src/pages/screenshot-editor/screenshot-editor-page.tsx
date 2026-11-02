@@ -26,7 +26,6 @@ import {
   notifyAmbiguousIdentity,
   notifyRenameOutcome,
 } from "@renderer/features/library/rename-outcome";
-import { useAppSettings } from "@renderer/pages/settings/use-app-settings";
 import {
   BeautifiedFrame,
   BeautifyPanel,
@@ -152,12 +151,16 @@ export function ScreenshotEditor({ source }: { source: ImageSource }): React.JSX
   const autoSavedId = useRef<string | null>(null);
   /** The latest save main refused during maintenance mode, retried when it ends. */
   const refusedDuringMaintenance = useRef<Parameters<typeof persist>[0] | null>(null);
-  // The auto copy mode is read ONCE when the editor opens; a Settings change while
-  // this capture is open neither un-copies nor re-copies it.
-  const { settings } = useAppSettings();
+  // The auto actions come from the capture's own policy (the copy mode of the workspace it
+  // started in, bound when it started, ADR 0034). The editor never reads the setting for a
+  // capture, so a switch or a Settings edit between the shot and the editor neither copies
+  // nor skips the copy. Only a fresh capture has auto actions at all (`openKind`); one with
+  // no policy (its settings were unreadable) copies nothing.
   const autoActionsRef = useRef<AutoActions | null>(null);
-  if (autoActionsRef.current === null && settings) {
-    autoActionsRef.current = autoActionsOnOpen(settings.screenshotCopy, openKind);
+  if (autoActionsRef.current === null) {
+    const copyMode =
+      source.kind === "blob" ? (source.policy?.screenshotCopy ?? "manual") : "manual";
+    autoActionsRef.current = autoActionsOnOpen(copyMode, openKind);
   }
   // True once THIS editor created the item on open — enables Discard.
   const [autoSaved, setAutoSaved] = useState(false);
@@ -440,20 +443,18 @@ export function ScreenshotEditor({ source }: { source: ImageSource }): React.JSX
     else if (copied) showFeedback({ kind: "copied" });
   };
 
-  // Auto modes act the moment the image can be exported AND the settings are known,
-  // before any edit: whichever of the two lands last triggers them. A failed save
+  // Auto modes act the moment the image can be exported, before any edit. A failed save
   // leaves the editor in manual behaviour (dirty, guarded) — `persist` already
   // reports with a retry.
   const autoActionsFired = useRef(false);
-  const actionsReady = autoActionsRef.current !== null; // flips on the render settings resolve
   useEffect(() => {
     const actions = autoActionsRef.current;
-    if (!imageReady || !actionsReady || autoActionsFired.current || !actions || savedId) return;
+    if (!imageReady || autoActionsFired.current || !actions || savedId) return;
     if (!actions.save && !actions.copy) return;
     autoActionsFired.current = true;
     void runAutoActions(actions);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once when image AND settings are ready
-  }, [imageReady, actionsReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once, when the image is ready
+  }, [imageReady]);
 
   // NIW2-561: retry the latest refused save once the files are fixed.
   const persistRef = useRef(persist);

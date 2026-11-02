@@ -1,0 +1,247 @@
+/*
+ * Per-workspace settings chrome (ADR 0034): the "Settings for" selector, the blue dot and the
+ * legend in the nav, the scope tag on a section header, the source line under a row, the
+ * banner that counts the differences, and the sheet for a folder's own settings.
+ *
+ * The app has no blue token; this is the one place that uses it, as the design does (the
+ * workspace-scoped color). Light theme darkens it to keep contrast on white.
+ */
+
+.scopeBlue {
+  --scope-blue: #58a6ff;
+  --scope-blue-text: #8cc2ff;
+  --scope-blue-tint: rgba(88, 166, 255, 0.08);
+  --scope-blue-border: rgba(88, 166, 255, 0.3);
+}
+
+:global([data-theme="light"]) .scopeBlue {
+  --scope-blue: #1d6fd1;
+  --scope-blue-text: #1558a8;
+  --scope-blue-tint: rgba(29, 111, 209, 0.07);
+  --scope-blue-border: rgba(29, 111, 209, 0.3);
+}
+
+/* ── Selector (top of the nav) ──────────────── */
+
+.selector {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 var(--space-sm);
+}
+
+.selectorLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.selectorTrigger {
+  width: 100%;
+}
+
+/* ── Nav dot + legend ───────────────────────── */
+
+.navDot {
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--scope-blue);
+  flex-shrink: 0;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-sm) 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Scope tag (section header) ─────────────── */
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tag {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tag[data-scope="workspace"] {
+  color: var(--scope-blue-text);
+  border-color: var(--scope-blue-border);
+}
+
+.scopeLine {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+/* ── Row source line + actions ──────────────── */
+
+.source {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.source[data-set="true"] {
+  color: var(--scope-blue-text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.iconButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.appWide {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Banners ────────────────────────────────── */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--scope-blue-border);
+  background: var(--scope-blue-tint);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+}
+
+.bannerIcon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--scope-blue-text);
+}
+
+.bannerText {
+  flex: 1;
+  min-width: 0;
+}
+
+.bannerLink {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  color: var(--scope-blue-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.bannerLink[data-quiet="true"] {
+  font-weight: var(--font-weight-normal);
+}
+
+.bannerLink:hover {
+  text-decoration: underline;
+}
+
+.bannerLink:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ── Pending sheet ──────────────────────────── */
+
+.pendingList {
+  list-style: none;
+  margin: var(--space-sm) 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+}
+
+.pendingKey {
+  font-weight: var(--font-weight-medium);
+}
+
+.pendingReplaces {
+  color: var(--text-muted);
+}
+
+/* ── Block control (quality chips and sliders) ── */
+
+.blockBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-md) 0;
+}
+
+.blockSource {
+  flex: 1;
+  min-width: 0;
+}
+
+.fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}

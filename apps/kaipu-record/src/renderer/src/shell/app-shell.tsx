@@ -9,6 +9,7 @@ import { useWindowPreset } from "./use-window-preset";
 import { presetForPath } from "@shared/window-size";
 import { EnvBadge } from "./env-badge";
 import { ReconcileDialogHost } from "@renderer/features/library/reconcile/reconcile-dialog";
+import { PendingSettingsHost } from "@renderer/pages/settings/scope/scope-controls";
 import { WorkspaceSwitcher } from "@renderer/features/workspaces/workspace-switcher";
 import { setHeaderEndElement } from "@renderer/features/workspaces/header-slot";
 import styles from "./app-shell.module.css";
@@ -76,6 +77,8 @@ export function AppShell(): React.JSX.Element {
         {version && <span className={styles.statusVersion}>v{version}</span>}
       </div>
       <ReconcileDialogHost />
+      {/* A folder that brings its own settings asks once (ADR 0034, decision 8). */}
+      <PendingSettingsHost />
     </div>
   );
 }

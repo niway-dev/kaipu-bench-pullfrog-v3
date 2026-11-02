@@ -165,6 +165,17 @@ const kaipuApi: KaipuElectronAPI = {
     ipcRenderer.on(IPC_CHANNELS.exportCommand, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.exportCommand, listener);
   },
+  settingsScope: {
+    getScoped: (scope) => ipcRenderer.invoke(IPC_CHANNELS.settingsGetScoped, scope),
+    setOverride: (workspaceId, key, value) =>
+      ipcRenderer.invoke(IPC_CHANNELS.settingsSetOverride, workspaceId, key, value),
+    resetOverrides: (workspaceId, keys) =>
+      ipcRenderer.invoke(IPC_CHANNELS.settingsResetOverrides, workspaceId, keys),
+    copyToAll: (workspaceId, keys) =>
+      ipcRenderer.invoke(IPC_CHANNELS.settingsCopyToAll, workspaceId, keys),
+    resolvePending: (workspaceId, decision, sha256) =>
+      ipcRenderer.invoke(IPC_CHANNELS.settingsResolvePending, workspaceId, decision, sha256),
+  },
   workspaces: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.workspacesList),
     activeId: () => guard.stamp?.workspaceId ?? null,

@@ -23,6 +23,8 @@ import styles from "./select.module.css";
 interface SelectOption {
   value: string;
   label: string;
+  /** Listed but not pickable (a workspace that is not connected). */
+  disabled?: boolean;
 }
 
 export interface SelectProps {
@@ -33,6 +35,7 @@ export interface SelectProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  "aria-label"?: string;
 }
 
 export function Select({
@@ -43,10 +46,11 @@ export function Select({
   className,
   disabled = false,
   id,
+  "aria-label": ariaLabel,
 }: SelectProps): React.JSX.Element {
   return (
     <RadixSelect.Root value={value || undefined} onValueChange={onChange} disabled={disabled}>
-      <RadixSelect.Trigger id={id} className={cx(styles.trigger, className)}>
+      <RadixSelect.Trigger id={id} aria-label={ariaLabel} className={cx(styles.trigger, className)}>
         <RadixSelect.Value placeholder={placeholder ?? " "} />
         <RadixSelect.Icon asChild>
           <ChevronDown className={styles.triggerChevron} size={12} />
@@ -56,7 +60,12 @@ export function Select({
         <RadixSelect.Content className={styles.menu} position="popper" sideOffset={4}>
           <RadixSelect.Viewport>
             {options.map((opt) => (
-              <RadixSelect.Item key={opt.value} value={opt.value} className={styles.menuOption}>
+              <RadixSelect.Item
+                key={opt.value}
+                value={opt.value}
+                disabled={opt.disabled}
+                className={styles.menuOption}
+              >
                 <RadixSelect.ItemText>{opt.label}</RadixSelect.ItemText>
                 <RadixSelect.ItemIndicator className={styles.menuOptionIndicator}>
                   <Check size={12} />

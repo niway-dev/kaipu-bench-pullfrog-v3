@@ -92,13 +92,19 @@ export function useRecordingSetup(): RecordingSetup {
   const microphones = useMicrophones();
   const recorder = useScreenRecorder();
 
-  // The encoder quality is a persisted app setting (Settings page). Read it on
-  // mount so it's available synchronously at start; kept in a ref so the start
-  // callback never goes stale. Navigating Settings → Record remounts this hook,
-  // so a just-changed quality is always picked up.
+  // The encoder quality is an app setting that depends on the workspace (ADR 0034): main hands
+  // over the EFFECTIVE value, and rebroadcasts it on a switch or an edit. Kept in a ref so the
+  // start callback never goes stale; the take reads it when it is requested, so a later change
+  // (a switch in another window, an edit) never reaches a take already running.
   const qualityRef = useRef<RecordingQuality>(DEFAULT_QUALITY);
   useEffect(() => {
+    // A broadcast is newer than the initial read, which may resolve after it.
+    let heardChange = false;
     void window.electronAPI.getSettings().then((appSettings) => {
+      if (!heardChange) qualityRef.current = sanitizeQuality(appSettings.recordingQuality);
+    });
+    return window.electronAPI.onSettingsChanged((appSettings) => {
+      heardChange = true;
       qualityRef.current = sanitizeQuality(appSettings.recordingQuality);
     });
   }, []);

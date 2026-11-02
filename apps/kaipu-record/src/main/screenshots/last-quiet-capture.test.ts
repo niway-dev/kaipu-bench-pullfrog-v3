@@ -14,6 +14,7 @@ const SHOT: QuietCapture = {
   height: 1,
   mode: "frame",
   workspaceId: null,
+  policy: null,
 };
 const NEXT: QuietCapture = { ...SHOT, png: Buffer.from([2]) };
 

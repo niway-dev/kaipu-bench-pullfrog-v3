@@ -45,6 +45,15 @@ import type {
   WorkspacesState,
   WorkspaceSwitchResult,
 } from "./workspaces";
+import type {
+  CopyToAllResult,
+  OverridableKey,
+  ResetOverridesResult,
+  ResolvePendingResult,
+  ScopedSettings,
+  SetOverrideResult,
+  SettingsScope,
+} from "../settings-scope";
 import type { StorageUsageResult } from "./cloud-storage";
 import type { ImportVideoResult } from "../import-video";
 import type {
@@ -155,6 +164,31 @@ export type AccessibilityStatus = "granted" | "denied" | "not-required";
  * every failure would collapse into the generic copy. Returning the error round-trips cleanly.
  */
 export type AuthAttemptResult = { ok: true; status: AuthStatus } | { ok: false; error: AuthError };
+
+/** Per-workspace setting overrides (ADR 0034). Every call names the scope or workspace it acts on. */
+export interface SettingsScopeBridge {
+  /** One scope: "all" (the All workspaces level) or a workspace id. */
+  getScoped(scope: SettingsScope): Promise<ScopedSettings>;
+  /** Override one key for a workspace; `null` removes it (Reset). Returns effective settings. */
+  setOverride(
+    workspaceId: string,
+    key: OverridableKey,
+    value: unknown | null,
+  ): Promise<SetOverrideResult>;
+  /** Remove several overrides of one workspace at once. */
+  resetOverrides(
+    workspaceId: string,
+    keys: readonly OverridableKey[],
+  ): Promise<ResetOverridesResult>;
+  /** Make the workspace's values the All level's and drop every workspace's own override of them. */
+  copyToAll(workspaceId: string, keys: readonly OverridableKey[]): Promise<CopyToAllResult>;
+  /** Answer "This workspace brings its own settings"; `sha256` names the file the user saw. */
+  resolvePending(
+    workspaceId: string,
+    decision: "use" | "ignore",
+    sha256: string,
+  ): Promise<ResolvePendingResult>;
+}
 
 /**
  * Workspaces (ADR 0032). Item-scoped calls elsewhere on this bridge carry the window's
@@ -395,6 +429,8 @@ export interface KaipuElectronAPI {
 
   /** Workspaces (ADR 0032): the registry, the active one, and the switch. */
   workspaces: WorkspacesBridge;
+  /** Per-workspace setting overrides and their inheritance (ADR 0034). */
+  settingsScope: SettingsScopeBridge;
   /** The signed-in account's cloud capacity; never zeros for a failed query. */
   getStorageUsage(): Promise<StorageUsageResult>;
   /** Subscribe to vault-folder changes (so open library pages re-list). Returns an unsubscribe fn. */

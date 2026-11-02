@@ -1,28 +1,29 @@
 import React from "react";
 import { useTranslations } from "@kaipu/i18n";
-import { Row } from "@kaipu/ui";
 import { Toggle } from "@kaipu/ui";
-import { useAppSettings } from "./use-app-settings";
+import { OverrideRow } from "./scope/scope-controls";
 
 /**
- * Auto-copy vs explicit Copy for screenshots — writes AppSettings.screenshotCopy.
- * Deliberately independent of the save toggle above it: a capture can be kept, or
- * pasted, or both, or neither, and the editor honours all four.
+ * Auto-copy vs explicit Copy for screenshots — AppSettings.screenshotCopy, which a workspace may
+ * override (ADR 0034). Deliberately independent of the save toggle above it: a capture can be
+ * kept, or pasted, or both, or neither, and the editor honours all four.
  */
 export function ScreenshotCopySettings(): React.JSX.Element {
   const t = useTranslations("settings");
-  const { settings, update } = useAppSettings();
-
   return (
-    <Row
+    <OverrideRow
+      settingKey="screenshotCopy"
+      fallback="auto"
       label={t("screenshotCopy")}
       description={t("screenshotCopyDescription")}
-      action={
+      control={({ value, onChange, disabled }) => (
         <Toggle
-          checked={(settings?.screenshotCopy ?? "auto") === "auto"}
-          onChange={(checked) => void update({ screenshotCopy: checked ? "auto" : "manual" })}
+          aria-label={t("screenshotCopy")}
+          checked={value === "auto"}
+          disabled={disabled}
+          onChange={(checked) => onChange(checked ? "auto" : "manual")}
         />
-      }
+      )}
     />
   );
 }

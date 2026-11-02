@@ -36,6 +36,7 @@ import { RecordingQualitySettings } from "./recording-quality-settings";
 import { ExportQualitySettings } from "./export-quality-settings";
 import { ScreenshotCopySettings } from "./screenshot-copy-settings";
 import { BrandBadgeSettings } from "./brand-badge-settings";
+import { AppWideBadge, OverrideBlock } from "./scope/scope-controls";
 import { CountdownSettings } from "./countdown-settings";
 import { DiagnosticsSettings } from "./diagnostics-settings";
 import { Section, SettingsPanel } from "./settings-panel";
@@ -60,7 +61,7 @@ export function GeneralSettingsPage(): React.JSX.Element {
   const navigate = useNavigate();
   const { settings, update } = useAppSettings();
   return (
-    <SettingsPanel title={t("general")} subtitle={t("generalDescription")}>
+    <SettingsPanel title={t("general")} subtitle={t("generalDescription")} scope="global">
       <Section title={t("language")}>
         <LanguageSettings />
       </Section>
@@ -105,7 +106,7 @@ export function PermissionsSettingsPage(): React.JSX.Element {
   // `requestAccessibility()`; the onboarding Accessibility step is the only other one.
   const accessibility = useAccessibility();
   return (
-    <SettingsPanel title={t("permissions")} subtitle={t("permissionsDescription")}>
+    <SettingsPanel title={t("permissions")} subtitle={t("permissionsDescription")} scope="global">
       <Section title={t("permissions")}>
         {PERMISSION_ROWS.map(({ kind, labelKey, icon }) => {
           const granted = status[kind];
@@ -159,27 +160,43 @@ export function RecordingQualitySettingsPage(): React.JSX.Element {
   const t = useTranslations("settings");
   const { settings, update } = useAppSettings();
   return (
-    <SettingsPanel title={t("recordingQuality")} subtitle={t("recordingQualityDescription")}>
+    <SettingsPanel
+      title={t("recordingQuality")}
+      subtitle={t("recordingQualityDescription")}
+      scope="workspace"
+      keys={["recordingQuality", "exportQuality"]}
+    >
       <Section title={t("recordingQuality")}>
-        <RecordingQualitySettings
-          quality={settings?.recordingQuality ?? DEFAULT_QUALITY}
-          onChange={(recordingQuality) => void update({ recordingQuality })}
-        />
+        <OverrideBlock
+          settingKey="recordingQuality"
+          fallback={DEFAULT_QUALITY}
+          label={t("recordingQuality")}
+        >
+          {({ value, onChange }) => (
+            <RecordingQualitySettings quality={value} onChange={onChange} />
+          )}
+        </OverrideBlock>
       </Section>
       <Section title={t("exportQuality")}>
-        <ExportQualitySettings
-          quality={settings?.exportQuality ?? DEFAULT_EXPORT_QUALITY}
-          onChange={(exportQuality) => void update({ exportQuality })}
-        />
+        <OverrideBlock
+          settingKey="exportQuality"
+          fallback={DEFAULT_EXPORT_QUALITY}
+          label={t("exportQuality")}
+        >
+          {({ value, onChange }) => <ExportQualitySettings quality={value} onChange={onChange} />}
+        </OverrideBlock>
         <Row
           label={t("recordingSavedCard")}
           description={t("recordingSavedCardDescription")}
           action={
-            <Toggle
-              aria-label={t("recordingSavedCard")}
-              checked={settings?.showRecordingSavedCard ?? true}
-              onChange={(checked) => void update({ showRecordingSavedCard: checked })}
-            />
+            <>
+              <AppWideBadge />
+              <Toggle
+                aria-label={t("recordingSavedCard")}
+                checked={settings?.showRecordingSavedCard ?? true}
+                onChange={(checked) => void update({ showRecordingSavedCard: checked })}
+              />
+            </>
           }
         />
       </Section>
@@ -191,16 +208,24 @@ export function RecordingSettingsPage(): React.JSX.Element {
   const t = useTranslations("settings");
   const { settings, update } = useAppSettings();
   return (
-    <SettingsPanel title={t("recording")} subtitle={t("recordingDescription")}>
+    <SettingsPanel
+      title={t("recording")}
+      subtitle={t("recordingDescription")}
+      scope="workspace"
+      keys={["showBrandBadge"]}
+    >
       <Section title={t("recording")}>
         <Row
           label={t("showControlBar")}
           description={t("showControlBarDescription")}
           action={
-            <Toggle
-              checked={settings?.showBarInRecording ?? false}
-              onChange={(checked) => void update({ showBarInRecording: checked })}
-            />
+            <>
+              <AppWideBadge />
+              <Toggle
+                checked={settings?.showBarInRecording ?? false}
+                onChange={(checked) => void update({ showBarInRecording: checked })}
+              />
+            </>
           }
         />
         <CountdownSettings />
@@ -223,7 +248,7 @@ export function WorkspacesSettingsPage(): React.JSX.Element {
   const [removing, setRemoving] = React.useState<WorkspaceView | null>(null);
   const count = state?.workspaces.length ?? 0;
   return (
-    <SettingsPanel title={t("workspaces")} subtitle={t("workspacesDescription")}>
+    <SettingsPanel title={t("workspaces")} subtitle={t("workspacesDescription")} scope="global">
       {state?.readOnly && <p className={styles.pathValue}>{tw("readOnly")}</p>}
       <Section title={t("workspaces")}>
         {state?.workspaces.map((workspace) => {
@@ -345,7 +370,7 @@ export function AppSettingsPage(): React.JSX.Element {
   const { open: openOnboarding } = useOnboarding();
   const { settings, update } = useAppSettings();
   return (
-    <SettingsPanel title={t("app")} subtitle={t("appDescription")}>
+    <SettingsPanel title={t("app")} subtitle={t("appDescription")} scope="global">
       <Section title={t("app")}>
         {/* The Dock and its activation policy exist only on macOS; on Windows the
             toggle would change nothing, so it is not shown at all. */}
@@ -385,7 +410,12 @@ export function AppSettingsPage(): React.JSX.Element {
 export function ScreenshotsSettingsPage(): React.JSX.Element {
   const t = useTranslations("settings");
   return (
-    <SettingsPanel title={t("screenshots")} subtitle={t("screenshotsDescription")}>
+    <SettingsPanel
+      title={t("screenshots")}
+      subtitle={t("screenshotsDescription")}
+      scope="workspace"
+      keys={["screenshotCopy"]}
+    >
       <Section title={t("screenshots")}>
         <ScreenshotCopySettings />
       </Section>

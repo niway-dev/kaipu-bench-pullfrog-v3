@@ -230,6 +230,77 @@ describe("useRecordingSetup", () => {
     }
   });
 
+  describe("a take uses the settings of the workspace it starts in (ADR 0034)", () => {
+    const LIGHT = { resolution: 720, fps: 24, bitrate: "light" } as const;
+    const SHARP = { resolution: 1080, fps: 60, bitrate: "high" } as const;
+
+    function rig() {
+      const original = { ...window.electronAPI };
+      const listeners: Array<(settings: AppSettings) => void> = [];
+      window.electronAPI.onSettingsChanged = (callback) => {
+        listeners.push(callback);
+        return () => {};
+      };
+      return {
+        broadcast: (settings: Partial<AppSettings>) =>
+          act(() => listeners.forEach((l) => l(settings as AppSettings))),
+        restore: () => Object.assign(window.electronAPI, original),
+      };
+    }
+
+    it("the quality read on mount follows a switch broadcast, not just the first read", async () => {
+      const stored = await window.electronAPI.getSettings();
+      vi.spyOn(window.electronAPI, "getSettings").mockResolvedValue({
+        ...stored,
+        recordingQuality: LIGHT as never,
+      });
+      const { broadcast, restore } = rig();
+      try {
+        mockSettings = SETTINGS({ selectedSource: SCREEN });
+        const { result } = renderHook(() => useRecordingSetup());
+        await flushSettings();
+        // The user switches to a workspace that records sharper; main broadcasts the new
+        // effective settings to every window.
+        broadcast({ recordingQuality: SHARP as never });
+        act(() => result.current.startRecording());
+        const resolveInput = recorderRequestStart.mock.calls[0][0] as () => {
+          width: number;
+          height: number;
+          frameRate: number;
+        };
+        expect(resolveInput()).toMatchObject({ frameRate: 60 });
+      } finally {
+        restore();
+      }
+    });
+
+    it("the quality is read when the start is requested, not when the hook mounted", async () => {
+      const stored = await window.electronAPI.getSettings();
+      vi.spyOn(window.electronAPI, "getSettings").mockResolvedValue({
+        ...stored,
+        recordingQuality: LIGHT as never,
+      });
+      const { broadcast, restore } = rig();
+      try {
+        mockSettings = SETTINGS({ selectedSource: SCREEN });
+        const { result } = renderHook(() => useRecordingSetup());
+        await flushSettings();
+        act(() => result.current.startRecording());
+        const resolveInput = recorderRequestStart.mock.calls[0][0] as () => {
+          frameRate: number;
+        };
+        // A take that asks for its input after a switch gets the new workspace's quality; one
+        // that asked before keeps what it was handed (the recorder holds that object).
+        const before = resolveInput();
+        broadcast({ recordingQuality: SHARP as never });
+        const after = resolveInput();
+        expect([before.frameRate, after.frameRate]).toEqual([24, 60]);
+      } finally {
+        restore();
+      }
+    });
+  });
+
   it("records the webcam only with the camera on, from the bubble's camera and framing", async () => {
     const stored = await window.electronAPI.getSettings();
     const cameraBubble = {

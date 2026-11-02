@@ -111,6 +111,7 @@ const SHOT: QuietCapture = {
   height: 604,
   mode: "frame",
   workspaceId: "ws-work",
+  policy: { workspaceId: "ws-work", screenshotCopy: "auto" },
 };
 const NEXT_SHOT: QuietCapture = { ...SHOT, png: Buffer.from([4, 5, 6]) };
 

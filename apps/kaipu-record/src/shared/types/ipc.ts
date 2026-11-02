@@ -202,7 +202,9 @@ export function activeShortcutDefinitions(
 }
 
 /**
- * How this device treats the cloud. Mutually exclusive, per device, never per account:
+ * How this device treats the cloud. Mutually exclusive, per device (and, since ADR 0034, per
+ * device × workspace: a workspace may override it, kept in userData and never in its folder),
+ * never per account:
  *   • local-only — files stay on this device; nothing uploads.
  *   • manual     — the user picks what to upload.
  *   • automatic  — new files upload when space allows (never existing ones, never links).
@@ -417,6 +419,13 @@ export const IPC_CHANNELS = {
   // documented query-on-mount + subscribe pattern instead of a focus/remount
   // workaround the always-alive control-bar window never triggers.
   settingsChanged: "settings:changed",
+  // Per-workspace overrides (ADR 0034). `settings:get`, `settings:update` and `settings:changed`
+  // carry the EFFECTIVE settings of the active workspace; these reach the other levels.
+  settingsGetScoped: "settings:get-scoped",
+  settingsSetOverride: "settings:set-override",
+  settingsResetOverrides: "settings:reset-overrides",
+  settingsCopyToAll: "settings:copy-to-all",
+  settingsResolvePending: "settings:resolve-pending",
   checkPermissions: "permissions:check",
   requestPermission: "permissions:request",
   openSystemSettings: "permissions:open-settings",

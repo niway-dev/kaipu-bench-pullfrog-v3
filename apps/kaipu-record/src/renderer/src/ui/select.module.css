@@ -75,6 +75,11 @@
   user-select: none;
 }
 
+.menuOption[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .menuOption[data-highlighted] {
   background: rgba(246, 5, 92, 0.15);
   color: var(--accent-primary);

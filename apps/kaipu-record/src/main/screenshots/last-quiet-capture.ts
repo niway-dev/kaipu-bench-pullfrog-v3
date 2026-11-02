@@ -1,4 +1,4 @@
-import type { CaptureMode } from "@shared/types/screenshot-capture";
+import type { CaptureMode, CapturePolicy } from "@shared/types/screenshot-capture";
 
 /** A copy-only capture whose bytes main keeps for the toast's Annotate button. */
 export interface QuietCapture {
@@ -8,6 +8,8 @@ export interface QuietCapture {
   mode: CaptureMode;
   /** The workspace the capture started in; the toast's Save writes nothing anywhere else. */
   workspaceId: string | null;
+  /** The settings the capture started with; the retained bytes never read them again. */
+  policy: CapturePolicy | null;
 }
 
 /** The kept bytes, and the capture they belong to (`sequence`, see `peekLastQuietCapture`). */

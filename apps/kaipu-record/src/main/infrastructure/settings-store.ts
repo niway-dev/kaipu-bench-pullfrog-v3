@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { IPC_CHANNELS } from "@shared/types";
 import type { AppSettings } from "@shared/types";
+import type { SettingsOverrides } from "@shared/settings-scope";
 import { mergeSettings } from "../services/settings.service";
+import { resolveEffective } from "../workspaces/settings-overrides";
 
 /**
  * Persisted app settings + their OS side effects. The pure merge/validate logic
@@ -12,7 +14,22 @@ import { mergeSettings } from "../services/settings.service";
  * Electron side effects) per that file's note.
  */
 
+/**
+ * The All workspaces level: what `userData/settings.json` holds, and the only thing ever
+ * persisted. Never read it for a snapshot another module or window receives: those carry the
+ * EFFECTIVE settings of the active workspace (ADR 0034, decision 5).
+ */
 let settings: AppSettings = mergeSettings(null);
+
+/** The active workspace's overrides; `{}` until the workspaces module installs its source. */
+let overridesSource: () => SettingsOverrides = () => ({});
+
+/** The active workspace's effective settings: the overrides over the All level. */
+let effective: AppSettings = settings;
+
+function recomputeEffective(): void {
+  effective = resolveEffective(settings, overridesSource());
+}
 
 function settingsPath(): string {
   return join(app.getPath("userData"), "settings.json");
@@ -34,6 +51,7 @@ function load(): void {
     settings = { ...settings, deviceId: randomUUID() };
     persist();
   }
+  recomputeEffective();
 }
 
 function persist(): void {
@@ -57,9 +75,26 @@ export function getDeviceId(): string {
   return settings.deviceId;
 }
 
-/** Current persisted settings (read-only snapshot for other main modules). */
+/**
+ * The effective settings of the active workspace (read-only snapshot for other main modules):
+ * the workspace's override for each overridable key, otherwise the All workspaces value.
+ */
 export function getAppSettings(): AppSettings {
+  return effective;
+}
+
+/** The persisted All workspaces level, for the scoped read and the Settings page's rows. */
+export function getAllLevelSettings(): AppSettings {
   return settings;
+}
+
+/**
+ * Where the active workspace's overrides come from (installed once by the workspaces module).
+ * Call `notifyOverridesChanged()` whenever the answer may have changed.
+ */
+export function setOverridesSource(source: () => SettingsOverrides): void {
+  overridesSource = source;
+  recomputeEffective();
 }
 
 type ActivationPolicy = "regular" | "accessory";
@@ -126,15 +161,15 @@ export function forceRegularPolicy(): void {
  *  (query-on-mount + subscribe). Mirrors the recording-settings broadcast. */
 function broadcastSettings(): void {
   for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) window.webContents.send(IPC_CHANNELS.settingsChanged, settings);
+    if (!window.isDestroyed()) window.webContents.send(IPC_CHANNELS.settingsChanged, effective);
   }
 }
 
-// Listeners notified after every persisted settings change (e.g. to re-register
-// global shortcuts when their bindings change).
+// Listeners notified after every settings change, with the EFFECTIVE settings of the active
+// workspace (e.g. to re-register global shortcuts when their bindings change).
 const settingsListeners = new Set<(settings: AppSettings) => void>();
 
-/** Subscribe to persisted settings changes. */
+/** Subscribe to settings changes (the argument is the active workspace's effective settings). */
 export function onSettingsChanged(listener: (settings: AppSettings) => void): void {
   settingsListeners.add(listener);
 }
@@ -149,7 +184,7 @@ export function onSettingsKeysChanged<K extends keyof AppSettings>(
   listener: (settings: AppSettings) => void,
 ): void {
   const snapshot = (from: AppSettings): string => JSON.stringify(keys.map((key) => from[key]));
-  let seen = snapshot(settings);
+  let seen = snapshot(effective);
   settingsListeners.add((next) => {
     const now = snapshot(next);
     if (now === seen) return;
@@ -183,9 +218,23 @@ export function updateAppSettings(patch: Partial<AppSettings>): AppSettings {
   settings = mergeSettings({ ...settings, ...patch });
   persist();
   applySideEffects();
-  for (const listener of settingsListeners) listener(settings);
+  recomputeEffective();
+  for (const listener of settingsListeners) listener(effective);
   broadcastSettings();
-  return settings;
+  return effective;
+}
+
+/**
+ * The active workspace's overrides changed (a switch, a capture start that found the folder
+ * file edited, an override written or answered): recompute the effective settings, wake the
+ * listeners of the keys that changed and broadcast the new snapshot to every window.
+ */
+export function notifyOverridesChanged(): void {
+  const before = effective;
+  recomputeEffective();
+  if (JSON.stringify(before) === JSON.stringify(effective)) return;
+  for (const listener of settingsListeners) listener(effective);
+  broadcastSettings();
 }
 
 /**
@@ -196,7 +245,7 @@ export function registerSettings(): void {
   load();
   applySideEffects();
 
-  ipcMain.handle(IPC_CHANNELS.getSettings, (): AppSettings => settings);
+  ipcMain.handle(IPC_CHANNELS.getSettings, (): AppSettings => effective);
   ipcMain.handle(
     IPC_CHANNELS.updateSettings,
     (_e, patch: Partial<AppSettings>): AppSettings => updateAppSettings(patch),
