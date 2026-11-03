@@ -1,0 +1,59 @@
+/*
+ * The window's title bar (title-bar.tsx). Its height is TITLE_BAR_HEIGHT in
+ * main/window-chrome.ts: the traffic lights are centred in it and the Windows overlay
+ * is that tall.
+ */
+.bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  /* Windows / Linux: the overlay reports where the caption buttons are not. Outside a
+     window-controls overlay (macOS, a test) the fallbacks leave the right side free. */
+  padding-left: max(14px, env(titlebar-area-x, 14px));
+  padding-right: calc(
+    100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 14px))
+  );
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sidebar);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+/* The traffic lights: 16 px from the edge, three 12 px buttons 8 px apart, then air. */
+.bar[data-platform="darwin"] {
+  padding-left: 84px;
+}
+
+.name {
+  font-weight: var(--font-weight-semibold);
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.separator {
+  color: var(--text-muted);
+  opacity: 0.6;
+  font-size: 15px;
+  margin: 0 2px;
+}
+
+/* Without this the OS takes the click and drags the window instead. */
+.interactive {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+}
+
+.end {
+  margin-left: auto;
+}
+
+/* An empty slot must not punch a no-drag hole into the bar. */
+.end:empty {
+  display: none;
+}

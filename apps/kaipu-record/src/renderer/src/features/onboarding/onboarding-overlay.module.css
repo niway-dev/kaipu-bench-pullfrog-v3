@@ -1,6 +1,8 @@
+/* Below the window's 40 px title bar (shell/title-bar.tsx): the traffic lights stay off the
+   step and the window can still be dragged during onboarding. */
 .overlay {
   position: fixed;
-  inset: 0;
+  inset: 40px 0 0;
   z-index: 60;
   display: flex;
   flex-direction: column;
