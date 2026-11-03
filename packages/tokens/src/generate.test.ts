@@ -12,7 +12,7 @@ describe("generateCss", () => {
 
   it("emits every token under :root with the dark values", () => {
     expect(css).toContain(":root {");
-    expect(css).toContain("  --bg-app: #0f0f11;");
+    expect(css).toContain("  --bg-app: #060607;");
     expect(css).toContain("  --accent-primary: #f6055c;");
     expect(css).toContain("  --space-md: 12px;");
     const declarations = css.match(/^ {2}--[a-z0-9-]+:/gm) ?? [];
@@ -27,7 +27,7 @@ describe("generateCss", () => {
   });
 
   it("prefixes every custom property when a prefix is given", () => {
-    expect(prefixed).toContain("  --kaipu-bg-app: #0f0f11;");
+    expect(prefixed).toContain("  --kaipu-bg-app: #060607;");
     expect(prefixed).toContain("  --kaipu-space-md: 12px;");
     expect(prefixed).not.toMatch(/^ {2}--(?!kaipu-)/m);
   });

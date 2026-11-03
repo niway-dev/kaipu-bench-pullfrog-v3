@@ -13,7 +13,7 @@
   padding: 0.3rem 0.75rem;
   border: 0;
   border-radius: 6px;
-  background: var(--accent, #3fb27f);
+  background: #3fb27f;
   color: white;
   cursor: pointer;
 }

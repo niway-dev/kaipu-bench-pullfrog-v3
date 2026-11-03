@@ -28,6 +28,9 @@ const SURFACE_TOKENS = [
   "bg-modal",
 ] as const;
 
+const DARK_TEXT = ["text", "text-2", "text-3"] as const;
+const DARK_SURFACES = ["bg-canvas", "bg-panel", "bg-raised", "bg-hover", "bg-active"] as const;
+
 describe("light theme", () => {
   it("is no longer the dark placeholder", () => {
     expect(light).not.toEqual(dark);
@@ -66,7 +69,14 @@ describe("light theme", () => {
   );
 });
 
-// NOTE: the DARK palette is intentionally NOT held to this bar here — the shipped
-// dark text-muted (#6b7280) measures ~3.9:1 on bg-app, a pre-existing condition
-// outside this PR's scope (spec binds AA on the LIGHT palette only). Flagged in
-// the PR body as a known follow-up; do not "fix" dark values in this PR.
+// The dark palette (Kaipu Black) is held to the same bar for the three text
+// levels used for reading. `text-4` is excluded on purpose: it only labels
+// sections and tracks in mono caps, as the design specifies.
+describe("dark theme", () => {
+  it.each(DARK_TEXT.flatMap((t) => DARK_SURFACES.map((s) => [t, s] as const)))(
+    "dark %s on %s meets WCAG AA (4.5:1)",
+    (text, surface) => {
+      expect(contrast(dark[text], dark[surface])).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+});
