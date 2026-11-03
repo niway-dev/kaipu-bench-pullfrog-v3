@@ -634,6 +634,8 @@ describe("createCaptureHandler", () => {
       const out = await handler({ mode: "window" });
       expect(out).toMatchObject({ after: "quiet", saved: null, copied: true });
       expect(onQuietCapture).toHaveBeenCalledWith(expect.objectContaining({ saved: null }));
+      // Copied but not saved is not a "Copied" confirmation: the card must keep Save.
+      expect(onQuietCapture.mock.calls[0]?.[0]).not.toHaveProperty("presentation");
       expect(takeLastQuietCapture()).toEqual({
         png: Buffer.from([9, 8, 7]),
         width: 3,
