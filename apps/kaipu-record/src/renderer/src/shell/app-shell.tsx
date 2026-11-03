@@ -31,6 +31,16 @@ const STATUS_KEY: Partial<
 const STATUS_BAR_DEFINITIONS = SHORTCUT_DEFINITIONS.filter((def) => STATUS_KEY[def.action]);
 
 /**
+ * The video editor runs edge to edge: its panes are separated by rules, not set
+ * inside the page padding as cards, so every pixel of the padding goes to the
+ * preview (NIW2-611). Every other page, the image editor included, keeps it.
+ * (The legacy `/video-editor` path only redirects here, so it needs no rule.)
+ */
+export function isFullBleedPath(pathname: string): boolean {
+  return pathname.startsWith(`${ROUTES.editor}/video/`);
+}
+
+/**
  * Main app layout: a fixed icon sidebar plus the active page rendered into <Outlet />,
  * sized by the base window preset — the full-window editors declare their own.
  * with a status bar showing the real (global, rebindable) recording shortcuts.
@@ -38,15 +48,6 @@ const STATUS_BAR_DEFINITIONS = SHORTCUT_DEFINITIONS.filter((def) => STATUS_KEY[d
  * banners, the version gate) lives one level up in AppRoot so full-window pages
  * outside the shell keep it (see app/router.tsx).
  */
-/**
- * The video editor runs edge to edge: its panes are separated by rules, not set
- * inside the page padding as cards, so every pixel of the padding goes to the
- * preview (NIW2-611). Every other page, the image editor included, keeps it.
- */
-export function isFullBleedPath(pathname: string): boolean {
-  return pathname.startsWith(`${ROUTES.editor}/video/`) || pathname === ROUTES.videoEditor;
-}
-
 export function AppShell(): React.JSX.Element {
   const t = useTranslations("shortcuts");
   const shortcuts = useShortcutLabels();
