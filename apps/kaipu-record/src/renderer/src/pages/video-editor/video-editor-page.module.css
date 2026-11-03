@@ -203,11 +203,14 @@
   min-width: 0;
 }
 
-/* Right-hand column (NIW2-611): the toolbar card on top, the inspector filling the
-   rest. Its width is the inspector's own 288 px. */
+/* Right-hand column (NIW2-611): the toolbar on top, the inspector filling the rest.
+   The width is set here, not left to the content: a flex item's auto width is its
+   max-content width, so a long tool hint or save state (Spanish especially) would
+   widen the column, and shrink the video, every time the tool or autosave changed. */
 .side {
   display: flex;
   flex-direction: column;
+  width: 288px;
   min-height: 0;
   flex-shrink: 0;
   border-left: 1px solid var(--border);
