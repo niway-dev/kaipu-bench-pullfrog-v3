@@ -1,5 +1,9 @@
 import { registerAppActivation } from "./app-activation";
 import {
+  CURSOR_CAPTURE_DIAGNOSTIC_FLAG,
+  openCursorCaptureDiagnostic,
+} from "./diagnostics/cursor-capture";
+import {
   app,
   shell,
   clipboard,
@@ -797,6 +801,11 @@ async function recoverStrandedEverywhere(): Promise<void> {
 app.whenReady().then(async () => {
   // A second copy is already quitting (see the single-instance lock above).
   if (!hasSingleInstanceLock) return;
+
+  if (process.argv.includes(CURSOR_CAPTURE_DIAGNOSTIC_FLAG)) {
+    await openCursorCaptureDiagnostic();
+    return;
+  }
 
   // The workspace registry first (ADR 0032): the first launch after the upgrade migrates
   // the library into "Default workspace", and every window's preload reads the stamp.
