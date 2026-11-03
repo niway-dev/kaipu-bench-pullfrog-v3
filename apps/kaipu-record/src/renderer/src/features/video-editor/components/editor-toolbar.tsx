@@ -107,17 +107,17 @@ export interface EditorToolbarProps {
   tool: EditorTool;
   /** Run the export pipeline. Disabled while exporting or when the timeline is empty. */
   onExport(): void;
-  /** Status chips that used to sit in their own header row (the original-untouched
-   *  pill, the autosave state). Rendered at the far right of the toolbar. */
+  /** Status chips (the original-untouched pill, the autosave state). Rendered on
+   *  their own line between the actions and Export. */
   children?: React.ReactNode;
   exportDisabled: boolean;
 }
 
 /**
- * Undo/redo + split/delete actions for the video editor, plus the annotation tool
- * group (select/box/arrow/text — see video-tools.ts) on the left. Structure and
- * active-tool styling mirror the screenshot editor's toolbar (AnnotationToolbar on
- * the left, action icons on the right) — see annotation-toolbar.tsx.
+ * Undo/redo, image, split and delete, the status chips, Export and the active
+ * tool's hint, stacked in a card at the top of the right-hand column (NIW2-611).
+ * It used to be a full-width row above the preview; in the column the preview
+ * gets that height back.
  */
 /**
  * The drawing and camera tools, as a column beside the preview.
@@ -295,7 +295,6 @@ export function EditorToolbar({
 
   return (
     <div className={styles.toolbar}>
-      <span className={styles.hint}>{t(TOOL_HINT[tool])}</span>
       <div className={styles.actions}>
         <button
           type="button"
@@ -360,18 +359,18 @@ export function EditorToolbar({
         >
           <Trash2 size={18} />
         </button>
-        {children}
-        <span className={styles.divider} />
-        <button
-          type="button"
-          className={styles.exportBtn}
-          disabled={exportDisabled}
-          onClick={onExport}
-        >
-          <Download size={16} />
-          {t("export")}
-        </button>
       </div>
+      {children && <div className={styles.status}>{children}</div>}
+      <button
+        type="button"
+        className={styles.exportBtn}
+        disabled={exportDisabled}
+        onClick={onExport}
+      >
+        <Download size={16} />
+        {t("export")}
+      </button>
+      <span className={styles.hint}>{t(TOOL_HINT[tool])}</span>
     </div>
   );
 }

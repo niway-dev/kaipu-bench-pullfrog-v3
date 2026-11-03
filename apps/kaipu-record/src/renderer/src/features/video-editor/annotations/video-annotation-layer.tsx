@@ -93,9 +93,10 @@ export interface VideoAnnotationLayerProps {
   onInteractStart(): void;
   onInteractEnd(): void;
   /** Fired when the SELECT tool is active and a plain click (no drag) lands on empty
-   *  space — no shape and no resize handle hit. Lets the video underneath still
-   *  toggle play/pause even though this layer sits on top of it and swallows the
-   *  click (see preview-stage.tsx: the layer is a full-cover sibling of <video>). */
+   *  space — no shape and no resize handle hit. This layer is a full-cover sibling of
+   *  <video> and swallows the click, so this is the only way a caller can react to a
+   *  click on the picture. The editor page used it to toggle play/pause until
+   *  NIW2-611 left that to the play button and Space. */
   onBackgroundClick?(): void;
   /** Asked first when the SELECT tool presses empty space (after shapes and handles had
    *  their chance). Returning true claims the press — the drawn cursor uses it to open
@@ -341,8 +342,7 @@ export function VideoAnnotationLayer({
     clickCandidate.current = null;
     if (!d) {
       // Confirmed empty-space click in select mode: nothing was hit and the pointer
-      // never drifted past tolerance — forward it as the play/pause toggle the video
-      // underneath would otherwise have handled (see onBackgroundClick prop doc).
+      // never drifted past tolerance (see onBackgroundClick prop doc).
       if (wasBackgroundClick && tool === "select") onBackgroundClick?.();
       return;
     }

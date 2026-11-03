@@ -7,7 +7,7 @@
 
 .lane {
   position: relative;
-  height: 40px;
+  height: 32px;
   border-radius: var(--radius-md);
   background: var(--bg-input);
 }
