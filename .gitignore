@@ -88,3 +88,6 @@ lefthook-local.yml
 
 # git worktrees live here; they are checkouts of other branches, not sources
 .claude/worktrees/
+
+# cs-capture-evidence captures (never committed)
+.evidence/
