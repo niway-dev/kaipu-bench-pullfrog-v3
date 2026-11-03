@@ -6,6 +6,7 @@ import type { AuthError, AuthStatus } from "@shared/types/auth";
 import type {
   CaptureRequestPayload,
   CaptureToastPayload,
+  CaptureToastTimer,
   OpenSavedScreenshotRequest,
   OverlayState,
   QuietCaptureHandOff,
@@ -368,6 +369,11 @@ const kaipuApi: KaipuElectronAPI = {
     ready: () => ipcRenderer.send(IPC_CHANNELS.screenshotToastReady),
     action: (action) => ipcRenderer.send(IPC_CHANNELS.screenshotToastAction, { action }),
     hover: (paused) => ipcRenderer.send(IPC_CHANNELS.screenshotToastHover, { paused }),
+    onTimer: (callback) => {
+      const listener = (_e: IpcRendererEvent, timer: CaptureToastTimer): void => callback(timer);
+      ipcRenderer.on(IPC_CHANNELS.screenshotToastTimer, listener);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.screenshotToastTimer, listener);
+    },
   },
   showRecordingReady: (payload) => ipcRenderer.invoke(IPC_CHANNELS.recordingReadyShow, payload),
   recordingReadyCard: {

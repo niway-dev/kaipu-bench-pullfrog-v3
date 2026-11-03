@@ -70,7 +70,10 @@ body[data-window="recording-shade"] {
   overflow: hidden;
 }
 
-/* The capture toast: a fixed 380 × 150 window the card fills; nothing scrolls. */
+/*
+ * The capture preview card: a transparent window main sizes to the card plus 16 px of room for
+ * its shadow (PREVIEW_WINDOW_PADDING, the `.frame` padding); nothing scrolls.
+ */
 body[data-window="capture-toast"],
 body[data-window="capture-toast"] #root {
   height: 100vh;

@@ -4,15 +4,9 @@ import type { CaptureToastPayload } from "@shared/types/screenshot-capture";
 vi.mock("electron", () => ({ BrowserWindow: class {}, ipcMain: { on: vi.fn() }, screen: {} }));
 vi.mock("@electron-toolkit/utils", () => ({ is: { dev: false } }));
 
-const {
-  CaptureToastWindow,
-  saveFromToast,
-  TOAST_AUTO_HIDE_MS,
-  TOAST_HEIGHT,
-  TOAST_MARGIN,
-  TOAST_WIDTH,
-  toastBounds,
-} = await import("./capture-toast-window");
+const { CaptureToastWindow, saveFromToast, TOAST_AUTO_HIDE_MS, TOAST_MARGIN, toastBounds } =
+  await import("./capture-toast-window");
+const { PREVIEW_WINDOW_PADDING, previewCardSize } = await import("@shared/capture-preview-layout");
 type QuietCapture = import("./last-quiet-capture").QuietCapture;
 
 const CHANNEL = {
@@ -20,6 +14,7 @@ const CHANNEL = {
   action: "screenshot:toast-action",
   hover: "screenshot:toast-hover",
   ready: "screenshot:toast-ready",
+  timer: "screenshot:toast-timer",
 };
 
 class FakeWebContents {
@@ -115,7 +110,13 @@ const SHOT: QuietCapture = {
 };
 const NEXT_SHOT: QuietCapture = { ...SHOT, png: Buffer.from([4, 5, 6]) };
 
-function setup(options: { kept?: QuietCapture | null; save?: () => Promise<{ id: string }> } = {}) {
+function setup(
+  options: {
+    kept?: QuietCapture | null;
+    save?: () => Promise<{ id: string }>;
+    readSaved?: (id: string) => Promise<Buffer>;
+  } = {},
+) {
   const windows: FakeWindow[] = [];
   const createOptions: Array<Record<string, unknown>> = [];
   const ipc = new FakeIpc();
@@ -152,6 +153,9 @@ function setup(options: { kept?: QuietCapture | null; save?: () => Promise<{ id:
     title: () => "Kaipu Screenshot now",
     openSaved: vi.fn(),
     openQuietCapture: vi.fn(),
+    revealSaved: vi.fn(async (_id: string) => {}),
+    readSaved: vi.fn(options.readSaved ?? (async (_id: string) => Buffer.from([7, 7, 7]))),
+    copyBytes: vi.fn((_png: Buffer) => {}),
   };
   const toast = new CaptureToastWindow(deps);
   /** The toast renderer mounted and subscribed. */
@@ -170,6 +174,11 @@ function setup(options: { kept?: QuietCapture | null; save?: () => Promise<{ id:
   const keptNow = (): QuietCapture | null => kept;
   const hover = (paused: boolean): void =>
     ipc.emit(CHANNEL.hover, windows[0]!.webContents, { paused });
+  /** The timer messages the card's bar received. */
+  const timerMessages = (index = 0) =>
+    windows[index]!.webContents.sent.filter((m) => m.channel === CHANNEL.timer).map(
+      (m) => m.payload,
+    );
   return {
     toast,
     deps,
@@ -183,8 +192,15 @@ function setup(options: { kept?: QuietCapture | null; save?: () => Promise<{ id:
     newCapture,
     keptNow,
     hover,
+    timerMessages,
   };
 }
+
+/** The window for a shot of `payload`'s size on `workArea`. */
+const boundsFor = (
+  workArea: { x: number; y: number; width: number; height: number },
+  payload: CaptureToastPayload,
+) => toastBounds(workArea, previewCardSize(payload.width, payload.height));
 
 describe("saveFromToast", () => {
   it("writes like the capture's auto-save (manual: false), so the shot stays off the editor's Continue list", async () => {
@@ -224,8 +240,8 @@ describe("CaptureToastWindow", () => {
       toast.show({ ...COPIED, displayId: 1 });
 
       expect(createOptions[0]).toMatchObject({
-        width: TOAST_WIDTH,
-        height: TOAST_HEIGHT,
+        width: previewCardSize(16, 10).windowWidth,
+        height: previewCardSize(16, 10).windowHeight,
         show: false,
         frame: false,
         transparent: true,
@@ -256,7 +272,7 @@ describe("CaptureToastWindow", () => {
       expect(deps.createWindow).toHaveBeenCalledTimes(1);
       expect(windows).toHaveLength(1);
       expect(shown()).toEqual([COPIED, SAVED]);
-      expect(windows[0]!.setBounds).toHaveBeenLastCalledWith(toastBounds(LEFT.workArea));
+      expect(windows[0]!.setBounds).toHaveBeenLastCalledWith(boundsFor(LEFT.workArea, SAVED));
     });
 
     it("waits for the renderer before showing, then sends the latest payload once", () => {
@@ -309,24 +325,36 @@ describe("CaptureToastWindow", () => {
   });
 
   describe("position", () => {
-    it("sits at the top-right of the work area with the margin", () => {
-      expect(toastBounds(PRIMARY.workArea)).toEqual({
-        x: 1440 - TOAST_WIDTH - TOAST_MARGIN,
-        y: 25 + TOAST_MARGIN,
-        width: TOAST_WIDTH,
-        height: TOAST_HEIGHT,
+    it("puts the card (not its padded window) at the top-right of the work area with the margin", () => {
+      const size = previewCardSize(1126, 604);
+      const bounds = toastBounds(PRIMARY.workArea, size);
+      expect(bounds).toEqual({
+        x: 1440 - size.windowWidth - (TOAST_MARGIN - PREVIEW_WINDOW_PADDING),
+        y: 25 + TOAST_MARGIN - PREVIEW_WINDOW_PADDING,
+        width: size.windowWidth,
+        height: size.windowHeight,
       });
+      // The card's own right edge sits TOAST_MARGIN from the work area's.
+      expect(1440 - (bounds.x + bounds.width - PREVIEW_WINDOW_PADDING)).toBe(TOAST_MARGIN);
+    });
+
+    it("sizes the window to the shot: taller for a tall shot, within the cap", () => {
+      const wide = toastBounds(PRIMARY.workArea, previewCardSize(2400, 400));
+      const tall = toastBounds(PRIMARY.workArea, previewCardSize(390, 1200));
+      const usual = toastBounds(PRIMARY.workArea, previewCardSize(1440, 900));
+      expect(wide.height).toBeLessThan(usual.height);
+      expect(tall.height).toBeGreaterThan(usual.height);
+      expect(tall.width).toBe(usual.width);
     });
 
     it("stays on a display left of the primary one", () => {
-      const bounds = toastBounds(LEFT.workArea);
-      expect(bounds.x).toBe(-TOAST_WIDTH - TOAST_MARGIN);
+      const bounds = toastBounds(LEFT.workArea, previewCardSize(1126, 604));
       expect(bounds.x).toBeGreaterThanOrEqual(LEFT.workArea.x);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(LEFT.workArea.x + LEFT.workArea.width);
     });
 
-    it("never leaves a work area narrower than the toast", () => {
-      const bounds = toastBounds({ x: 100, y: 0, width: 300, height: 400 });
+    it("never leaves a work area narrower than the card", () => {
+      const bounds = toastBounds({ x: 100, y: 0, width: 300, height: 400 }, previewCardSize(4, 3));
       expect(bounds.x).toBe(100);
     });
 
@@ -334,14 +362,14 @@ describe("CaptureToastWindow", () => {
       const { toast, windows, ready } = setup();
       toast.show({ ...COPIED, displayId: 2 });
       ready();
-      expect(windows[0]!.setBounds).toHaveBeenLastCalledWith(toastBounds(LEFT.workArea));
+      expect(windows[0]!.setBounds).toHaveBeenLastCalledWith(boundsFor(LEFT.workArea, COPIED));
       toast.show({ ...COPIED, displayId: 99 });
-      expect(windows[0]!.setBounds).toHaveBeenLastCalledWith(toastBounds(PRIMARY.workArea));
+      expect(windows[0]!.setBounds).toHaveBeenLastCalledWith(boundsFor(PRIMARY.workArea, COPIED));
     });
   });
 
   describe("auto-hide", () => {
-    it("hides after 6 s", () => {
+    it("hides after the auto-hide time", () => {
       const { toast, windows, timers, ready } = setup();
       toast.show({ ...COPIED, displayId: 1 });
       ready();
@@ -351,13 +379,13 @@ describe("CaptureToastWindow", () => {
       expect(windows[0]!.hide).toHaveBeenCalledTimes(1);
     });
 
-    it("restarts the 6 s on a new capture", () => {
+    it("restarts the full time on a new capture", () => {
       const { toast, windows, timers, ready } = setup();
       toast.show({ ...COPIED, displayId: 1 });
       ready();
-      timers.tick(5_000);
+      timers.tick(TOAST_AUTO_HIDE_MS - 1_000);
       toast.show({ ...SAVED, displayId: 1 });
-      timers.tick(5_000);
+      timers.tick(TOAST_AUTO_HIDE_MS - 1_000);
       expect(windows[0]!.hide).not.toHaveBeenCalled();
       timers.tick(1_000);
       expect(windows[0]!.hide).toHaveBeenCalledTimes(1);
@@ -379,7 +407,7 @@ describe("CaptureToastWindow", () => {
       expect(windows[0]!.hide).toHaveBeenCalledTimes(1);
     });
 
-    it("starts the 6 s only once the renderer shows the first toast", () => {
+    it("starts the timer only once the renderer shows the first card", () => {
       const { toast, windows, timers, ready } = setup();
       toast.show({ ...COPIED, displayId: 1 });
       // A cold toast renderer can take a while to load: the card has not been seen yet.
@@ -449,12 +477,12 @@ describe("CaptureToastWindow", () => {
     });
   });
 
-  describe("Annotate", () => {
+  describe("Edit", () => {
     it("opens the saved vault item in the editor", () => {
       const { toast, deps, ready, act, windows } = setup();
       toast.show({ ...SAVED, displayId: 1 });
       ready();
-      act("annotate");
+      act("edit");
       expect(deps.openSaved).toHaveBeenCalledWith("editor", "screenshot-1");
       expect(deps.takeQuietCapture).not.toHaveBeenCalled();
       expect(windows[0]!.hide).toHaveBeenCalled();
@@ -464,8 +492,8 @@ describe("CaptureToastWindow", () => {
       const { toast, deps, ready, act } = setup();
       toast.show({ ...COPIED, displayId: 1 });
       ready();
-      act("annotate");
-      act("annotate");
+      act("edit");
+      act("edit");
       expect(deps.openQuietCapture).toHaveBeenCalledTimes(1);
       expect(deps.openQuietCapture).toHaveBeenCalledWith(SHOT);
       expect(deps.openSaved).not.toHaveBeenCalled();
@@ -475,7 +503,7 @@ describe("CaptureToastWindow", () => {
       const { toast, deps, ready, act } = setup({ kept: null });
       toast.show({ ...COPIED, displayId: 1 });
       ready();
-      act("annotate");
+      act("edit");
       expect(deps.openQuietCapture).not.toHaveBeenCalled();
     });
 
@@ -486,27 +514,136 @@ describe("CaptureToastWindow", () => {
       act("save");
       await vi.waitFor(() => expect(deps.saveToVault).toHaveBeenCalled());
       await Promise.resolve();
-      act("annotate");
+      act("edit");
       expect(deps.openQuietCapture).not.toHaveBeenCalled();
       expect(deps.openSaved).toHaveBeenCalledWith("editor", "screenshot-new");
     });
   });
 
-  describe("Open in Library", () => {
-    it("opens the saved item's Library page", () => {
-      const { toast, deps, ready, act } = setup();
+  describe("Reveal (Saved)", () => {
+    it("shows the saved item's file and keeps the card up", () => {
+      const { toast, deps, ready, act, windows } = setup();
       toast.show({ ...SAVED, displayId: 1 });
       ready();
-      act("open-library");
-      expect(deps.openSaved).toHaveBeenCalledWith("library", "screenshot-1");
+      act("reveal");
+      expect(deps.revealSaved).toHaveBeenCalledWith("screenshot-1");
+      expect(deps.openSaved).not.toHaveBeenCalled();
+      expect(windows[0]!.hide).not.toHaveBeenCalled();
     });
 
-    it("does nothing on a toast with nothing saved", () => {
+    it("does nothing on a card with nothing saved", () => {
       const { toast, deps, ready, act } = setup();
       toast.show({ ...COPIED, displayId: 1 });
       ready();
-      act("open-library");
-      expect(deps.openSaved).not.toHaveBeenCalled();
+      act("reveal");
+      expect(deps.revealSaved).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Copy", () => {
+    it("copies a saved shot's file by id, then re-sends the payload as copied", async () => {
+      const { toast, deps, ready, act, shown } = setup();
+      toast.show({ ...SAVED, displayId: 1 });
+      ready();
+      act("copy");
+      await vi.waitFor(() => expect(shown()).toHaveLength(2));
+      expect(deps.readSaved).toHaveBeenCalledWith("screenshot-1");
+      expect(deps.copyBytes).toHaveBeenCalledWith(Buffer.from([7, 7, 7]));
+      expect(shown()[1]).toEqual({ ...SAVED, copied: true });
+    });
+
+    it("copies a copy-only shot's kept bytes without taking them, so Edit still works", async () => {
+      const { toast, deps, ready, act, keptNow } = setup();
+      toast.show({ ...COPIED, copied: false, displayId: 1 });
+      ready();
+      act("copy");
+      await vi.waitFor(() => expect(deps.copyBytes).toHaveBeenCalledWith(SHOT.png));
+      expect(keptNow()).toBe(SHOT);
+      act("edit");
+      expect(deps.openQuietCapture).toHaveBeenCalledWith(SHOT);
+    });
+
+    it("a failed copy leaves the card as it was", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { toast, deps, ready, act, shown } = setup({
+        readSaved: async () => {
+          throw new Error("file gone");
+        },
+      });
+      toast.show({ ...SAVED, displayId: 1 });
+      ready();
+      act("copy");
+      await vi.waitFor(() => expect(deps.readSaved).toHaveBeenCalled());
+      await Promise.resolve();
+      expect(shown()).toEqual([SAVED]);
+      expect(deps.copyBytes).not.toHaveBeenCalled();
+    });
+
+    it("a copy whose read ends after a newer capture writes nothing and repaints nothing", async () => {
+      let finish = (_png: Buffer): void => {};
+      const { toast, deps, ready, act, shown } = setup({
+        readSaved: () => new Promise<Buffer>((resolve) => (finish = resolve)),
+      });
+      toast.show({ ...SAVED, displayId: 1 });
+      ready();
+      act("copy");
+      const next = { ...SAVED, saved: { id: "screenshot-2" } };
+      toast.show({ ...next, displayId: 1 });
+      finish(Buffer.from([1]));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(shown()).toEqual([SAVED, next]);
+      // The newer capture may have copied its own shot: the old one must not replace it.
+      expect(deps.copyBytes).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("the timer channel (the card's bar)", () => {
+    it("sends the full time when the timer starts and null when it stops", () => {
+      const { toast, ready, hover, timerMessages } = setup();
+      toast.show({ ...SAVED, displayId: 1 });
+      ready();
+      expect(timerMessages().at(-1)).toEqual({ remainingMs: TOAST_AUTO_HIDE_MS });
+      hover(true);
+      expect(timerMessages().at(-1)).toEqual({ remainingMs: null });
+      hover(false);
+      expect(timerMessages().at(-1)).toEqual({ remainingMs: TOAST_AUTO_HIDE_MS });
+    });
+
+    it("a new shot under a resting pointer gets a full, frozen bar", () => {
+      const { toast, ready, hover, timerMessages } = setup();
+      toast.show({ ...SAVED, displayId: 1 });
+      ready();
+      hover(true);
+      const before = timerMessages().length;
+      toast.show({ ...COPIED, displayId: 1 });
+      expect(timerMessages().slice(before)).toEqual([
+        { remainingMs: TOAST_AUTO_HIDE_MS },
+        { remainingMs: null },
+      ]);
+    });
+
+    it("sends nothing before the renderer is ready", () => {
+      const { toast, timerMessages } = setup();
+      toast.show({ ...SAVED, displayId: 1 });
+      expect(timerMessages()).toEqual([]);
+    });
+
+    it("freezes the bar while an Edit waits on a Save", async () => {
+      let finish = (_value: { id: string }): void => {};
+      const { toast, ready, act, hover, timerMessages } = setup({
+        save: () => new Promise((resolve) => (finish = resolve)),
+      });
+      toast.show({ ...COPIED, displayId: 1 });
+      ready();
+      act("save");
+      act("edit");
+      expect(timerMessages().at(-1)).toEqual({ remainingMs: null });
+      // The pointer leaving does not restart it while the Edit waits.
+      hover(true);
+      hover(false);
+      expect(timerMessages().at(-1)).toEqual({ remainingMs: null });
+      finish({ id: "screenshot-new" });
     });
   });
 
@@ -552,7 +689,7 @@ describe("CaptureToastWindow", () => {
       await vi.waitFor(() => expect(error).toHaveBeenCalled());
       expect(shown()).toHaveLength(1);
       expect(keptNow()).toBe(SHOT);
-      act("annotate");
+      act("edit");
       expect(deps.openQuietCapture).toHaveBeenCalledWith(SHOT);
       error.mockRestore();
     });
@@ -587,8 +724,8 @@ describe("CaptureToastWindow", () => {
       toast.show({ ...COPIED, displayId: 1 });
       ready();
       act("save");
-      act("annotate");
-      act("annotate");
+      act("edit");
+      act("edit");
       expect(deps.openQuietCapture).not.toHaveBeenCalled();
       expect(deps.openSaved).not.toHaveBeenCalled();
 
@@ -611,7 +748,7 @@ describe("CaptureToastWindow", () => {
       toast.show({ ...COPIED, displayId: 1 });
       ready();
       act("save");
-      act("annotate");
+      act("edit");
 
       fail(new Error("disk full"));
       await vi.waitFor(() => expect(deps.openQuietCapture).toHaveBeenCalled());
@@ -647,7 +784,7 @@ describe("CaptureToastWindow", () => {
       toast.show({ ...COPIED, displayId: 1 });
       ready();
       act("save");
-      act("annotate");
+      act("edit");
       // What a capture start does: beforeCapture dismisses the toast, the handler clears the store.
       toast.dismiss();
       newCapture(NEXT_SHOT);

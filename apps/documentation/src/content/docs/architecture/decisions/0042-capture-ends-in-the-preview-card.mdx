@@ -1,0 +1,74 @@
+---
+title: "ADR 0042: Capture and Copy both end in the preview card; the editor opens only when asked"
+description: Supersedes decision 4 of ADR 0024 and reverses the 2026-10-20 capture-flow fix. After a screenshot, the main window never comes forward; the capture toast window becomes an image-first preview card with Edit, Copy, Saved and Close. A shot that landed nowhere still opens the editor.
+---
+
+# ADR 0042: Capture and Copy both end in the preview card; the editor opens only when asked
+
+## Status
+
+| Field         | Value                                                                                                                                                                                                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Accepted — implemented in [NIW2-606](https://linear.app/niway/issue/NIW2-606) ([PR #486](https://github.com/niway-dev/kaipu-record/pull/486)); owner QA pending — [design](/specs/2026-11-02-capture-preview-card-design/)                                                                              |
+| Date          | 2026-11-02                                                                                                                                                                                                                                                                                              |
+| Supersedes    | Decision 4 of [0024](/architecture/decisions/0024-window-mode-and-quiet-capture/) ("Capture opens the editor only when saving is manual"), already stale since the save preference was removed. The rest of 0024 stands. Its reopen conditions did not trigger this: the owner changed the product ask. |
+| Relates to    | [Capture flow fixes](/backlog/capture-flow-fixes/) (2026-10-20, "Capture opens the editor"), [0029](/architecture/decisions/0029-floating-windows-never-change-the-activation-policy/)                                                                                                                  |
+| Superseded by | —                                                                                                                                                                                                                                                                                                       |
+
+## Context
+
+ADR 0024 made a capture the preferences already handle end quietly, in a toast. The production
+audit of desktop 0.14.0 (2026-10-20) found Capture showing the toast where the owner expected the
+editor; the fix saved every capture and sent Capture to the editor, leaving the toast to Copy.
+
+Using 0.16.0, the owner asked for the opposite (2026-11-02): the editor coming forward after
+every Capture is the disruptive part, and a bigger toast, with the image as the card and its
+controls on it, is better than showing the window. The decision is the same question 0024 and
+the fix already answered twice, so it is written down to stop a third flip by accident.
+
+## Decision
+
+1. `decideAfterCapture` returns `open: "quiet"` for **Capture and Copy**. Copying still follows the
+   action (Copy always) and the preference (Capture only when copy is automatic).
+2. The quiet path ends in the **capture preview card**, drawn in the existing capture toast window:
+   the screenshot fills the card, Saved and Copied are visible on it at rest, and on hover it shows
+   Edit, Close and the states as buttons (Saved reveals the file, Copy copies).
+3. The editor opens only from **Edit** or a click on the image, and that is the only path that
+   brings the main window forward.
+4. A shot that **landed nowhere** (vault write and copy both failed) still opens the editor, which
+   holds the bytes and can retry.
+
+## Alternatives rejected
+
+- **Keep Capture → editor, enlarge only the Copy toast.** The smallest change, but Capture and Copy
+  would differ only in the clipboard, and the owner's complaint is the window coming forward.
+- **An "After capture: editor / preview" preference.** Covers both habits, but 0024 already
+  rejected an after-capture preference, and the editor is one click away on the card. If the owner
+  misses the old flow, this is the first thing to add, and it needs no change to the card.
+- **A second floating window for the preview, the toast kept for errors.** Two windows with the same
+  lifecycle rules to keep in sync, for no state the card cannot show.
+
+## Consequences
+
+- Capture no longer stamps the item as opened, so a fresh Capture appears on the Editor home's
+  Continue list only after Edit (as Copy already did).
+- The toast window's size depends on the shot's aspect ratio, and its thumbnail grows from 160 to
+  532 px; the payload over IPC grows accordingly.
+- The card gains Copy and Reveal actions in main; Open in Library leaves it.
+- The capture-flow-fixes backlog page and decision 4 of 0024 describe behaviour that no longer
+  holds once this ships; both point here.
+
+## Non-goals
+
+- Where the main window sits in the stack after a quiet capture (it is hidden for the shot and
+  shown again inactive). Tracked separately if the owner sees it.
+- Dragging the card into another app, shortcuts on the card, stacking cards.
+- The recording-ready card.
+
+## Reopen when
+
+- The owner, or analytics once they exist, shows that most cards end in Edit (more than half of
+  cards three months after shipping): the editor is the common path, and the preference above
+  becomes worth its cost.
+- The OS gains a system preview the app can hand off to (as macOS does for `screencapture` without
+  `-x`) that offers Edit into Kaipu.

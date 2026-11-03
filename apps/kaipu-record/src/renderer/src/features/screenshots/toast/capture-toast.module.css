@@ -1,145 +1,303 @@
 /*
- * The capture toast: a dark card at the top-right of a display, from the Claude Design
- * "Kaipu Screenshot Modes v2" state "Copied". Like the capture overlay it floats over
- * arbitrary screen content, so it does not follow the app theme. The window is 380 × 150
- * DIP and transparent; the card fills it, with no window shadow (`hasShadow: false`).
+ * The capture preview card (ADR 0042, mockup /mockups/capture-preview.html): the screenshot is
+ * the card, in the StatusCard family of "Your video is ready". Like the capture overlay it
+ * floats over arbitrary screen content, so it does not follow the app theme: the values are
+ * the dark tokens. Geometry lives in `@shared/capture-preview-layout` (main sizes the window
+ * from it): a 280 px card, 16 px of transparent room around it, a 6 px inset to the image.
  */
 
-.card {
-  --toast-accent: var(--accent-primary, #f6055c);
-  --toast-bg: rgba(19, 19, 22, 0.96);
-  --toast-line: rgba(255, 255, 255, 0.14);
-  --toast-muted: #8a8a92;
+.frame {
+  padding: 16px;
+}
 
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  height: 100vh;
-  padding: 12px 12px 10px;
+.card {
+  /* Literals, not theme tokens: the window runs `applyTheme`, and the light theme would turn
+     the surfaces white under this card's light text. The dark token values, by hand. */
+  --toast-accent: #f6055c;
+  --toast-ring: rgba(246, 5, 92, 0.4);
+  --toast-tint: rgba(246, 5, 92, 0.12);
+  --toast-bg: #131315;
+  --toast-surface: #171719;
+  --toast-line: #32323a;
+  --toast-track: #26262a;
+  --toast-text: #e5e5e7;
+  --toast-muted: #8a8a92;
+  --toast-ok: #22c55e;
+  --toast-warn: #ef4444;
+
+  width: 280px;
+  padding: 6px;
   font-family: var(--font-family);
-  color: #f3f3f5;
+  color: var(--toast-text);
   background: var(--toast-bg);
   border: 1px solid var(--toast-line);
-  border-radius: 12px;
-  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.7);
   user-select: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+  animation: pop 200ms ease;
 }
 
-.head {
-  display: flex;
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.card:hover {
+  border-color: var(--toast-ring);
+  box-shadow:
+    0 0 0 3px var(--toast-tint),
+    0 12px 28px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* The image area: height from the shot's aspect ratio (inline style), letterboxed, never cropped. */
+.shot {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #0b0b0d;
+}
+
+/* The whole image is Edit; the pill in the middle only names it. */
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  font: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Dims the shot on hover, under the controls. */
+.image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 12, 0.45);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.card:hover .image::after {
+  opacity: 1;
+}
+
+.edit {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  z-index: 1;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  min-width: 0;
+  gap: 7px;
+  height: 34px;
+  padding: 0 15px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--toast-accent);
+  border-radius: 999px;
+  box-shadow: 0 10px 26px -8px rgba(246, 5, 92, 0.75);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 150ms ease;
 }
 
-.thumbnail {
-  flex: none;
-  width: 64px;
-  height: 42px;
-  object-fit: cover;
-  border: 1px solid var(--toast-line);
-  border-radius: 6px;
-  background: #000;
-}
-
-.text {
-  flex: 1;
-  min-width: 0;
-}
-
-.title {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.meta {
-  margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.3;
-  color: var(--toast-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.card:hover .edit {
+  opacity: 1;
 }
 
 .close {
-  flex: none;
-  align-self: flex-start;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  color: var(--toast-muted);
-  background: transparent;
-  border: 0;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.close:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
-.primary,
-.secondary {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 12px;
-  font-family: inherit;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
+  color: var(--toast-text);
+  background: rgba(19, 19, 21, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 7px;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
 }
 
-.primary {
-  color: #fff;
+.card:hover .close {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pills {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 5px;
+}
+
+/* At rest a pill is a state; on hover it is a button. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--toast-text);
+  background: rgba(19, 19, 21, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  cursor: pointer;
+  transition: border-color 150ms ease;
+}
+
+.card:hover .pill {
+  height: 26px;
+  padding: 0 10px;
+  background: var(--toast-surface);
+  border-color: var(--toast-line);
+  pointer-events: auto;
+}
+
+.card:hover .pill:hover {
+  border-color: var(--toast-ring);
+}
+
+.pill[data-hover-only] {
+  display: none;
+}
+
+.card:hover .pill[data-hover-only] {
+  display: inline-flex;
+}
+
+/* A global rule gives spans their own font; the pill's label keeps the pill's. */
+.pill span,
+.edit {
+  font-family: var(--font-family);
+}
+
+.pill span {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.pill [data-hover] {
+  display: none;
+}
+
+.card:hover .pill [data-rest] {
+  display: none;
+}
+
+.card:hover .pill [data-hover] {
+  display: inline;
+}
+
+.card:hover .pill svg[data-hover] {
+  display: block;
+}
+
+.ok {
+  color: var(--toast-ok);
+}
+
+.warn {
+  color: var(--toast-warn);
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 7px 4px 1px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 14px;
+  color: var(--toast-muted);
+  white-space: nowrap;
+}
+
+.meta > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.where {
+  flex: none;
+  max-width: 45%;
+}
+
+/* Mirrors main's auto-hide: drains while it runs, freezes while it is stopped. */
+.bar {
+  height: 2px;
+  margin: 6px 4px 0;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--toast-track);
+}
+
+.bar i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--toast-muted);
+}
+
+.bar i[data-run="true"] {
+  animation: drain linear forwards;
+}
+
+.bar i[data-running="false"] {
+  animation-play-state: paused;
+}
+
+.card:hover .bar i {
   background: var(--toast-accent);
-  border: 0;
 }
 
-.primary:hover {
-  background: #ff3d82;
+@keyframes drain {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0;
+  }
 }
 
-.secondary {
-  color: #f3f3f5;
-  background: transparent;
-  border: 1px solid var(--toast-line);
-}
-
-.secondary:hover {
-  border-color: rgba(255, 255, 255, 0.32);
-}
-
-.primary:focus-visible,
-.secondary:focus-visible,
-.close:focus-visible {
+.image:focus-visible,
+.close:focus-visible,
+.pill:focus-visible {
   outline: 2px solid var(--toast-accent);
   outline-offset: 2px;
-}
-
-.footer {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.3;
-  color: var(--toast-muted);
 }

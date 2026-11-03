@@ -325,6 +325,7 @@ window.electronAPI = {
     ready: () => {},
     action: () => {},
     hover: () => {},
+    onTimer: () => () => {},
   },
   // No floating window in tests unless one asks for it: the page keeps its in-app card.
   showRecordingReady: async () => false,

@@ -5,8 +5,8 @@ describe("decideAfterCapture", () => {
   it.each([
     ["copy", "auto", { open: "quiet", copy: true }],
     ["copy", "manual", { open: "quiet", copy: true }],
-    ["capture", "auto", { open: "editor", copy: true }],
-    ["capture", "manual", { open: "editor", copy: false }],
+    ["capture", "auto", { open: "quiet", copy: true }],
+    ["capture", "manual", { open: "quiet", copy: false }],
   ] as const)("%s, copy %s", (action, copy, expected) => {
     expect(decideAfterCapture(action, copy)).toEqual(expected);
   });

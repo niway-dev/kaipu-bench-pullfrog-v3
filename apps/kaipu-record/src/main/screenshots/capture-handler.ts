@@ -79,7 +79,7 @@ interface CaptureHandlerDeps {
   workspace?(): CaptureWorkspace;
   /** `clipboard.writeImage` of the PNG. */
   copyToClipboard(png: Buffer): void;
-  /** Data URL of the PNG at most 160 px wide, for the toast. */
+  /** Data URL of the PNG, at most `PREVIEW_THUMBNAIL_MAX_SIDE` px on its longest side, for the card. */
   thumbnail(png: Buffer): string;
   /**
    * Seam for the capture toast (ticket 06): called once after each quiet capture.

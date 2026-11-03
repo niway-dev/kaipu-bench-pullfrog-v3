@@ -6,18 +6,18 @@ import type { ScreenshotCopyMode } from "@shared/types";
  * the action only decides what comes after it.
  */
 export interface AfterCapture {
-  /** `editor` opens the saved shot in the image editor; `quiet` shows only the toast. */
+  /** `quiet` shows only the preview card; `editor` is kept for the handler's fallbacks. */
   open: "editor" | "quiet";
   /** Whether main also puts the shot on the clipboard. */
   copy: boolean;
 }
 
 /**
- * Copy finishes quietly: the clipboard, the vault and the toast, without bringing the
- * app forward. Capture opens the editor on the saved shot, and copies it too when the
- * copy preference is automatic. Pure: no Electron imports.
+ * Both actions finish quietly: the vault, the clipboard when asked, and the preview card,
+ * without bringing the app forward (ADR 0042). The editor opens only from the card's Edit, or
+ * when a shot landed nowhere (`capture-handler.ts`). Capture copies when the copy preference is
+ * automatic; Copy always does. Pure: no Electron imports.
  */
 export function decideAfterCapture(action: CaptureAction, copy: ScreenshotCopyMode): AfterCapture {
-  if (action === "copy") return { open: "quiet", copy: true };
-  return { open: "editor", copy: copy === "auto" };
+  return { open: "quiet", copy: action === "copy" || copy === "auto" };
 }

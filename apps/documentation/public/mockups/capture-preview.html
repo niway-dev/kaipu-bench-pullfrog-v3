@@ -1,0 +1,228 @@
+<!doctype html>
+<!--
+  Capture preview card (NIW2-606), illustrative mockup. Hand-written with Kaipu's dark tokens
+  (packages/tokens/css/tokens.css); not the app's CSS. The first card reacts to a real hover;
+  the other three are pinned states. Spec: /specs/2026-11-02-capture-preview-card-design/
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Capture preview card — mockup</title>
+    <style>
+      :root {
+        --bg-modal: #131315;
+        --bg-card: #171719;
+        --border: #26262a;
+        --border-light: #32323a;
+        --text-primary: #e5e5e7;
+        --text-muted: #8a8a92;
+        --accent-primary: #f6055c;
+        --accent-primary-ring: rgba(246, 5, 92, 0.4);
+        --accent-primary-tint: rgba(246, 5, 92, 0.12);
+        --accent-green: #22c55e;
+        --accent-red: #ef4444;
+        --mono: "Geist Mono", "SF Mono", monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #0b0b0d;
+        color: var(--text-primary);
+      }
+      h1 { margin: 0 0 4px; font-size: 16px; }
+      p.lead { margin: 0 0 20px; font-size: 13px; color: var(--text-muted); }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+      h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+      .note { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+
+      .desk {
+        position: relative;
+        height: 300px;
+        border-radius: 10px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #2b3a55 0%, #4b3a5e 55%, #6b4a4a 100%);
+      }
+      .desk::before { /* the app the user is in */
+        content: ""; position: absolute; left: 16px; top: 40px; width: 150px; height: 120px;
+        border-radius: 8px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+      }
+      .menubar { position: absolute; inset: 0 0 auto; height: 18px; background: rgba(0,0,0,.35); }
+
+      /* The card: 280 px wide in the real window; scaled for the grid here. */
+      .card {
+        position: absolute; right: 12px; top: 30px; width: 280px; padding: 6px;
+        border: 1px solid var(--border-light); border-radius: 14px; background: var(--bg-modal);
+        box-shadow: 0 12px 28px -12px rgba(0,0,0,.7);
+        transition: border-color 150ms ease, box-shadow 150ms ease;
+      }
+      .card.is-hover, .card.live:hover {
+        border-color: var(--accent-primary-ring);
+        box-shadow: 0 0 0 3px var(--accent-primary-tint), 0 12px 28px -12px rgba(0,0,0,.7);
+      }
+      .shot { position: relative; height: 172px; border-radius: 9px; overflow: hidden; background: #fbfbfd; cursor: pointer; }
+      .shot .fake {
+        position: absolute; inset: 0;
+        background:
+          linear-gradient(#f2f2f5 0 22px, transparent 22px),
+          linear-gradient(90deg, transparent 14px, #e3e6ee 14px 90px, transparent 90px) 0 36px / 100% 96px no-repeat,
+          linear-gradient(90deg, transparent 104px, #dfe9ff 104px 254px, transparent 254px) 0 36px / 100% 110px no-repeat;
+      }
+      .shot .fake::after {
+        content: ""; position: absolute; left: 120px; top: 56px; width: 110px; height: 10px; border-radius: 5px;
+        background: #9db6ff; box-shadow: 0 20px 0 #c5d4ff, 0 40px 0 #c5d4ff;
+      }
+      /* 390 × 1200 at 220 px high is 72 px wide: its own artwork, kept inside that region. */
+      .shot .fake.tall {
+        background:
+          linear-gradient(#f2f2f5 0 14px, transparent 14px),
+          linear-gradient(90deg, transparent 8px, #dfe9ff 8px 64px, transparent 64px) 0 24px / 100% 180px no-repeat,
+          #fbfbfd;
+      }
+      .shot .fake.tall::after { left: 14px; top: 40px; width: 44px; }
+      /* Pill text that changes on hover (decision 6: the paste hint at rest, "Copied ✓" on hover). */
+      .pill .hover { display: none; }
+      .live:hover .pill .rest { display: none; }
+      .live:hover .pill .hover { display: inline; }
+      .live:hover .pill svg.hover { display: block; }
+      .dim { position: absolute; inset: 0; background: rgba(10,10,12,.45); opacity: 0; transition: opacity 150ms ease; }
+      .is-hover .dim, .live:hover .dim { opacity: 1; }
+
+      .pills { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 5px; }
+      .pill {
+        display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
+        border-radius: 999px; border: 1px solid rgba(255,255,255,.12); background: rgba(19,19,21,.86);
+        color: var(--text-primary); font: inherit; font-size: 11px; font-weight: 600; white-space: nowrap;
+        backdrop-filter: blur(6px); pointer-events: none;
+      }
+      .pill .ok { color: var(--accent-green); }
+      .pill .warn { color: var(--accent-red); }
+      .is-hover .pill, .live:hover .pill {
+        height: 26px; padding: 0 10px; background: var(--bg-card); border-color: var(--border-light);
+        pointer-events: auto; cursor: pointer;
+      }
+      .is-hover .pill:hover, .live:hover .pill:hover { border-color: var(--accent-primary-ring); }
+
+      .edit {
+        position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%);
+        display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 15px;
+        border: 0; border-radius: 999px; background: var(--accent-primary); color: #fff;
+        font: inherit; font-size: 13px; font-weight: 600; box-shadow: 0 10px 26px -8px rgba(246,5,92,.75);
+        opacity: 0; pointer-events: none; transition: opacity 150ms ease; cursor: pointer;
+      }
+      .is-hover .edit, .live:hover .edit { opacity: 1; pointer-events: auto; }
+      .close {
+        position: absolute; right: 8px; top: 8px; width: 26px; height: 26px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 7px; border: 1px solid rgba(255,255,255,.12); background: rgba(19,19,21,.86);
+        color: var(--text-primary); opacity: 0; pointer-events: none; transition: opacity 150ms ease; cursor: pointer;
+      }
+      .is-hover .close, .live:hover .close { opacity: 1; pointer-events: auto; }
+
+      .meta {
+        display: flex; justify-content: space-between; gap: 8px; padding: 7px 4px 1px;
+        font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap;
+      }
+      .bar { height: 2px; margin: 6px 4px 0; border-radius: 2px; background: var(--border); overflow: hidden; }
+      .bar i { display: block; height: 100%; width: 62%; background: var(--text-muted); }
+      .live .bar i { animation: drain 10s linear infinite; }
+      .live:hover .bar i { animation-play-state: paused; background: var(--accent-primary); }
+      .is-hover .bar i { background: var(--accent-primary); }
+      @keyframes drain { from { width: 100%; } to { width: 0; } }
+
+      svg { width: 12px; height: 12px; flex: none; }
+      .edit svg { width: 14px; height: 14px; }
+    </style>
+  </head>
+  <body>
+    <svg style="display: none" aria-hidden="true">
+      <defs>
+        <symbol id="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></symbol>
+        <symbol id="copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="14" height="14" rx="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></symbol>
+        <symbol id="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.4 3.6a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z" /></symbol>
+        <symbol id="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></symbol>
+        <symbol id="folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></symbol>
+        <symbol id="alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></symbol>
+      </defs>
+    </svg>
+
+    <h1>Capture preview card</h1>
+    <p class="lead">Illustrative mockup for NIW2-606. Hover the first card. The others are pinned states.</p>
+
+    <div class="grid">
+      <section>
+        <h2>Live — hover me (Copy, auto-copied)</h2>
+        <div class="desk"><div class="menubar"></div>
+          <div class="card live" role="status" aria-label="Screenshot ready">
+            <div class="shot"><div class="fake"></div><div class="dim"></div>
+              <button class="edit" type="button"><svg><use href="#pen" /></svg>Edit</button>
+              <span class="close" role="button" aria-label="Close"><svg><use href="#x" /></svg></span>
+              <div class="pills">
+                <span class="pill"><svg class="ok rest"><use href="#check" /></svg><svg class="ok hover"><use href="#folder" /></svg>Saved</span>
+                <span class="pill"><svg class="ok"><use href="#check" /></svg><span class="rest">Copied · ⌘V</span><span class="hover">Copied</span></span>
+              </div>
+            </div>
+            <div class="meta"><span>1440 × 900 · Frame</span><span>Personal</span></div>
+            <div class="bar"><i></i></div>
+          </div>
+        </div>
+        <p class="note">At rest the image is the card and both states are visible. The bar drains over 10 s and stops while the pointer is over the card.</p>
+      </section>
+
+      <section>
+        <h2>Hover — Capture, copy is manual</h2>
+        <div class="desk"><div class="menubar"></div>
+          <div class="card is-hover">
+            <div class="shot"><div class="fake"></div><div class="dim"></div>
+              <button class="edit" type="button"><svg><use href="#pen" /></svg>Edit</button>
+              <span class="close"><svg><use href="#x" /></svg></span>
+              <div class="pills">
+                <span class="pill"><svg class="ok"><use href="#folder" /></svg>Saved</span>
+                <span class="pill"><svg><use href="#copy" /></svg>Copy</span>
+              </div>
+            </div>
+            <div class="meta"><span>1280 × 800 · Window</span><span>Personal</span></div>
+            <div class="bar"><i></i></div>
+          </div>
+        </div>
+        <p class="note">Accent border, the image dims, Edit sits in the middle. The states turn into buttons: Saved reveals the file, Copy copies and flips to "Copied ✓".</p>
+      </section>
+
+      <section>
+        <h2>Hover — the vault write failed</h2>
+        <div class="desk"><div class="menubar"></div>
+          <div class="card is-hover">
+            <div class="shot"><div class="fake"></div><div class="dim"></div>
+              <button class="edit" type="button"><svg><use href="#pen" /></svg>Edit</button>
+              <span class="close"><svg><use href="#x" /></svg></span>
+              <div class="pills">
+                <span class="pill"><svg class="warn"><use href="#alert" /></svg>Save</span>
+                <span class="pill"><svg class="ok"><use href="#check" /></svg>Copied</span>
+              </div>
+            </div>
+            <div class="meta"><span>1440 × 900 · Screen</span><span>Not saved</span></div>
+            <div class="bar"><i></i></div>
+          </div>
+        </div>
+        <p class="note">Only reachable when the shot reached the clipboard: a shot that landed nowhere still opens the editor. Save retries the write.</p>
+      </section>
+
+      <section>
+        <h2>Tall capture</h2>
+        <div class="desk"><div class="menubar"></div>
+          <div class="card">
+            <div class="shot" style="height: 220px; background: #111"><div class="fake tall" style="left: 97px; right: 97px"></div><div class="dim"></div>
+              <div class="pills">
+                <span class="pill"><svg class="ok"><use href="#check" /></svg>Saved</span>
+              </div>
+            </div>
+            <div class="meta"><span>390 × 1200 · Frame</span><span>Personal</span></div>
+            <div class="bar"><i></i></div>
+          </div>
+        </div>
+        <p class="note">Height follows the aspect ratio up to a cap; past it the image is letterboxed, never cropped.</p>
+      </section>
+    </div>
+  </body>
+</html>

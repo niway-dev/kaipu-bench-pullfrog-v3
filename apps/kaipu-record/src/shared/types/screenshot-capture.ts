@@ -264,12 +264,24 @@ export interface CaptureWorkspace {
   name: string;
 }
 
-/** What the toast's buttons ask main to do (toast → main, `screenshot:toast-action`). */
-export const CAPTURE_TOAST_ACTIONS = ["annotate", "open-library", "save", "dismiss"] as const;
+/**
+ * What the preview card's buttons ask main to do (toast → main, `screenshot:toast-action`):
+ * `edit` opens the shot in the editor, `reveal` shows the saved file, `copy` puts the shot on
+ * the clipboard, `save` retries a failed vault write, `dismiss` hides the card.
+ */
+export const CAPTURE_TOAST_ACTIONS = ["edit", "reveal", "copy", "save", "dismiss"] as const;
 export type CaptureToastAction = (typeof CAPTURE_TOAST_ACTIONS)[number];
 
 export function isCaptureToastAction(value: unknown): value is CaptureToastAction {
   return (CAPTURE_TOAST_ACTIONS as readonly unknown[]).includes(value);
+}
+
+/**
+ * Main's auto-hide timer as the card's bar mirrors it (main → toast, `screenshot:toast-timer`):
+ * `remainingMs` until the card hides, or `null` while the timer is stopped.
+ */
+export interface CaptureToastTimer {
+  remainingMs: number | null;
 }
 
 /**
