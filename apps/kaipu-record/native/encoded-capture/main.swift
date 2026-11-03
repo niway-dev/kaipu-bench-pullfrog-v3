@@ -19,7 +19,6 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     var emittedEnd: Int64 = 0
     var resumeTimestamp: Int64?
     var configured = false
-    var failure: Error?
     var accepting = true
     var ready = false
     var pausedAt: Int64?
@@ -142,7 +141,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     }
 
     func tick() {
-        guard accepting, pausedAt == nil, failure == nil, let image, let session, let epoch else { return }
+        guard accepting, pausedAt == nil, let image, let session, let epoch else { return }
         do {
             let pts = CMTime(value: hostUs() - epoch - removedUs, timescale: 1_000_000)
             // First frame is exactly zero on the shared epoch.
@@ -160,7 +159,6 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
                 defer { if let session = self.session { VTCompressionSessionInvalidate(session) }; self.session = nil }
                 do {
                     if !cancel {
-                        if let failure = self.failure { throw failure }
                         guard self.epoch != nil, self.configured else { throw CaptureError(message: "No video received") }
                         let edge = self.pausedAt ?? at
                         let end = try self.flush(at: edge)
@@ -181,7 +179,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             guard (args.count == 6 || (args.count == 7 && args[6] == "--test-allow-unmatched-parent")), args[0] == "--encoded-capture-v1", let displayID = UInt32(args[1]),
                   let width = Int(args[2]), let height = Int(args[3]), let fps = Int(args[4]), let bitrate = Int(args[5]),
                   width >= 2, width <= 7680, width % 2 == 0, height >= 2, height <= 7680, height % 2 == 0,
-                  fps >= 1, fps <= 60, bitrate >= 100_000, bitrate <= 100_000_000 else { throw CaptureError(message: "Usage: --encoded-capture-v1 DISPLAY WIDTH HEIGHT FPS BITRATE (video only, no pause)") }
+                  fps >= 1, fps <= 60, bitrate >= 100_000, bitrate <= 100_000_000 else { throw CaptureError(message: "Usage: --encoded-capture-v1 DISPLAY WIDTH HEIGHT FPS BITRATE (video only; stdin commands: go|pause|resume|stop HOST_US)") }
             guard CGPreflightScreenCaptureAccess() else { throw CaptureError(message: "Screen Recording permission unavailable; no permission requested") }
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard let display = content.displays.first(where: { $0.displayID == displayID }) else { throw CaptureError(message: "Display unavailable") }
