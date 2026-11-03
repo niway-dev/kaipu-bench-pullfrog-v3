@@ -127,7 +127,7 @@ const path = require("node:path");
         app.close(),
         new Promise((resolve) => {
           timer = setTimeout(() => {
-            child.kill("SIGTERM");
+            child.kill("SIGKILL");
             resolve();
           }, 5000);
         }),
