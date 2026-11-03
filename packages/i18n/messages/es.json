@@ -1492,6 +1492,8 @@
     "webcamRemoveSegment": "Eliminar este tramo de cámara",
     "exportRefusedMaintenance": "Kaipu está arreglando tus archivos. Vuelve a exportar en un momento.",
     "cursorTitle": "Cursor",
+    "inspectorTabs": "Paneles del inspector",
+    "inspectorEditTab": "Editar",
     "cursorVisible": "Mostrar cursor",
     "cursorStyle": "Estilo del puntero",
     "cursorArrow": "Flecha",

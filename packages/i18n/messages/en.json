@@ -1492,6 +1492,8 @@
     "webcamRemoveSegment": "Delete this webcam section",
     "exportRefusedMaintenance": "Kaipu is fixing your files. Export again in a moment.",
     "cursorTitle": "Cursor",
+    "inspectorTabs": "Inspector panels",
+    "inspectorEditTab": "Edit",
     "cursorVisible": "Show cursor",
     "cursorStyle": "Pointer style",
     "cursorArrow": "Arrow",

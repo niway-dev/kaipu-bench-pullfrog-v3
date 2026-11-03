@@ -1157,6 +1157,26 @@ function VideoEditor({
   const selectedRedaction = selectedRedactionId
     ? (redactionEdits.visibleRedactions.find((r) => r.id === selectedRedactionId) ?? null)
     : null;
+  // The Cursor tab and a selection share the inspector: picking anything on the timeline
+  // or the canvas, or a drawing tool, brings back that thing's own inspector.
+  const selectionKey = [
+    selectedZoomId,
+    selectedRedactionId,
+    selectedMuteId,
+    selectedWebcamId,
+    selectedOverlayId,
+    selectedItemId,
+    videoTools.tool === "select" ? null : videoTools.tool,
+  ].join("|");
+  useEffect(() => {
+    if (selectionKey.replaceAll("|", "") !== "") setCursorInspectorOpen(false);
+  }, [selectionKey]);
+  const setVideoTool = videoTools.setTool;
+  const openCursorInspector = useCallback(() => {
+    clearSelection();
+    setVideoTool("select");
+    setCursorInspectorOpen(true);
+  }, [clearSelection, setVideoTool]);
   /** Timeline range covered by a source range's visible pieces (inspector + draw badge). */
   const timelineRangeOf = useCallback(
     (start: number, end: number): { from: number; to: number } => {
@@ -1392,6 +1412,7 @@ function VideoEditor({
                 cursorData && (
                   <CursorLayer
                     data={cursorData}
+                    onSelect={videoTools.tool === "select" ? openCursorInspector : undefined}
                     videoRef={playback.videoRef}
                     path={cameraPath}
                     cameraEnabled={cameraApplied}
@@ -1572,18 +1593,26 @@ function VideoEditor({
           {/* Only recordings with cursor-free video and a cursor track can redraw it;
               every other recording keeps the cursor baked into its pixels. */}
           {cursorData && (
-            <button
-              className={inspectorStyles.cursorEntry}
-              type="button"
-              aria-pressed={cursorInspectorOpen}
-              onClick={() => {
-                clearSelection();
-                videoTools.setTool("select");
-                setCursorInspectorOpen((v) => !v);
-              }}
-            >
-              {t("cursorTitle")}
-            </button>
+            <div className={inspectorStyles.tabs} role="tablist" aria-label={t("inspectorTabs")}>
+              <button
+                className={inspectorStyles.tab}
+                type="button"
+                role="tab"
+                aria-selected={!cursorInspectorOpen}
+                onClick={() => setCursorInspectorOpen(false)}
+              >
+                {t("inspectorEditTab")}
+              </button>
+              <button
+                className={inspectorStyles.tab}
+                type="button"
+                role="tab"
+                aria-selected={cursorInspectorOpen}
+                onClick={openCursorInspector}
+              >
+                {t("cursorTitle")}
+              </button>
+            </div>
           )}
           {cursorInspectorOpen && cursorData ? (
             <CursorInspector
