@@ -51,10 +51,11 @@ Ventana principal          Ventanas secundarias
 
 ### Flags definidos
 
-| Nombre              | Tipo    | Default | Propósito                                                                                                                            |
-| ------------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `watermark-enabled` | boolean | `true`  | Kill-switch remoto del watermark. Default `true` → el watermark sale en prod aunque no haya red. `useWatermark` lo lee directamente. |
-| `bypass-login`      | boolean | `true`  | Seam para la futura pantalla de login. No existe UI de login aún; el default lo trata como bypassed.                                 |
+| Nombre                  | Tipo    | Default | Propósito                                                                                                                                                                                                                              |
+| ----------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `watermark-enabled`     | boolean | `true`  | Kill-switch remoto del watermark. Default `true` → el watermark sale en prod aunque no haya red. `useWatermark` lo lee directamente.                                                                                                   |
+| `bypass-login`          | boolean | `true`  | Seam para la futura pantalla de login. No existe UI de login aún; el default lo trata como bypassed.                                                                                                                                   |
+| `native-cursor-capture` | boolean | `false` | Cursor-free macOS capture with an editable cursor in the editor ([PR #493](https://github.com/niway-dev/kaipu-record/pull/493)). Off by default; `--experimental-native-recording` (`bun run dev:native-capture`) turns it on locally. |
 
 ### Comportamiento offline
 

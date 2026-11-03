@@ -10,16 +10,19 @@ import { inferRecordingRatio, recordingCaptureMode } from "./recording-capture";
 import type { RecordingRatio } from "./types/screenshot-capture";
 
 /** Feature flags the app reads. Names must match the PostHog dashboard exactly. */
-export const FLAG_NAMES = ["bypass-login"] as const;
+export const FLAG_NAMES = ["bypass-login", "native-cursor-capture"] as const;
 export type FlagName = (typeof FLAG_NAMES)[number];
 
 /**
  * Value used when a flag is unresolved (offline, still loading, or the SDK is
  * disabled because the key is absent). Chosen so behavior is deterministic
- * offline: login is bypassed (there is no login UI yet).
+ * offline: login is bypassed (there is no login UI yet), experiments stay off.
  */
 export const FLAG_DEFAULTS: Record<FlagName, boolean> = {
   "bypass-login": true,
+  // Cursor-free macOS capture with an editable cursor. Off until area, watermark and
+  // webcam recordings use it too and a signed build has been checked (PR #493).
+  "native-cursor-capture": false,
 };
 
 /** Identity super-properties attached to every event/error for multi-surface filtering. */

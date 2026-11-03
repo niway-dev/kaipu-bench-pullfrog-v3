@@ -223,6 +223,40 @@ describe("VideoAnnotationLayer — select tool", () => {
     expect(onBackgroundClick).toHaveBeenCalledTimes(1);
   });
 
+  it("lets the drawn cursor claim an empty-space press: no deselect, no play/pause", () => {
+    const onBackgroundClick = vi.fn();
+    const onSelect = vi.fn();
+    const onBackgroundPress = vi.fn(() => true);
+    const { layer } = renderLayer({
+      tool: "select",
+      onBackgroundClick,
+      onSelect,
+      onBackgroundPress,
+    });
+    fireEvent.pointerDown(layer, { clientX: 350, clientY: 280 });
+    fireEvent.pointerUp(layer, { clientX: 350, clientY: 280 });
+
+    expect(onBackgroundPress).toHaveBeenCalledWith(350, 280);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onBackgroundClick).not.toHaveBeenCalled();
+  });
+
+  it("never asks the cursor when the press hits an annotation", () => {
+    const onBackgroundPress = vi.fn(() => true);
+    const onSelect = vi.fn();
+    const { layer } = renderLayer({
+      tool: "select",
+      overlays: [box],
+      visibleIds: new Set(["b1"]),
+      onSelect,
+      onBackgroundPress,
+    });
+    fireEvent.pointerDown(layer, { clientX: 80, clientY: 60 });
+
+    expect(onBackgroundPress).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith("b1");
+  });
+
   it("does not fire onBackgroundClick when the click hits a shape", () => {
     const onBackgroundClick = vi.fn();
     const { layer } = renderLayer({

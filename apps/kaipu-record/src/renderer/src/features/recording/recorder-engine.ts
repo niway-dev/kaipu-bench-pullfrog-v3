@@ -1,3 +1,8 @@
+import { attachNativeEncodedVideo } from "./native-encoded-video";
+import { measureClockOffset } from "./clock-sync";
+import type { NativeCaptureBridge } from "@shared/native-capture";
+import { FLAG_DEFAULTS } from "@shared/analytics";
+import { isFlagEnabled } from "@renderer/features/analytics/analytics-client";
 import {
   MediaStreamAudioTrackSource,
   MediaStreamVideoTrackSource,
@@ -109,10 +114,11 @@ export interface EngineHandle extends LiveAudioControls, LiveWebcamControls {
    * paused time the screen dropped, and the webcam plays that much late. The window is the
    * one frame after the take begins, too short for a click.
    */
-  pause(): void;
-  resume(): void;
+  pause(atRendererMs?: number): void;
+  resume(atRendererMs?: number): void;
+  readonly cursorPixels?: "embedded" | "excluded";
   /** Stop capture, finalize the MP4, resolve when flushed. */
-  stop(): Promise<void>;
+  stop(atRendererMs?: number): Promise<void>;
   /** Current 5-bar level (0..1) of the mix: mic and system audio, as they are recorded. */
   readLevels(): number[];
   /**
@@ -197,6 +203,9 @@ const DUCK_POLL_MS = 50;
 
 export interface EngineOptions {
   sourceId: string;
+  onNativeDecision?(message: string): void;
+  /** Native pixels may exclude the cursor only after its position tracker is ready. */
+  nativeCursorTrackReady?: Promise<boolean>;
   /**
    * Record only this part of the source's display (ADR 0030). The source is still the whole
    * display; the compositor draws just the area, so it always runs when this is set.
@@ -389,6 +398,66 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
     : null;
   const target = areaPlan ? areaPlan.target : fitToCap(sourceW, sourceH, capHeight);
 
+  let native: NativeCaptureBridge | null = null;
+  let nativeOffset = 0;
+  let nativePixels: "embedded" | "excluded" = "embedded";
+  const bridge = typeof window !== "undefined" ? window.electronAPI?.nativeCapture : undefined;
+  if (bridge) {
+    const flag = "native-cursor-capture";
+    const capability = await bridge
+      .capability(isFlagEnabled(flag, FLAG_DEFAULTS[flag]))
+      .catch(() => ({
+        transportAvailable: false,
+        reason: "Native capability unavailable",
+        experimentalRequested: false,
+      }));
+    if (!capability.transportAvailable && capability.experimentalRequested)
+      options.onNativeDecision?.(
+        `Experimental native capture: using Chromium. ${capability.reason}`,
+      );
+    if (capability.transportAvailable) {
+      const reason =
+        nativeEligibility(options) ??
+        ((await options.nativeCursorTrackReady?.catch(() => false)) === true
+          ? null
+          : "cursor position tracking is unavailable");
+      if (reason) {
+        console.warn(`[recorder] Native fallback before take: ${reason}`);
+        options.onNativeDecision?.(
+          `Experimental native capture: using Chromium because ${reason}.`,
+        );
+      } else {
+        try {
+          nativeOffset = (await measureClockOffset(() => window.electronAPI.cursorClockNow()))
+            .offset;
+          await bridge.open({
+            sourceId: options.sourceId,
+            displayId: 1,
+            ...target,
+            frameRate,
+            videoBitrate,
+          });
+          native = bridge;
+          options.onNativeDecision?.(
+            "Experimental native screen capture. Chromium remains open for audio and thumbnails; screen acquisition is duplicated.",
+          );
+          console.warn(
+            "[recorder] Experimental native screen; Chromium acquisition retained for audio and thumbnail (duplicate capture)",
+          );
+        } catch (error) {
+          // No cancel here: main already tears down a session its own open spawned, and
+          // `cancel` is not per-session — a stale prepare whose open lost to a retry
+          // ("already open") would otherwise kill the retry's session.
+          native = null;
+          console.warn("[recorder] Native fallback before take: helper preparation failed", error);
+          options.onNativeDecision?.(
+            `Experimental native capture: using Chromium because helper preparation failed (${String(error)}).`,
+          );
+        }
+      }
+    }
+  }
+
   // 1c. Composite through a canvas only when we must downscale to the target OR
   // burn a watermark; a native frame already at the target with no watermark is
   // encoded raw (zero added cost). The downscale is uniform — `target` keeps the
@@ -397,7 +466,7 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
   const needsResize = target.width !== sourceW || target.height !== sourceH;
   let compositor: RecordingCompositor | null = null;
   let encodeTrack = screenTrack;
-  if (areaPlan || options.watermark || needsResize) {
+  if (!native && (areaPlan || options.watermark || needsResize)) {
     try {
       compositor = await startRecordingCompositor(
         screenStream,
@@ -424,8 +493,19 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
   // acquired stream is tracked so stop() releases the OS devices (closing the AudioContext
   // alone does NOT stop the underlying tracks — the mic light would stay on).
   const inputStreams: MediaStream[] = [screenStream];
-  const audioContext = new AudioContext();
-  const destination = audioContext.createMediaStreamDestination();
+  let acquiredAudio: AudioContext | null = null;
+  let destination: MediaStreamAudioDestinationNode;
+  try {
+    acquiredAudio = new AudioContext();
+    destination = acquiredAudio.createMediaStreamDestination();
+  } catch (error) {
+    void acquiredAudio?.close().catch(() => undefined);
+    void native?.cancel().catch(() => undefined);
+    screenStream.getTracks().forEach((track) => track.stop());
+    compositor?.stop();
+    return releaseMicOnFailure(error);
+  }
+  const audioContext = acquiredAudio;
   let duckTimer: ReturnType<typeof setInterval> | null = null;
   const stopDucking = (): void => {
     if (duckTimer) clearInterval(duckTimer);
@@ -439,6 +519,7 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
   let releaseWebcam: (() => void) | null = null;
   const releaseAll = (): void => {
     stopDucking();
+    void native?.cancel().catch(() => undefined);
     releaseWebcam?.();
     try {
       compositor?.stop();
@@ -616,30 +697,49 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
       format: new Mp4OutputFormat({ fastStart: false }),
       target: new StreamTarget(writable),
     });
-    const videoSource = new MediaStreamVideoTrackSource(encodeTrack, {
-      codec: "avc",
-      bitrate: videoBitrate,
-      // Nudge Chromium toward the platform encoder (VideoToolbox on macOS) instead
-      // of its bundled software H.264 (OpenH264). It's a hint — if hardware H.264
-      // encode isn't available via WebCodecs, it falls back to software (the prior
-      // behaviour). `realtime` suits live capture: drop frames under load rather
-      // than build a backlog.
-      hardwareAcceleration: "prefer-hardware",
-      latencyMode: "realtime",
-      onEncoderConfig: (config) => {
-        // Verify what Chromium actually configured. If hardware engaged, the
-        // "[OpenH264]" warnings in the console disappear.
-        console.info("[recorder] video encoder config:", {
-          codec: config.codec,
-          hardwareAcceleration: config.hardwareAcceleration,
-          latencyMode: config.latencyMode,
-          width: config.width,
-          height: config.height,
-          bitrate: config.bitrate,
+    const videoSource = native
+      ? null
+      : new MediaStreamVideoTrackSource(encodeTrack, {
+          codec: "avc",
+          bitrate: videoBitrate,
+          // Nudge Chromium toward the platform encoder (VideoToolbox on macOS) instead
+          // of its bundled software H.264 (OpenH264). It's a hint — if hardware H.264
+          // encode isn't available via WebCodecs, it falls back to software (the prior
+          // behaviour). `realtime` suits live capture: drop frames under load rather
+          // than build a backlog.
+          hardwareAcceleration: "prefer-hardware",
+          latencyMode: "realtime",
+          onEncoderConfig: (config) => {
+            // Verify what Chromium actually configured. If hardware engaged, the
+            // "[OpenH264]" warnings in the console disappear.
+            console.info("[recorder] video encoder config:", {
+              codec: config.codec,
+              hardwareAcceleration: config.hardwareAcceleration,
+              latencyMode: config.latencyMode,
+              width: config.width,
+              height: config.height,
+              bitrate: config.bitrate,
+            });
+          },
         });
-      },
+    if (videoSource) output.addVideoTrack(videoSource, { frameRate });
+    let resolveNativeStart!: (value: FirstMediaTimestamp) => void;
+    const nativeStart = new Promise<FirstMediaTimestamp>((resolve) => {
+      resolveNativeStart = resolve;
     });
-    output.addVideoTrack(videoSource, { frameRate });
+    const nativeVideo = native
+      ? attachNativeEncodedVideo(output, native, (config) => {
+          if (
+            !Number.isFinite(config.epochMainMs) ||
+            config.width !== target.width ||
+            config.height !== target.height
+          )
+            throw new Error("Native clock/dimensions mismatch");
+          nativePixels = config.cursorPixels;
+          resolveNativeStart({ rendererMs: config.epochMainMs! - nativeOffset, quality: "exact" });
+        })
+      : null;
+    let nativePump: Promise<unknown> | null = null;
     let audioSource: MediaStreamAudioTrackSource | null = null;
     if (mixedAudioTrack) {
       audioSource = new MediaStreamAudioTrackSource(mixedAudioTrack, {
@@ -853,7 +953,7 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
       teardownStarted = true;
       options.onError?.(error);
     };
-    videoSource.errorPromise.catch(notifyError);
+    videoSource?.errorPromise.catch(notifyError);
     audioSource?.errorPromise.catch(notifyError);
     screenTrack.addEventListener("ended", () => notifyError(new Error("screen capture ended")));
 
@@ -933,13 +1033,18 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
     ): EngineHandle => ({
       ...controls,
       // Screen first, then the webcam, in the same call: both drop the same paused time.
-      pause: () => {
-        videoSource.pause();
+      get cursorPixels() {
+        return nativePixels;
+      },
+      pause: (at = performance.now()) => {
+        void native?.pause(at + nativeOffset).catch(notifyError);
+        videoSource?.pause();
         audioSource?.pause();
         if (webcamLive()) webcam?.source.pause();
       },
-      resume: () => {
-        videoSource.resume();
+      resume: (at = performance.now()) => {
+        void native?.resume(at + nativeOffset).catch(notifyError);
+        videoSource?.resume();
         audioSource?.resume();
         if (webcamLive()) webcam?.source.resume();
       },
@@ -958,13 +1063,15 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
       webcam: webcamHandle,
       endWebcam,
       ...webcamControls,
-      async stop() {
+      async stop(atRendererMs = performance.now()) {
         stopped = true;
         stopDucking();
         teardownStarted = true; // stopping the tracks below would otherwise fire onError
         // Stop encoding now: the frames and samples after the stop request do not belong to the
         // take (the store cut its duration at this moment), and the wait below must not add any.
-        videoSource.pause();
+        const stopAt = atRendererMs;
+        const nativeStopping = native?.stop(stopAt + nativeOffset);
+        videoSource?.pause();
         audioSource?.pause();
         if (webcamLive()) webcam?.source.pause();
         // The poster frame comes from the screen track: take it before the tracks stop, but
@@ -972,6 +1079,8 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
         await Promise.race([thumbnail, delay(THUMBNAIL_STOP_WAIT_MS)]);
         try {
           try {
+            await nativeStopping;
+            if (nativePump) await nativePump;
             await output.finalize();
           } catch (error) {
             // The take fails with its screen: the webcam file has no take to belong to.
@@ -996,6 +1105,7 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
           }
         } finally {
           // Whatever the files did, the devices are released: the camera light goes off.
+          await native?.cancel().catch(() => undefined);
           compositor?.stop(); // cancel the draw loop + release the canvas track
           for (const stream of inputStreams) stream.getTracks().forEach((t) => t.stop());
           releaseWebcam?.(); // a camera opened again mid-take is not among the inputs
@@ -1007,7 +1117,26 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
 
     const begin = async (): Promise<EngineHandle> => {
       try {
+        if (native) {
+          const epoch = performance.now();
+          // mediabunny's synced-zero audio uses this same anchor; native packets already start at zero.
+          const probe = output as unknown as { _firstMediaStreamTimestamp: number | null };
+          if (!("_firstMediaStreamTimestamp" in output))
+            throw new Error("Unsupported mediabunny clock bridge");
+          probe._firstMediaStreamTimestamp = epoch / 1000;
+          await native.begin(epoch + nativeOffset);
+        }
         await output.start();
+        if (nativeVideo) {
+          nativePump = nativeVideo.pump();
+          void nativePump.catch(notifyError);
+          await Promise.race([
+            nativeStart,
+            nativePump.then(() => {
+              throw new Error("Native ended before begin");
+            }),
+          ]);
+        }
       } catch (error) {
         stopped = true;
         teardownStarted = true;
@@ -1021,7 +1150,9 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
       // Fallback anchor if mediabunny's private first-media timestamp is unavailable:
       // the first frame is accepted within one frame period of start() resolving.
       const startedAt = performance.now();
-      const firstMediaTimestamp = waitForFirstMediaTimestamp(output, startedAt);
+      const firstMediaTimestamp = native
+        ? nativeStart
+        : waitForFirstMediaTimestamp(output, startedAt);
 
       // The webcam right after the screen. One that cannot start drops the webcam, not the take.
       let webcamHandle: WebcamHandle | null = null;
@@ -1218,4 +1349,15 @@ async function captureThumbnail(
   } catch {
     return null;
   }
+}
+
+/** Fail closed before a take. Webcam fallback bubbles require per-window exclusion first. */
+export function nativeEligibility(
+  options: Pick<EngineOptions, "sourceId" | "area" | "watermark" | "webcam">,
+): string | null {
+  if (!options.sourceId.startsWith("screen:")) return "only whole-display sources are supported";
+  if (options.area) return "area capture requires Chromium";
+  if (options.watermark) return "watermark requires Chromium";
+  if (options.webcam) return "webcam fallback bubble exclusion requires Chromium";
+  return null;
 }

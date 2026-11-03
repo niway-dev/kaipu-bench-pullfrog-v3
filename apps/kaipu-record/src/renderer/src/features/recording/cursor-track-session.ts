@@ -27,6 +27,7 @@ export interface CursorTrackApi {
 }
 
 export interface CursorTrackSession {
+  readonly enabled: boolean;
   anchor(t0RendererMs: number, quality: "exact" | "estimated"): void;
   pause(atRendererMs: number): void;
   resume(atRendererMs: number): void;
@@ -48,6 +49,7 @@ export interface CursorTrackSessionOptions {
 export const CURSOR_TRACK_START_TIMEOUT_MS = 500;
 
 const NOOP_SESSION: CursorTrackSession = {
+  enabled: false,
   anchor: () => {},
   pause: () => {},
   resume: () => {},
@@ -71,6 +73,7 @@ export async function beginCursorTrackSession(
       if (!enabled) return NOOP_SESSION;
       const { offset } = await measureClockOffset(() => api.cursorClockNow(), now);
       return {
+        enabled: true,
         anchor: (t0, quality) => api.cursorTrackAnchor(sessionId, t0 + offset, quality),
         pause: (at) => api.cursorTrackPause(sessionId, at + offset),
         resume: (at) => api.cursorTrackResume(sessionId, at + offset),

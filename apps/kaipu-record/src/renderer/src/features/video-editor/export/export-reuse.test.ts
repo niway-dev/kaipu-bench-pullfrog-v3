@@ -5,6 +5,7 @@ import { parseSession, serializeSession } from "../session";
 import { encodeFingerprint, normalizeExportPresetId } from "./export-presets";
 import { seedWebcamScene } from "../webcam/webcam-model";
 import {
+  facelessFingerprint,
   WHOLE_RECORDING_FINGERPRINT,
   editFingerprint,
   findReusableExports,
@@ -242,5 +243,24 @@ describe("wholeFingerprint (Share)", () => {
     expect(isWholeFingerprint("whole:abc")).toBe(true);
     expect(isWholeFingerprint("edit:wc1:abc")).toBe(false);
     expect(isWholeFingerprint(undefined)).toBe(false);
+  });
+});
+
+it("never reuses a pre-cursor export for an eligible source, even with default settings", () => {
+  const scene = initialScene(3);
+  expect(editFingerprint(scene, true)).not.toBe(editFingerprint(scene));
+  expect(editFingerprint(parseSession(serializeSession(scene))!.scene, true)).toBe(
+    editFingerprint(scene, true),
+  );
+  expect(editFingerprint({ ...scene, cursor: { ...scene.cursor!, size: 64 } }, true)).not.toBe(
+    editFingerprint(scene, true),
+  );
+});
+
+describe("facelessFingerprint", () => {
+  it("keeps the cursor revision of a cursor-redrawing copy that lost its face", () => {
+    expect(facelessFingerprint("whole:abc123:cursor3")).toBe("whole:cursor3");
+    expect(facelessFingerprint("whole:abc123")).toBe("whole");
+    expect(facelessFingerprint("edit:wc2:abc")).toBeUndefined();
   });
 });

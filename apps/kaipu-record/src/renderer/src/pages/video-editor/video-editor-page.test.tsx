@@ -345,6 +345,15 @@ describe("VideoEditorPage — transport bar", () => {
   });
 });
 
+describe("VideoEditorPage — editable cursor entry", () => {
+  it("hides the Cursor entry for a recording whose cursor is baked into the video", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    expect(screen.queryByRole("button", { name: "Cursor" })).toBeNull();
+  });
+});
+
 describe("VideoEditorPage — add-image wiring", () => {
   beforeEach(() => {
     vi.stubGlobal("Image", FakeImage);
@@ -671,6 +680,23 @@ describe("VideoEditorPage — keydown gate behind open modals", () => {
     await act(async () => {});
 
     expect(playSpy).not.toHaveBeenCalled();
+    playSpy.mockRestore();
+  });
+});
+
+describe("VideoEditorPage — shortcuts leave dropdowns alone", () => {
+  it("does not toggle playback when Space is pressed in a select (e.g. the cursor style)", async () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    renderEditor();
+    await waitForEditorLoaded();
+    const select = document.createElement("select");
+    document.body.appendChild(select);
+
+    fireEvent.keyDown(select, { key: " " });
+    await act(async () => {});
+
+    expect(playSpy).not.toHaveBeenCalled();
+    select.remove();
     playSpy.mockRestore();
   });
 });

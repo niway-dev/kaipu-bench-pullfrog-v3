@@ -11,12 +11,15 @@
  */
 import type { LibraryVideo } from "@renderer/features/library/types";
 import type { VideoScene } from "../scene";
+import { DEFAULT_CURSOR } from "../cursor/cursor-model";
 import type { WebcamScene } from "../webcam/webcam-model";
 import { parseSession, serializeSession } from "../session";
 import { encodeFingerprint, type ExportPresetId } from "./export-presets";
 
 /** Share (no editor): the whole source file, as it is on disk. */
 export const WHOLE_RECORDING_FINGERPRINT = "whole";
+/** The painter revision of a redrawn cursor; bump it when the cursor's drawing changes. */
+export const CURSOR_COMPOSE_REVISION = "cursor3";
 
 /** True for Share's fingerprints: `whole`, or `whole:<hash>` when the face is composed. */
 export function isWholeFingerprint(fingerprint: string | undefined): boolean {
@@ -60,15 +63,22 @@ export const WEBCAM_COMPOSE_REVISION = "wc2";
  * (a session round-trip), so reopening the editor on the same edit — the scene rebuilt by
  * `parseSession` — gives the same fingerprint as the in-memory scene that was exported.
  */
-export function editFingerprint(scene: VideoScene): string {
+export function editFingerprint(scene: VideoScene, editableCursor = false): string {
   const saved = parseSession(serializeSession(scene))?.scene ?? scene;
   // A recording without a webcam hashes as it did before the layer existed, so the exports
   // already made from it stay reusable. With one, the layer is hashed (a layout change is a
   // new export) and the fingerprint is tagged with the composer revision that first drew it
   // (NIW2-575): an export made before then fingerprinted as `edit:<hash>` and has no face.
-  const { webcam, ...withoutWebcam } = saved;
+  // Default cursor settings do not change legacy embedded-cursor exports. Eligible
+  // cursor-free sources carry a compositor revision, including with default settings,
+  // so a pre-overlay export can never be reused as an export containing the pointer.
+  const { cursor, ...rest } = saved;
+  const normalized = stableStringify(cursor) === stableStringify(DEFAULT_CURSOR) ? rest : saved;
+  if (editableCursor)
+    return `edit:${CURSOR_COMPOSE_REVISION}:${hash53(stableStringify(normalized))}`;
+  const { webcam, ...withoutWebcam } = normalized;
   return webcam
-    ? `edit:${WEBCAM_COMPOSE_REVISION}:${hash53(stableStringify(saved))}`
+    ? `edit:${WEBCAM_COMPOSE_REVISION}:${hash53(stableStringify(normalized))}`
     : `edit:${hash53(stableStringify(withoutWebcam))}`;
 }
 
@@ -92,7 +102,11 @@ export function wholeFingerprint(webcam: WebcamScene | null): string {
  * export records none, so it is never reused.
  */
 export function facelessFingerprint(fingerprint: string): string | undefined {
-  return isWholeFingerprint(fingerprint) ? WHOLE_RECORDING_FINGERPRINT : undefined;
+  if (!isWholeFingerprint(fingerprint)) return undefined;
+  // A copy that redraws the cursor keeps that revision: the faceless file still has it.
+  return fingerprint.endsWith(`:${CURSOR_COMPOSE_REVISION}`)
+    ? `${WHOLE_RECORDING_FINGERPRINT}:${CURSOR_COMPOSE_REVISION}`
+    : WHOLE_RECORDING_FINGERPRINT;
 }
 
 /** The newest playable MP4 export of each preset whose content matches `fingerprint`. */

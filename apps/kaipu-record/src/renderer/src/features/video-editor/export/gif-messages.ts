@@ -1,3 +1,4 @@
+import type { CursorLayerData } from "../cursor/cursor-model";
 /**
  * Message contracts between the renderer (`use-gif-export.ts`) and `gif-worker.ts`
  * (NIW2-217). Mirrors export-messages.ts; cancellation is `worker.terminate()`.
@@ -41,6 +42,7 @@ export interface GifStartMessage {
   output: { width: number; height: number };
   fps: GifFps;
   camera: CameraPathMessage | null;
+  cursor?: CursorLayerData | null;
   /** The webcam file, as for the MP4 export; null without a webcam layer. */
   webcam: WebcamTrackMessage | null;
 }

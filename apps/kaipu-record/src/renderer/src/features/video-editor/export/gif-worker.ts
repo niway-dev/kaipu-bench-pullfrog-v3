@@ -108,6 +108,7 @@ function createFrameRenderer(
     width: source.width,
     height: source.height,
     camera: msg.camera,
+    cursor: msg.cursor,
     redactions: plan.redactions,
     overlayWindows: plan.overlayWindows,
     overlayBitmaps: new Map(msg.overlays.map((o) => [o.overlayId, o.bitmap])),

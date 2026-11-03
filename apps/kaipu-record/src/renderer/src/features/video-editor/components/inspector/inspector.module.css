@@ -155,3 +155,12 @@
   color: var(--text-primary);
   font-size: var(--font-size-sm);
 }
+
+.cursorToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}

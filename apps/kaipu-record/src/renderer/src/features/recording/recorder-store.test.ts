@@ -617,6 +617,7 @@ describe("recorder-store", () => {
       expect.any(String),
       expect.objectContaining({
         capture: {
+          cursorPixels: "embedded",
           mode: "area",
           width: 1280,
           height: 720,
@@ -624,6 +625,24 @@ describe("recorder-store", () => {
           displayId: 4,
         },
       }),
+    );
+  });
+
+  it("saves native wire cursor provenance through recordingFinalize", async () => {
+    const handle = fakeEngine({ cursorPixels: "excluded" });
+    prepareEngineMock.mockResolvedValue(fakePrepared(handle));
+    store.requestStartRecording(() => input);
+    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(1000);
+    store.pauseRecording();
+    store.resumeRecording();
+    await stopAndSettle();
+    expect(handle.pause).toHaveBeenCalled();
+    expect(handle.resume).toHaveBeenCalled();
+    expect(handle.stop).toHaveBeenCalled();
+    expect(window.electronAPI.recordingFinalize).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ capture: expect.objectContaining({ cursorPixels: "excluded" }) }),
     );
   });
 

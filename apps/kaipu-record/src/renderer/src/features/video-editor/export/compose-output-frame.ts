@@ -15,6 +15,7 @@
  *
  * WORKER-BUNDLE INVARIANT: same as compose-frame.ts — no DOM, no React. OffscreenCanvas only.
  */
+import { prepareCursor, drawCursor, type CursorLayerData } from "../cursor/cursor-model";
 import type { CameraPathMessage } from "./export-messages";
 import type { OverlayWindow } from "./export-plan";
 import type { Redaction } from "../privacy/redaction";
@@ -40,6 +41,7 @@ export interface OutputComposerOptions {
   width: number;
   height: number;
   camera: CameraPathMessage | null;
+  cursor?: CursorLayerData | null;
   redactions: Redaction[];
   overlayWindows: OverlayWindow[];
   /** Rasterized overlay bitmaps at output size, by overlay id. */
@@ -93,6 +95,7 @@ export function createOutputComposer(opts: OutputComposerOptions): OutputCompose
   const { ctx, width, height, camera, redactions, overlayWindows, overlayBitmaps } = opts;
   const framing = opts.framing ?? null;
   const webcam = opts.webcam ?? null;
+  const cursorAt = opts.cursor ? prepareCursor(opts.cursor.track, opts.cursor.settings) : null;
   const framer = framing
     ? createFramer({
         ctx: framing.ctx,
@@ -185,6 +188,29 @@ export function createOutputComposer(opts: OutputComposerOptions): OutputCompose
     clip(frameCanvas, sourceTs, sourceDuration, outTs, webcamFrame, cameraTs = sourceTs) {
       composeClip(frameCanvas, sourceTs, sourceDuration, outTs, cameraTs);
       if (framer && framing) framer.frame(framing.view, framing.mode);
+      if (cursorAt) {
+        const cam = camera ? cameraAt(camera, cameraTs) : { cx: 0.5, cy: 0.5, scale: 1 };
+        const privateFrame = redactions.some(
+          (r) => r.start < sourceTs + sourceDuration && r.end >= sourceTs,
+        );
+        const pointer = privateFrame ? null : cursorAt(cameraTs, cam, width, height, redactions);
+        if (pointer && framing) {
+          const rect = framingRect(width, height, final.width, final.height, framing.mode);
+          const transform = (p: { x: number; y: number }) => ({
+            x: rect.dx + ((p.x - rect.sx) / rect.sw) * rect.dw,
+            y: rect.dy + ((p.y - rect.sy) / rect.sh) * rect.dh,
+          });
+          Object.assign(pointer, transform(pointer));
+          if (pointer.click) Object.assign(pointer.click, transform(pointer.click));
+          pointer.size = (opts.cursor!.settings.size * rect.dh) / 1080;
+          final.ctx.save();
+          final.ctx.beginPath();
+          final.ctx.rect(rect.dx, rect.dy, rect.dw, rect.dh);
+          final.ctx.clip();
+          drawCursor(final.ctx, pointer);
+          final.ctx.restore();
+        } else drawCursor(final.ctx, pointer);
+      }
       // Last, on the final canvas: after the crop and after the framer (ADR 0038).
       if (!webcamFrame) return;
       const at = webcamFrame.sourceTs;

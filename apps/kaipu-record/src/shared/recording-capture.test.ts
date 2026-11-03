@@ -50,7 +50,7 @@ describe("buildRecordingCapture", () => {
         sourceId: "screen:1:0",
         output: { width: 1662, height: 1080 },
       }),
-    ).toEqual({ mode: "screen", width: 1662, height: 1080, ratio: null });
+    ).toEqual({ mode: "screen", width: 1662, height: 1080, ratio: null, cursorPixels: "embedded" });
   });
 
   it("a window: output size, no ratio", () => {
@@ -59,7 +59,7 @@ describe("buildRecordingCapture", () => {
         sourceId: "window:9:0",
         output: { width: 800, height: 600 },
       }),
-    ).toEqual({ mode: "window", width: 800, height: 600, ratio: null });
+    ).toEqual({ mode: "window", width: 800, height: 600, ratio: null, cursorPixels: "embedded" });
   });
 
   it("an area: infers the ratio from the output size and keeps the display id", () => {
@@ -70,6 +70,7 @@ describe("buildRecordingCapture", () => {
         output: { width: 1280, height: 720 },
       }),
     ).toEqual({
+      cursorPixels: "embedded",
       mode: "area",
       width: 1280,
       height: 720,
@@ -98,6 +99,7 @@ describe("buildRecordingCapture", () => {
       }),
     ).toMatchObject({ width: 1280, height: 720, ratio: "16:9" });
     expect(buildRecordingCapture({ sourceId: "screen:1:0" })).toEqual({
+      cursorPixels: "embedded",
       mode: "screen",
       width: 0,
       height: 0,

@@ -1,3 +1,10 @@
+import {
+  DEFAULT_CURSOR,
+  prepareCursor,
+  drawCursor,
+  type CursorLayerData,
+} from "../cursor/cursor-model";
+import { track } from "../cursor/cursor-test-fixtures";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -80,6 +87,7 @@ const cover: Redaction = {
 } as Redaction;
 
 function composer(opts: {
+  cursor?: CursorLayerData;
   camera?: CameraPathMessage | null;
   redactions?: Redaction[];
   webcam?: WebcamScene | null;
@@ -93,6 +101,7 @@ function composer(opts: {
     width: SOURCE.width,
     height: SOURCE.height,
     camera: opts.camera ?? null,
+    cursor: opts.cursor,
     redactions: opts.redactions ?? [],
     overlayWindows: [],
     overlayBitmaps: new Map(),
@@ -244,5 +253,69 @@ describe("the MP4 worker hands the plan's webcam to the composer and the clip lo
   it("export-worker.ts", () => {
     expect(source).toMatch(/createOutputComposer\(\{[^}]*webcam: plan\.webcam/);
     expect(source).toMatch(/exportClipFrames\(\{[^}]*layer: plan\.webcam/);
+  });
+});
+
+describe("cursor preview/export parity", () => {
+  it("uses the preview painter for held recompositions after crop, at identical source time and fixed size", () => {
+    const settings = {
+      ...DEFAULT_CURSOR,
+      smoothing: 65,
+      clickEffect: "ripple" as const,
+      clickBounce: true,
+    };
+    const { compose } = composer({ camera: camera(2), cursor: { track, settings } });
+    compose.clip(FRAME, 0.5, 1 / 30, 0.1, null, 0.6);
+    const exportCalls = log.filter((x) => x.canvas === "output");
+    const start = exportCalls.findIndex((x) => x.call === "save");
+    const painted = exportCalls.slice(start).map(({ call, args }) => ({ call, args }));
+    log = [];
+    drawCursor(
+      fakeContext("preview"),
+      prepareCursor(track, settings)(
+        0.6,
+        { cx: 0.5, cy: 0.5, scale: 2 },
+        SOURCE.width,
+        SOURCE.height,
+      ),
+    );
+    expect(painted).toEqual(log.map(({ call, args }) => ({ call, args })));
+  });
+  it("keeps pointer scale relative to the footage in portrait Fit", () => {
+    const { compose } = composer({
+      cursor: { track, settings: DEFAULT_CURSOR },
+      framed: { width: 1080, height: 1920, mode: "fit" },
+    });
+    compose.clip(FRAME, 0, 1 / 30, 0);
+    const scale = log.find((x) => x.canvas === "output" && x.call === "scale")!.args;
+    expect(scale[0]).toBeCloseTo(
+      (DEFAULT_CURSOR.size * ((1080 * SOURCE.height) / SOURCE.width)) / 1080,
+    );
+  });
+  it("has no cursor on slides, suppresses private held frames, and skips missing data", () => {
+    const { compose } = composer({
+      cursor: { track, settings: DEFAULT_CURSOR },
+      redactions: [{ ...cover, start: 0.6, end: 0.7 }],
+    });
+    compose.clip(FRAME, 0.59, 1 / 30, 0, null, 1.2);
+    expect(log.some((x) => x.call === "translate")).toBe(false);
+    log = [];
+    compose.slide(undefined, 0.5);
+    expect(log.some((x) => x.call === "translate")).toBe(false);
+    log = [];
+    composer({}).compose.clip(FRAME, 0.5, 1 / 30, 0);
+    expect(log.some((x) => x.call === "translate")).toBe(false);
+  });
+  it("places the pointer after fixed-canvas Fill and keeps its output size independent of framing", () => {
+    const { compose } = composer({
+      cursor: { track, settings: { ...DEFAULT_CURSOR, smoothing: 0 } },
+      framed: { width: 1080, height: 1920, mode: "fill" },
+    });
+    compose.clip(FRAME, 0, 1 / 30, 0);
+    expect(log.find((x) => x.canvas === "output" && x.call === "translate")?.args).toEqual([
+      540, 960,
+    ]);
+    const scale = log.find((x) => x.canvas === "output" && x.call === "scale")!.args;
+    expect(scale[0]).toBeCloseTo((DEFAULT_CURSOR.size * 1920) / 1080);
   });
 });

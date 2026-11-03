@@ -1,3 +1,4 @@
+import type { CursorLayerData } from "../cursor/cursor-model";
 /**
  * Message contracts shared by the renderer (hook) and the export worker.
  * Keeping them in one file eliminates the risk of the two sides drifting apart.
@@ -50,6 +51,7 @@ export interface ExportStartMessage {
   target: ResolvedExportTarget;
   /** v2: the preview's camera path (same simulation), or null when the scene has no zoom. */
   camera: CameraPathMessage | null;
+  cursor?: CursorLayerData | null;
   /** The webcam file, or null: no webcam layer, and no second decoder in the worker. */
   webcam: WebcamTrackMessage | null;
 }

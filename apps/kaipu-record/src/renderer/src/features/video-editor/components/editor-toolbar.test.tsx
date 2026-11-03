@@ -229,3 +229,21 @@ describe("EditorToolRail — audio", () => {
     expect(props.onToggleMuteAll).toHaveBeenCalledOnce();
   });
 });
+
+describe("EditorToolRail — recorded cursor", () => {
+  it("has no Cursor button when the recording cannot redraw its cursor", () => {
+    renderRail();
+    expect(screen.queryByRole("button", { name: "Cursor" })).toBeNull();
+  });
+
+  it("opens the cursor settings, and Select stops reading as active while they are open", () => {
+    const onOpenCursor = vi.fn();
+    renderRail({ tool: "select", onOpenCursor, cursorSelected: true });
+    const cursor = screen.getByRole("button", { name: "Cursor" });
+    expect(cursor).toHaveAttribute("aria-pressed", "true");
+    expect(cursor.className).toMatch(/toolActive/);
+    expect(screen.getByRole("button", { name: "Select" }).className).not.toMatch(/toolActive/);
+    fireEvent.click(cursor);
+    expect(onOpenCursor).toHaveBeenCalledOnce();
+  });
+});

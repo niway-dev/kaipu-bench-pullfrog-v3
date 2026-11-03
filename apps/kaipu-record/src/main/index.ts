@@ -1,4 +1,9 @@
 import { registerAppActivation } from "./app-activation";
+import { registerNativeCaptureTransport } from "./recording/native/ipc";
+import {
+  CURSOR_CAPTURE_DIAGNOSTIC_FLAG,
+  openCursorCaptureDiagnostic,
+} from "./diagnostics/cursor-capture";
 import {
   app,
   shell,
@@ -204,6 +209,7 @@ if (devIdentity) {
 // settings file. The second copy quits before creating any window; the first one is
 // told through `second-instance` and brings its window back. The lock is keyed on the
 // userData directory, so E2E launches with their own `--user-data-dir` do not collide.
+const cursorDiagnosticRun = process.argv.includes(CURSOR_CAPTURE_DIAGNOSTIC_FLAG);
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 // `kaipu://` links (browser sign-in hand-back, later billing) reach the app three ways, and all
@@ -223,7 +229,7 @@ const deepLinks = createDeepLinkRouter({
 
 if (!hasSingleInstanceLock) {
   app.quit();
-} else {
+} else if (!cursorDiagnosticRun) {
   // Only a packaged build owns the scheme. A dev run is Electron's own bundle: registering it
   // would, on Windows, replace the installed app as the handler of every kaipu:// link, and
   // macOS does not route custom schemes to unpackaged apps anyway. Dev uses the paste-code
@@ -798,6 +804,11 @@ app.whenReady().then(async () => {
   // A second copy is already quitting (see the single-instance lock above).
   if (!hasSingleInstanceLock) return;
 
+  if (cursorDiagnosticRun) {
+    await openCursorCaptureDiagnostic();
+    return;
+  }
+
   // The workspace registry first (ADR 0032): the first launch after the upgrade migrates
   // the library into "Default workspace", and every window's preload reads the stamp.
   await initWorkspaces();
@@ -882,6 +893,7 @@ app.whenReady().then(async () => {
   initMainAnalytics(getDeviceId(), getAppSettings().diagnosticsEnabled);
   onSettingsChanged((settings) => setMainAnalyticsEnabled(settings.diagnosticsEnabled));
   registerAnalyticsIpc();
+  registerNativeCaptureTransport(() => mainWindow?.webContents);
 
   // Capture Panel → show the main window (the panel's "Open ↗" button).
   ipcMain.on("capture-panel:open-main", () => {

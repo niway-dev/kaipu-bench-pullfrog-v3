@@ -160,7 +160,16 @@ import { AudioLane } from "@renderer/features/video-editor/components/audio-lane
 import { MuteInspector } from "@renderer/features/video-editor/components/inspector/mute-inspector";
 import { mediaUrl } from "@renderer/lib/media-url";
 
+import type { RecordingCapture } from "@shared/recording-capture";
+import {
+  DEFAULT_CURSOR,
+  cursorLayerData,
+} from "@renderer/features/video-editor/cursor/cursor-model";
+import { CursorLayer } from "@renderer/features/video-editor/cursor/cursor-layer";
+import { CursorInspector } from "@renderer/features/video-editor/components/inspector/cursor-inspector";
+
 export interface VideoEditorSource {
+  capture?: RecordingCapture | null;
   id: string;
   /** The source recording's stable identity — recorded on the export as provenance. */
   assetId: string;
@@ -226,10 +235,16 @@ export function toolForShortcut(key: string, opts: { onSlide: boolean }): Editor
   return tool;
 }
 
-/** Target is a text field — don't hijack Space for play/pause while typing. */
+/** Target is a text field or a dropdown — don't hijack its keys (Space, letters that pick
+ *  an option) for play/pause or tool shortcuts. */
 function isEditingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    target.isContentEditable
+  );
 }
 
 function formatTime(seconds: number): string {
@@ -447,6 +462,11 @@ function VideoEditor({
   const navigate = useNavigate();
   const controller = useVideoScene(resolvedScene);
   const { scene } = controller;
+  const cursorData = useMemo(
+    () => cursorLayerData(source.capture, cursorTrack, scene.cursor ?? DEFAULT_CURSOR),
+    [source.capture, cursorTrack, scene.cursor],
+  );
+  const [cursorInspectorOpen, setCursorInspectorOpen] = useState(false);
   const layout = useMemo(() => toLayout(scene.items), [scene.items]);
   // Writes the session ~800 ms after every commit/endInteract, and flushes on unmount
   // and beforeunload. See plans/video-editor-v2/07: before this, closing the window
@@ -525,7 +545,13 @@ function VideoEditor({
   const selection = useEditorSelection();
   // `select` / `clear` are stable (useCallback, no deps); the `selection` object itself
   // is rebuilt every render, so never put it in a dependency array.
-  const { select: selectKind, clear: clearSelection } = selection;
+  const { select: selectSelection, clear: clearSelection } = selection;
+  // Selecting anything, like picking a tool (handleToolChange), hands the inspector back
+  // from the cursor settings to that thing.
+  const selectKind = useCallback((...args: Parameters<typeof selectSelection>) => {
+    setCursorInspectorOpen(false);
+    selectSelection(...args);
+  }, [selectSelection]);
   const selectedItemId = selection.itemId;
   const selectedOverlayId = selection.overlayId;
   const setSelectedItemId = useCallback(
@@ -737,7 +763,7 @@ function VideoEditor({
       // What this file carries, so the sheet can offer it again while the edit is unchanged,
       // and the session save below: taken NOW, because the export runs in the background
       // and the user can keep editing (or leave) while it encodes.
-      const fingerprint = editFingerprint(scene);
+      const fingerprint = editFingerprint(scene, cursorData !== null);
       const sessionJson = serializeSession(scene);
       const assets = assetStoreRef.current
         .entries()
@@ -753,6 +779,7 @@ function VideoEditor({
         previewWidth: video.clientWidth,
         slideAssets: assetStoreRef.current,
         cameraPath,
+        cursor: cursorData,
         // The sidecar's webcam track: with a webcam layer in the scene, the export composes it.
         webcamTrack: source.webcam ?? null,
         presetId: choice.presetId,
@@ -767,7 +794,7 @@ function VideoEditor({
           if (mountedRef.current) {
             // Still here: edited since the export started → that newer edit is what the
             // autosave writes, and it is rightly not exported.
-            if (editFingerprint(sceneRef.current) !== fingerprint) return;
+            if (editFingerprint(sceneRef.current, cursorData !== null) !== fingerprint) return;
             // This save supersedes whatever the autosave still had queued.
             autosave.cancel();
           } else {
@@ -780,7 +807,8 @@ function VideoEditor({
             const savedScene = parsedScene
               ? reconcileWebcam(parsedScene, source.webcam ?? null, source.durationSeconds)
               : null;
-            if (savedScene && editFingerprint(savedScene) !== fingerprint) return;
+            if (savedScene && editFingerprint(savedScene, cursorData !== null) !== fingerprint)
+              return;
           }
           try {
             // `true`: this scene is exactly what was just burned into the file, so the write
@@ -805,6 +833,7 @@ function VideoEditor({
       assetStoreRef,
       autosave,
       cameraPath,
+      cursorData,
     ],
   );
 
@@ -847,13 +876,14 @@ function VideoEditor({
         previewWidth: video.clientWidth,
         slideAssets: assetStoreRef.current,
         cameraPath,
+        cursor: cursorData,
         webcamTrack: source.webcam ?? null,
         range: settings.range,
         width: settings.width,
         fps: settings.fps,
       };
     },
-    [playback, scene, source.id, source.webcam, assetStoreRef, cameraPath],
+    [playback, scene, source.id, source.webcam, assetStoreRef, cameraPath, cursorData],
   );
 
   const handleGifSettingsChange = useCallback(
@@ -1134,6 +1164,15 @@ function VideoEditor({
   const selectedRedaction = selectedRedactionId
     ? (redactionEdits.visibleRedactions.find((r) => r.id === selectedRedactionId) ?? null)
     : null;
+  const setVideoTool = videoTools.setTool;
+  // The drawn cursor's hit-test, filled in by CursorLayer; the annotation layer asks it
+  // when a Select press lands on empty space.
+  const cursorClaimRef = useRef<((clientX: number, clientY: number) => boolean) | null>(null);
+  const openCursorInspector = useCallback(() => {
+    clearSelection();
+    setVideoTool("select");
+    setCursorInspectorOpen(true);
+  }, [clearSelection, setVideoTool]);
   /** Timeline range covered by a source range's visible pieces (inspector + draw badge). */
   const timelineRangeOf = useCallback(
     (start: number, end: number): { from: number; to: number } => {
@@ -1152,6 +1191,7 @@ function VideoEditor({
     (tool: EditorTool) => {
       // Drawing a region starts from a clean slate: no zoom/region box competing with it.
       if (isPrivacyTool(tool)) clearSelection();
+      setCursorInspectorOpen(false);
       videoTools.setTool(tool);
     },
     [clearSelection, videoTools],
@@ -1256,6 +1296,7 @@ function VideoEditor({
       // action the user never asked for.
       if (e.key === "Escape" && !document.fullscreenElement) {
         clearSelection();
+        setCursorInspectorOpen(false);
         return;
       }
       // Annotation selection takes precedence over segment deletion when both exist —
@@ -1319,6 +1360,22 @@ function VideoEditor({
                 setSourceHeight(size.height);
                 setFrameSize(size);
               }}
+              cursor={
+                cursorData && (
+                  <CursorLayer
+                    data={cursorData}
+                    claim={cursorClaimRef}
+                    onSelect={openCursorInspector}
+                    selected={cursorInspectorOpen}
+                    videoRef={playback.videoRef}
+                    path={cameraPath}
+                    cameraEnabled={cameraApplied}
+                    hidden={holdingOriginal || onSlide}
+                    frame={frameSize}
+                    redactions={scene.redactions}
+                  />
+                )
+              }
               webcam={
                 hasWebcam &&
                 webcamTrack &&
@@ -1399,6 +1456,7 @@ function VideoEditor({
               overlay={
                 !holdingOriginal && (
                   <VideoAnnotationLayer
+                    onBackgroundPress={(x, y) => cursorClaimRef.current?.(x, y) ?? false}
                     overlays={scene.overlays}
                     visibleIds={visibleIds}
                     selectedId={selectedOverlayId}
@@ -1407,7 +1465,12 @@ function VideoEditor({
                     // and the inspector would keep showing the Zoom panel. It does not
                     // toggle playback: only the play button and Space do (NIW2-611), so a
                     // click meant to deselect never starts the video by surprise.
-                    onSelect={(id) => (id === null ? clearSelection() : selectKind("overlay", id))}
+                    onSelect={(id) => {
+                      if (id !== null) return selectKind("overlay", id);
+                      // Deselecting everything includes the drawn cursor.
+                      clearSelection();
+                      setCursorInspectorOpen(false);
+                    }}
                     tool={isPrivacyTool(videoTools.tool) ? "select" : videoTools.tool}
                     toolState={{
                       color: videoTools.color,
@@ -1497,6 +1560,12 @@ function VideoEditor({
           onAddZoom={handleAddZoom}
           privacyDisabled={onSlide}
           onHideWebcam={hasWebcam ? handleHideWebcam : undefined}
+          onOpenCursor={
+            cursorData
+              ? () => (cursorInspectorOpen ? setCursorInspectorOpen(false) : openCursorInspector())
+              : undefined
+          }
+          cursorSelected={cursorInspectorOpen && cursorData !== null}
         />
         <div className={styles.side}>
           <EditorToolbar
@@ -1535,7 +1604,12 @@ function VideoEditor({
             )}
           </EditorToolbar>
           <EditorInspector>
-            {selectedRedaction?.kind === "blur" ? (
+            {cursorInspectorOpen && cursorData ? (
+              <CursorInspector
+                controller={controller}
+                clicksAvailable={cursorData.track.clicksAvailable}
+              />
+            ) : selectedRedaction?.kind === "blur" ? (
               <BlurInspector
                 redaction={selectedRedaction}
                 range={timelineRangeOf(selectedRedaction.start, selectedRedaction.end)}
@@ -1760,7 +1834,7 @@ function VideoEditor({
           // never remembered, nor written to the edit session (FR13).
           defaultPreset={appSettings.settings?.exportQuality}
           // A row whose file already carries exactly this edit opens it instead of encoding.
-          reusable={findReusableExports(sourceExports, editFingerprint(scene))}
+          reusable={findReusableExports(sourceExports, editFingerprint(scene, cursorData !== null))}
           onOpenExisting={(existing) => {
             closeExportSheet();
             // Edits not yet written still go through the discard guard.

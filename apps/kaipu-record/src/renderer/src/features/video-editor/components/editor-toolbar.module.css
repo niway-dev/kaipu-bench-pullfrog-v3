@@ -14,13 +14,17 @@
 
 /* The vertical tool column. Scrolls rather than squeezing: a tool that shrinks
    below its hit target is worse than one the user has to scroll to. */
+/* The rail is as tall as the preview. Twelve tools fit a ~400 px preview; on a shorter
+   window it still scrolls with the wheel, but never shows scrollbars — a vertical
+   bar inside a 50 px column also forced a horizontal one (the "phantom scroll"). */
 .rail {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: var(--space-sm) 6px;
-  overflow-y: auto;
+  gap: 4px;
+  padding: 6px;
+  overflow: hidden auto;
+  scrollbar-width: none;
   background: var(--bg-card);
   /* Flat (NIW2-611): a rule on its left, not a card. */
   border-left: 1px solid var(--border);
@@ -32,13 +36,23 @@
 .railGroup {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+.rail .tool {
+  flex-shrink: 0;
+  height: 32px;
 }
 
 .railSeparator {
+  flex-shrink: 0;
   width: 22px;
   height: 1px;
-  margin: 2px 0;
+  margin: 1px 0;
   background: var(--border);
 }
 

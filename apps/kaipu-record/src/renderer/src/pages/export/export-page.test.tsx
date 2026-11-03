@@ -1,3 +1,4 @@
+import { track } from "@renderer/features/video-editor/cursor/cursor-test-fixtures";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -280,6 +281,52 @@ describe("ExportPage", () => {
     expect(args.fingerprint).not.toBe(wholeFingerprint(null));
   });
 
+  it("replays the default cursor in Prepare copies and rejects old cursorless reuse", async () => {
+    window.electronAPI.loadCursorTrack = vi.fn(async () => JSON.stringify(track));
+    list(
+      recording({
+        capture: {
+          mode: "screen",
+          width: 1920,
+          height: 1080,
+          ratio: null,
+          cursorPixels: "excluded",
+        },
+      }),
+      preparedCopy,
+    );
+    renderExport("/export/asset-1?to=youtube");
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Export for YouTube · up to ~\d+ MB$/ }),
+    );
+    await waitFor(() => expect(exportController.start).toHaveBeenCalled());
+    expect(startArgs()).toMatchObject({
+      cursor: { track, settings: { visible: true, style: "arrow" } },
+      fingerprint: "whole:cursor3",
+    });
+  });
+  it("refuses a cursor-free Prepare copy if positions cannot be loaded", async () => {
+    window.electronAPI.loadCursorTrack = vi.fn(async () => null);
+    list(
+      recording({
+        capture: {
+          mode: "screen",
+          width: 1920,
+          height: 1080,
+          ratio: null,
+          cursorPixels: "excluded",
+        },
+      }),
+    );
+    renderExport("/export/asset-1?to=youtube");
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Export for YouTube · up to ~\d+ MB$/ }),
+    );
+    await waitFor(() =>
+      expect(getToasts().some((t) => t.message === "Couldn't export the video")).toBe(true),
+    );
+    expect(exportController.start).not.toHaveBeenCalled();
+  });
   it("4K is a choice inside YouTube", async () => {
     renderExport("/export/asset-1?to=youtube");
     fireEvent.click(await screen.findByRole("radio", { name: /^4K/ }));
