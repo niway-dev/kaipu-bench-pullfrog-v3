@@ -19,7 +19,13 @@ fi
 mkdir -p "$(dirname "$OUTPUT")"
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
+# An SDK too old for the macOS 14 APIs fails here; that must not block dev or build either.
+skip() {
+  echo "warning: could not build the experimental native capture helper ($1); recording uses Chromium capture." >&2
+  exit 0
+}
 for ARCH in arm64 x86_64; do
-  xcrun swiftc -parse-as-library -swift-version 5 -O -target "$ARCH-apple-macos14.0" "$SOURCE" -o "$BUILD_DIR/$ARCH"
+  xcrun swiftc -parse-as-library -swift-version 5 -O -target "$ARCH-apple-macos14.0" "$SOURCE" -o "$BUILD_DIR/$ARCH" ||
+    skip "compile $ARCH"
 done
-xcrun lipo -create "$BUILD_DIR/arm64" "$BUILD_DIR/x86_64" -output "$OUTPUT"
+xcrun lipo -create "$BUILD_DIR/arm64" "$BUILD_DIR/x86_64" -output "$OUTPUT" || skip "lipo"
