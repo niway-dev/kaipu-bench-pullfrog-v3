@@ -21,6 +21,8 @@ BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 # An SDK too old for the macOS 14 APIs fails here; that must not block dev or build either.
 skip() {
+  # Drop a stale helper too, so the message holds: no helper, Chromium capture.
+  rm -f "$OUTPUT"
   echo "warning: could not build the experimental native capture helper ($1); recording uses Chromium capture." >&2
   exit 0
 }
