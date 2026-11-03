@@ -322,13 +322,10 @@ const { execFileSync } = require("node:child_process");
     metadata.capture.cursorPixels = "embedded";
     await fs.writeFile(metadataPath, JSON.stringify(metadata));
     await page.reload();
-    await page.getByRole("button", { name: "Cursor", exact: true }).waitFor();
-    await page.getByRole("button", { name: "Cursor", exact: true }).click();
-    await page
-      .getByText(
-        "Editable cursors require cursor-free video and recorded cursor positions. This recording cannot replay an editable cursor.",
-      )
-      .waitFor();
+    // An embedded-cursor recording has no Cursor control at all; wait for the editor first.
+    await page.getByRole("button", { name: "Select", exact: true }).waitFor();
+    if (await page.getByRole("button", { name: "Cursor", exact: true }).count())
+      throw new Error("embedded cursor control shown");
     if (await page.getByTestId("cursor-layer").count()) throw new Error("embedded cursor overlaid");
     result.embeddedHasNoOverlay = true;
     await page.screenshot({ path: path.join(evidence, "editor-embedded.png") });
