@@ -213,10 +213,11 @@ export function activeShortcutDefinitions(
 export const UPLOAD_MODES = ["local-only", "manual", "automatic"] as const;
 export type UploadMode = (typeof UPLOAD_MODES)[number];
 
-/**
- * Whether a Capture also lands on the system clipboard, or only when the user clicks
- * Copy. (Copy on the overlay always copies; every screenshot is saved to the Library.)
- */
+/** App-wide destination after Capture; explicit Copy always finishes quietly. */
+export const SCREENSHOT_AFTER_CAPTURE_MODES = ["preview", "editor"] as const;
+export type ScreenshotAfterCapture = (typeof SCREENSHOT_AFTER_CAPTURE_MODES)[number];
+
+/** Whether Capture also copies. Explicit Copy always copies; both save to the Library. */
 export const SCREENSHOT_COPY_MODES = ["auto", "manual"] as const;
 export type ScreenshotCopyMode = (typeof SCREENSHOT_COPY_MODES)[number];
 
@@ -273,6 +274,8 @@ export interface AppSettings {
    * re-opened from the Library (backlog/settings-screenshot-clipboard).
    */
   screenshotCopy: ScreenshotCopyMode;
+  /** App-wide destination for Capture. Explicit Copy always finishes quietly. */
+  screenshotAfterCapture: ScreenshotAfterCapture;
   /** User-rebindable global keyboard shortcuts (Electron accelerator strings). */
   shortcuts: ShortcutSettings;
   /**
@@ -371,6 +374,7 @@ export const DEFAULT_SETTINGS: Omit<AppSettings, "shortcuts"> = {
   recordingCountdownSeconds: DEFAULT_RECORDING_COUNTDOWN_SECONDS,
   showBrandBadge: false,
   screenshotCopy: "auto",
+  screenshotAfterCapture: "preview",
   deviceId: "",
   uploadMode: "local-only",
   // Literal on purpose (preload bundle); equals DEFAULT_EXPORT_QUALITY in ./export-preset.

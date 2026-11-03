@@ -831,3 +831,38 @@ describe("CaptureToastWindow on quit", () => {
     expect(deps.createWindow).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("image Copy confirmation", () => {
+  it("uses the image card bounds and expires after 1.8 s even when hovered", () => {
+    const { toast, ready, windows, timers, hover } = setup();
+    toast.show({ ...SAVED, copied: true, presentation: "copied", displayId: 1 });
+    ready();
+    expect(windows[0]!.setBounds).toHaveBeenLastCalledWith(
+      expect.objectContaining({ height: previewCardSize(SAVED.width, SAVED.height).windowHeight }),
+    );
+    hover(true);
+    timers.tick(1799);
+    expect(windows[0]!.visible).toBe(true);
+    timers.tick(1);
+    expect(windows[0]!.visible).toBe(false);
+  });
+
+  it("opens the saved screenshot from Edit during the confirmation window", () => {
+    const { toast, ready, act, deps, windows } = setup();
+    toast.show({ ...SAVED, copied: true, presentation: "copied", displayId: 1 });
+    ready();
+    act("edit");
+    expect(deps.openSaved).toHaveBeenCalledWith("editor", "screenshot-1");
+    expect(windows[0]!.visible).toBe(false);
+  });
+
+  it("replaces a preview and its long timer without opening the editor", () => {
+    const { toast, ready, timers, windows, deps } = setup();
+    toast.show({ ...SAVED, displayId: 1 });
+    ready();
+    toast.show({ ...SAVED, copied: true, presentation: "copied", displayId: 1 });
+    timers.tick(1800);
+    expect(windows[0]!.visible).toBe(false);
+    expect(deps.openSaved).not.toHaveBeenCalled();
+  });
+});

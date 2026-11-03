@@ -160,7 +160,10 @@ export function registerScreenshotHandlers(
     rememberMode: (mode) => {
       if (getAppSettings().screenshotMode !== mode) updateAppSettings({ screenshotMode: mode });
     },
-    settings: () => ({ copy: getAppSettings().screenshotCopy }),
+    settings: () => {
+      const settings = getAppSettings();
+      return { copy: settings.screenshotCopy, afterCapture: settings.screenshotAfterCapture };
+    },
     saveToVault: async (png, title, workspaceId) => {
       const saved = await saveCaptureToWorkspace(workspaceId, png, { title, manual: false });
       return { id: saved.id, assetId: saved.assetId };

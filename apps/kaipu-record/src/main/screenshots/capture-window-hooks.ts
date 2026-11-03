@@ -32,16 +32,19 @@ export interface CaptureWindowHooksDeps {
  *
  * - `editor`: the renderer reveals the window itself once the editor shows.
  * - `cancelled`: a window that was up comes back, focused, as before the capture.
- * - `quiet` (failure 7): a window that was up comes back WITHOUT focus (`showInactive`),
- *   so the app the user was in keeps the foreground and ⌘V pastes there.
+ * - `quiet`: the main window stays hidden. `showInactive` would raise it in the window
+ *   stack even without focus, covering the app where the user wants to paste.
  * - `recording`: the overlay started a take; the window stays hidden (the countdown is drawn
  *   on the chosen region) and comes back when the take stops, like any recording.
  *
  * A window that was hidden stays hidden on every path.
  */
-export function createCaptureWindowHooks(deps: CaptureWindowHooksDeps): CaptureWindowHooks {
+export function createCaptureWindowHooks(
+  deps: CaptureWindowHooksDeps,
+): CaptureWindowHooks & { isCapturing(): boolean } {
   /** Whether the main window was visible before the capture, to restore it after. */
   let wasVisible = false;
+  let capturing = false;
 
   const liveWindow = (): CaptureMainWindow | null => {
     const window = deps.mainWindow();
@@ -49,7 +52,9 @@ export function createCaptureWindowHooks(deps: CaptureWindowHooksDeps): CaptureW
   };
 
   return {
+    isCapturing: () => capturing,
     beforeCapture: () => {
+      capturing = true;
       const window = liveWindow();
       wasVisible = window?.isVisible() ?? false;
       // Failure: the last quiet capture's toast is always on top and would land in this shot.
@@ -61,8 +66,8 @@ export function createCaptureWindowHooks(deps: CaptureWindowHooksDeps): CaptureW
       deps.hideCameraBubble();
     },
     afterCapture: (ending: CaptureEnding) => {
+      capturing = false;
       if (wasVisible && ending === "cancelled") deps.showMainWindow();
-      if (wasVisible && ending === "quiet") liveWindow()?.showInactive();
       deps.restoreCameraBubble();
     },
     reveal: () => deps.bringAppToFront(),

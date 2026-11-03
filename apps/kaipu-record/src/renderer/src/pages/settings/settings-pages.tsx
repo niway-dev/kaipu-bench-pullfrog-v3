@@ -34,6 +34,7 @@ import { ThemeSettings } from "./theme-settings";
 import { UpdateSettings } from "./update-settings";
 import { RecordingQualitySettings } from "./recording-quality-settings";
 import { ExportQualitySettings } from "./export-quality-settings";
+import { ScreenshotAfterCaptureSettings } from "./screenshot-after-capture-settings";
 import { ScreenshotCopySettings } from "./screenshot-copy-settings";
 import { BrandBadgeSettings } from "./brand-badge-settings";
 import { AppWideBadge, OverrideBlock } from "./scope/scope-controls";
@@ -417,6 +418,7 @@ export function ScreenshotsSettingsPage(): React.JSX.Element {
       keys={["screenshotCopy"]}
     >
       <Section title={t("screenshots")}>
+        <ScreenshotAfterCaptureSettings />
         <ScreenshotCopySettings />
       </Section>
       <p className={styles.sectionNote}>{t("screenshotQuietNote")}</p>

@@ -80,6 +80,7 @@ export function CaptureToast({
         role="status"
         aria-label={t("toast.label")}
         className={styles.card}
+        data-confirmation={payload.presentation === "copied" || undefined}
         onPointerEnter={() => api.hover(true)}
         onPointerLeave={() => api.hover(false)}
       >

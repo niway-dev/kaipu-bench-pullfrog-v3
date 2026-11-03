@@ -170,3 +170,14 @@ on the image before the hover, because in Kaipu saving and copying already happe
 - `apps/kaipu-record/src/main/screenshots/capture-toast-window.ts`,
   `after-capture-policy.ts`, `capture-handler.ts`;
   `apps/kaipu-record/src/renderer/src/features/screenshots/toast/`.
+
+## Destination preference and explicit Copy (ADR 0043)
+
+Capture uses the preview by default, or opens the editor when that destination is selected.
+Explicit Copy overrides the preference: after both save and copy succeed, it keeps the same
+thumbnail card and Copied pill for 1.8 seconds, including under the pointer. Edit is visible
+at rest; clicking the image opens the saved screenshot during that window. Other card actions
+keep their existing hover styling. The shared image layout avoids a second visual surface,
+while the short lifetime leaves the user free to paste. A failed save or copy uses the recovery
+card with its normal 10-second timer; a failed save never uses the Copied confirmation.
+Quiet completion leaves the main window hidden until explicit app activation or Edit.

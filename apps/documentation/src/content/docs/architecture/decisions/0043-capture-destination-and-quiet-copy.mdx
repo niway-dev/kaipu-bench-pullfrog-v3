@@ -1,0 +1,64 @@
+---
+title: "ADR 0043: Capture has a destination preference; Copy only confirms"
+description: "Capture defaults to a preview and can open the editor. Explicit Copy only confirms success, and quiet capture never restores the main window."
+---
+
+# ADR 0043: Capture has a destination preference; Copy only confirms
+
+## Status
+
+Accepted, implemented on `feat/screenshot-after-capture`; desktop QA pending. Amends decisions
+1–3 and the window-restoration non-goal of [0042](/architecture/decisions/0042-capture-ends-in-the-preview-card/).
+The owner explicitly approved both workflows on 2026-11-02, reopening 0042's deferred preference.
+
+## Context
+
+The preview in PR #486 removes automatic editor navigation, but Copy still shows the full card.
+The owner wants to paste into another app immediately, while people who edit every capture
+should be able to open the editor directly. Restoring the main window with `showInactive()`
+also raises it without keyboard focus: it can cover the app the user was working in.
+
+## Decision
+
+- `screenshotAfterCapture` is an app-wide persisted setting: `preview` (default, including
+  existing installations) or `editor`. Explicit Copy overrides it and always finishes quietly.
+- Capture saves to the Library, copies when automatic copy is enabled, and shows exactly one
+  destination: the preview or the editor. Edit on the preview opens the saved capture and
+  dismisses the preview.
+- A successful explicit Copy keeps the existing image-first card with its Copied pill and actions.
+  Edit is visible at rest and clicking the image opens the saved shot. It expires after
+  1.8 seconds, including under the pointer: a short confirmation without an extra surface.
+- Failed save or copy uses the existing recovery card; if neither operation retained the
+  capture, the editor receives the bytes. Success must never be claimed for a failed copy.
+- Quiet capture leaves the main window hidden, even if it was visible before capture.
+  Cancellation still restores a previously visible window. Choosing Edit or using the Dock
+  or tray explicitly reveals Kaipu. macOS app-switcher activation also reveals it via
+  `did-become-active`; Electron’s `activate` covers Dock/relaunch, not Cmd+Tab.
+  Overlay activation is ignored while capture is in progress, and recording/countdown
+  activation leaves the recording surface undisturbed.
+- The destination is read when capture starts, alongside the existing clipboard policy.
+  A preference change while the overlay is open applies to the next capture.
+
+## Alternatives rejected
+
+- **Always preview:** adds an unnecessary edit click for users who annotate every capture.
+- **Editor and preview together:** redundant actions and two competing surfaces.
+- **Independent visibility toggles:** allow contradictory combinations and recreate redundancy.
+- **Long-lived preview after Copy:** interrupts a completed task whose next step is pasting elsewhere.
+- **Restore the main window inactive:** avoids keyboard focus but still changes window stacking.
+
+## Consequences
+
+A successful quiet capture no longer restores a previously visible main window. The user can
+reopen it from the Dock or tray. The existing toast window handles both presentations, with
+shared image bounds and separate timers; no second window or notification system is introduced.
+
+## Non-goals
+
+Changing Library retention, adding workspace overrides for the new preference, recording
+completion behavior, or reconstructing the previous application's window stack.
+
+## Reopen when
+
+Users need a fully silent Copy confirmation, or a demonstrated workflow needs per-workspace
+destinations. Native focus and window ordering still require macOS and Windows validation.

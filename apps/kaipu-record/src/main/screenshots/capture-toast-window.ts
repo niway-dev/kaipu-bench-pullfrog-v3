@@ -24,6 +24,7 @@ export const TOAST_MARGIN = 18;
  * decision 8: Capture no longer opens the editor, so the card is where Edit is).
  */
 export const TOAST_AUTO_HIDE_MS = 10_000;
+export const COPY_CONFIRMATION_MS = 1_800;
 
 /** What `show` takes: the payload the card renders, plus the display the shot came from. */
 export type CaptureToastShowRequest = CaptureToastPayload & { displayId: number };
@@ -171,7 +172,7 @@ export class CaptureToastWindow {
       this.workAreaOf(displayId),
       previewCardSize(payload.width, payload.height),
     );
-    this.paused = this.pointerInside;
+    this.paused = payload.presentation !== "copied" && this.pointerInside;
     this.ensureWindow();
     this.present();
     if (this.rendererReady) {
@@ -183,12 +184,14 @@ export class CaptureToastWindow {
 
   /** The pointer is over the card: hold the auto-hide. */
   pause(): void {
+    if (this.payload?.presentation === "copied") return;
     this.paused = true;
     this.stopTimer();
   }
 
   /** The pointer left the card: the full auto-hide time again. */
   resume(): void {
+    if (this.payload?.presentation === "copied") return;
     // An Edit waiting on the Save holds the card until the write ends.
     if (!this.payload || this.annotateAfterSave === this.generation) return;
     this.paused = false;
@@ -396,8 +399,12 @@ export class CaptureToastWindow {
     this.timer = this.deps.setTimer(() => {
       this.timer = null;
       this.dismiss();
-    }, TOAST_AUTO_HIDE_MS);
-    this.sendTimer({ remainingMs: TOAST_AUTO_HIDE_MS });
+    }, this.autoHideMs());
+    this.sendTimer({ remainingMs: this.autoHideMs() });
+  }
+
+  private autoHideMs(): number {
+    return this.payload?.presentation === "copied" ? COPY_CONFIRMATION_MS : TOAST_AUTO_HIDE_MS;
   }
 
   private stopTimer(): void {

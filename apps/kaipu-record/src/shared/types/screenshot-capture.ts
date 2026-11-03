@@ -5,7 +5,7 @@
  * workspace package.
  */
 
-import type { ScreenshotCopyMode } from "./ipc";
+import type { ScreenshotAfterCapture, ScreenshotCopyMode } from "./ipc";
 
 export const CAPTURE_MODES = ["frame", "window", "screen"] as const; // pill order = keys 1-3
 export type CaptureMode = (typeof CAPTURE_MODES)[number];
@@ -232,7 +232,9 @@ export interface OverlayState {
 
 /** Main → toast window. */
 export interface CaptureToastPayload {
-  /** Data URL, at most 160 px wide. */
+  /** Successful explicit Copy keeps the image and actions with a brief confirmation timer. */
+  presentation?: "copied";
+  /** Data URL, at most PREVIEW_THUMBNAIL_MAX_SIDE px on its longest side. */
   thumbnail: string;
   width: number;
   height: number;
@@ -256,6 +258,8 @@ export interface CapturePolicy {
   /** Null for a handler built without workspaces (tests). */
   workspaceId: string | null;
   screenshotCopy: ScreenshotCopyMode;
+  /** Missing on captures from older senders: use the preview. */
+  screenshotAfterCapture?: ScreenshotAfterCapture;
 }
 
 /** The workspace a capture is bound to when it starts (ADR 0032, decision 9). */

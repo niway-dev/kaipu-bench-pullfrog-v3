@@ -55,12 +55,13 @@ describe("createCaptureWindowHooks", () => {
     expect(deps.restoreCameraBubble).toHaveBeenCalledOnce();
   });
 
-  it("failure 7: a quiet capture shows a previously visible window without focusing it", () => {
+  it("a quiet capture keeps even a previously visible main window hidden", () => {
     const { hooks, deps, window } = setup();
     hooks.beforeCapture();
     hooks.afterCapture("quiet");
     // The app the user was in keeps the foreground, so ⌘V pastes there.
-    expect(window.showInactive).toHaveBeenCalledOnce();
+    expect(window.showInactive).not.toHaveBeenCalled();
+    expect(window.isVisible()).toBe(false);
     expect(window.focus).not.toHaveBeenCalled();
     expect(deps.showMainWindow).not.toHaveBeenCalled();
     expect(deps.bringAppToFront).not.toHaveBeenCalled();

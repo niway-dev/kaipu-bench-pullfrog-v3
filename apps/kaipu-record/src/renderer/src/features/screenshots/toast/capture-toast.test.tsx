@@ -61,6 +61,15 @@ describe("CaptureToast (the capture preview card)", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("explicit Copy keeps the thumbnail and an actionable Edit during confirmation", () => {
+    const { container, api } = renderCard({ ...SAVED, presentation: "copied" });
+    expect(screen.getByRole("status")).toHaveTextContent("Copied");
+    expect(container.querySelector("img")).toHaveAttribute("src", SAVED.thumbnail);
+    expect(screen.getByRole("status")).toHaveAttribute("data-confirmation", "true");
+    fireEvent.click(button("Edit this screenshot"));
+    expect(api.action).toHaveBeenLastCalledWith("edit");
+  });
+
   it("is the screenshot: the image fills an area sized from the shot's aspect ratio", () => {
     const { container } = renderCard(SAVED);
     const img = container.querySelector("img");
