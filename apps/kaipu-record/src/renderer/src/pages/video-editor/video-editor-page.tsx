@@ -540,6 +540,8 @@ function VideoEditor({
   // `select` / `clear` are stable (useCallback, no deps); the `selection` object itself
   // is rebuilt every render, so never put it in a dependency array.
   const { select: selectSelection, clear: clearSelection } = selection;
+  // Selecting anything, like picking a tool (handleToolChange), hands the inspector back
+  // from the cursor settings to that thing.
   const selectKind = useCallback((...args: Parameters<typeof selectSelection>) => {
     setCursorInspectorOpen(false);
     selectSelection(...args);
@@ -1156,20 +1158,6 @@ function VideoEditor({
   const selectedRedaction = selectedRedactionId
     ? (redactionEdits.visibleRedactions.find((r) => r.id === selectedRedactionId) ?? null)
     : null;
-  // The Cursor tab and a selection share the inspector: picking anything on the timeline
-  // or the canvas, or a drawing tool, brings back that thing's own inspector.
-  const selectionKey = [
-    selectedZoomId,
-    selectedRedactionId,
-    selectedMuteId,
-    selectedWebcamId,
-    selectedOverlayId,
-    selectedItemId,
-    videoTools.tool === "select" ? null : videoTools.tool,
-  ].join("|");
-  useEffect(() => {
-    if (selectionKey.replaceAll("|", "") !== "") setCursorInspectorOpen(false);
-  }, [selectionKey]);
   const setVideoTool = videoTools.setTool;
   // The drawn cursor's hit-test, filled in by CursorLayer; the annotation layer asks it
   // when a Select press lands on empty space.
@@ -1387,10 +1375,7 @@ function VideoEditor({
           onToggleMuteAll={mutes.toggleAll}
           audioMuted={mutes.audioMuted}
           tool={videoTools.tool}
-          onToolChange={(next) => {
-            setCursorInspectorOpen(false);
-            handleToolChange(next);
-          }}
+          onToolChange={handleToolChange}
           onAddZoom={handleAddZoom}
           privacyDisabled={onSlide}
           onHideWebcam={hasWebcam ? handleHideWebcam : undefined}
