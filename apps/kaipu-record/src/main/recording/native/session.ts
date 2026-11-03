@@ -149,8 +149,10 @@ export function spawnNativeVideo(
         const result = await Promise.race([
           frames.next().then(async (result) => {
             if (result.done) {
-              sequence.finish();
+              // Exit first: a failed helper's stderr reason beats the sequence's
+              // generic "no final duration" error.
               await exited;
+              sequence.finish();
             }
             return result;
           }),

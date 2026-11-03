@@ -33,12 +33,17 @@ it("cancels an in-flight blocked read and refuses concurrent pulls", async () =>
   await reader.cancel();
 });
 it("rejects process failure and EOF without end rather than finalizing a partial take", async () => {
-  for (const body of [
-    'process.stderr.write("encoder failed");process.exit(2);',
-    "process.exit(0);",
-  ]) {
+  for (const [body, message] of [
+    // A failed helper reports its own reason (e.g. a missing permission), not the
+    // generic "no final duration" of an unfinished sequence.
+    [
+      'process.stderr.write("encoder failed");process.exit(2);',
+      /Native helper failed \(2\): encoder failed/,
+    ],
+    ["process.exit(0);", /without final duration/],
+  ] as const) {
     const reader = spawnNativeVideo(await helper(body), request);
-    await expect(reader.next()).rejects.toThrow();
+    await expect(reader.next()).rejects.toThrow(message);
     await reader.cancel();
   }
 });
