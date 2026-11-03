@@ -4,6 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { DEFAULT_SETTINGS } from "@shared/types";
 import { ScreenshotAfterCaptureSettings } from "./screenshot-after-capture-settings";
 
+const scope = vi.hoisted(() => ({ multi: true }));
+vi.mock("./scope/settings-scope", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./scope/settings-scope")>()),
+  useSettingsScope: () => ({ multi: scope.multi }),
+}));
+
 describe("ScreenshotAfterCaptureSettings", () => {
   const scrollIntoView = Element.prototype.scrollIntoView;
   beforeAll(() => {
@@ -30,6 +36,16 @@ describe("ScreenshotAfterCaptureSettings", () => {
     expect(update).toHaveBeenCalledWith({ screenshotAfterCapture: "editor" });
     await waitFor(() => expect(select).toHaveTextContent("Open editor"));
   });
+
+  it.each([true, false])(
+    "marks the app-wide scope only when several workspaces exist (%s)",
+    (multi) => {
+      scope.multi = multi;
+      window.electronAPI.getSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS);
+      render(<ScreenshotAfterCaptureSettings />);
+      expect(screen.queryByText("App-wide") !== null).toBe(multi);
+    },
+  );
 
   it("reflects a stored editor choice", async () => {
     window.electronAPI.getSettings = vi
