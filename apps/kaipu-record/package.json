@@ -22,6 +22,7 @@
     "icons": "bash scripts/generate-app-icons.sh",
     "start": "electron-vite preview",
     "dev": "bash ../../scripts/require-env.sh .env && bun run build:native-capture && electron-vite dev",
+    "dev:native-capture": "bash ../../scripts/require-env.sh .env && bun run build:native-capture && electron-vite dev -- --experimental-native-recording",
     "build": "bun run build:native-capture && bun run check-types && electron-vite build",
     "build:unpack": "bash ../../scripts/rebuild-native.sh && bun run build && electron-builder --dir",
     "build:win": "bash ../../scripts/rebuild-native.sh && bun run build && electron-builder --win",
