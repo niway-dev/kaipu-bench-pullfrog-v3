@@ -11,7 +11,7 @@ import { timeToFraction } from "./timeline-geometry";
 import styles from "./activity-lane.module.css";
 
 const DWELL_MIN_PX = 6;
-const DWELL_MAX_PX = 18;
+const DWELL_MAX_PX = 16;
 
 export function ActivityLane({
   marks,

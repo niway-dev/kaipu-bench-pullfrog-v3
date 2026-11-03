@@ -7,6 +7,7 @@ import { useShortcutLabels } from "@renderer/features/shortcuts/use-shortcut-lab
 import { useAppVersion } from "./use-app-version";
 import { useWindowPreset } from "./use-window-preset";
 import { presetForPath } from "@shared/window-size";
+import { ROUTES } from "@shared/routes";
 import { EnvBadge } from "./env-badge";
 import { ReconcileDialogHost } from "@renderer/features/library/reconcile/reconcile-dialog";
 import { PendingSettingsHost } from "@renderer/pages/settings/scope/scope-controls";
@@ -30,6 +31,16 @@ const STATUS_KEY: Partial<
 const STATUS_BAR_DEFINITIONS = SHORTCUT_DEFINITIONS.filter((def) => STATUS_KEY[def.action]);
 
 /**
+ * The video editor runs edge to edge: its panes are separated by rules, not set
+ * inside the page padding as cards, so every pixel of the padding goes to the
+ * preview (NIW2-611). Every other page, the image editor included, keeps it.
+ * (The legacy `/video-editor` path only redirects here, so it needs no rule.)
+ */
+export function isFullBleedPath(pathname: string): boolean {
+  return pathname.startsWith(`${ROUTES.editor}/video/`);
+}
+
+/**
  * Main app layout: a fixed icon sidebar plus the active page rendered into <Outlet />,
  * sized by the base window preset — the full-window editors declare their own.
  * with a status bar showing the real (global, rebindable) recording shortcuts.
@@ -45,7 +56,8 @@ export function AppShell(): React.JSX.Element {
   // mount. The pages mount and unmount under this shell, which does not, so a
   // page that grew the window on mount had nothing to shrink it back when the
   // user navigated away — the editor stranded the window at 1440x900.
-  useWindowPreset(presetForPath(useLocation().pathname));
+  const { pathname } = useLocation();
+  useWindowPreset(presetForPath(pathname));
 
   return (
     <div className={styles.shell}>
@@ -58,7 +70,7 @@ export function AppShell(): React.JSX.Element {
             <WorkspaceSwitcher />
             <div className={styles.headerEnd} ref={setHeaderEndElement} />
           </header>
-          <main className={styles.content}>
+          <main className={styles.content} data-full-bleed={isFullBleedPath(pathname) || undefined}>
             <Outlet />
           </main>
         </div>
