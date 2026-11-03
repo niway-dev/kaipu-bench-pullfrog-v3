@@ -96,7 +96,7 @@ Screen Recording access and fails without requesting permission when unavailable
 Its permission identity is the helper/launching host, not necessarily the signed app.
 Do not reset permissions or quit an installed instance to run this probe.
 
-The eight-second stream requests `showsCursor = false`, BGRA frames and an optional
+The stream defaults to eight seconds and requests `showsCursor = false`, BGRA frames and an optional
 48 kHz stereo system-audio stream excluding the helper's own audio. It writes an
 H.264/AAC MOV through AVAssetWriter as an inspectable intermediate, plus JSON with
 sample counts, readiness drops, source rectangle, output dimensions and host-clock
@@ -117,7 +117,7 @@ and capture defaults are unchanged.
 bash apps/kaipu-record/scripts/check-cursor-sck-diagnostic.sh
 ```
 
-This compiles the helper and checks eight invalid-invocation refusals before capture.
+This compiles the helper and checks 17 invalid-invocation refusals before capture.
 It does not prove OS permissions, pixels, system audio audibility or encoder timing.
 
 ### Local packaged probe observations (2026-11-02)
@@ -156,3 +156,63 @@ prototype retains one frame and reports its host-clock interval independently of
 sample count. The final movie's audible-audio and cursor verdicts remain unverified.
 
 Native follow-up: malformed rects with extra nonnumeric or empty tokens are rejected (10 CLI refusal checks). Start/stop/finalize errors cancel the writer on its serial queue and prefer the original stream error. SIGINT/SIGTERM recovery remains unimplemented; this diagnostic is not a production recorder. The retained last frame consumes an additional SCK surface; motion-load behavior remains unverified.
+
+### Cursor control and packet contract probe (2026-11-03)
+
+The native CLI accepts `--show-cursor` (off by default) and `--duration SECONDS`
+(default 8, finite range 0.5–30). Reports record the actual requested configuration,
+requested duration, display global bounds, point/pixel scale, and read-only CGEvent
+pointer coordinates before and after capture, with host-clock timestamps. Coordinates
+use global top-left desktop points and selected-display local points; crop coordinates
+remain display-local. Endpoint equality does not establish continuous pointer immobility.
+No pointer input, permission reset, app quit or Electron launch is needed.
+
+A local paired take on display 3 used `--rect 1600,780,320,180 --duration 1`,
+with `--show-cursor` only on the control. All four endpoint samples were global/local
+`(1916,893)`, corresponding to crop `(316,113)`. Decoded frames were inspected:
+the control visibly contains a clipped arrow at the display's right edge; the off
+frame does not. There were 66 pixels with an RGB channel difference above 40,
+bounded by output `[315,111,320,127)`. Other low-level codec differences are not
+cursor evidence. This supports exclusion of the visible arrow fragment for that crop,
+not complete arrow/hotspot, I-beam, hand, motion or multi-display transition validation.
+A separate display-1 crop at `(100,100,320,180)` produced 640×360 at scale 2;
+the pointer was outside it, so that retina take is metadata/capture evidence only.
+Artifacts and original reports are preserved outside Git under
+`/tmp/kaipu-cursor-evidence`; `pixel-comparison.json` records the comparison.
+
+The runnable packet probe uses the installed mediabunny API directly:
+
+```sh
+node apps/kaipu-record/scripts/native-packet-remux-probe.mjs INPUT.mov /tmp/NEW-remux-directory
+# Bun supports the same command/script.
+```
+
+It reads MOV with `Input`/`FilePathSource` and `EncodedPacketSink`, adds packets in
+source decode order to `EncodedVideoPacketSource` and optional
+`EncodedAudioPacketSource`, supplies each first decoder configuration, awaits each
+add for backpressure, and writes MP4 with `FilePathTarget`. It neither decodes nor
+changes packet timestamps/durations. It refuses an existing output directory.
+Reopening the MP4 asserts track count/types/codecs, packet count/type/bytes/SHA-256,
+every presentation timestamp and duration (2 µs container-quantization tolerance),
+and per-track/movie end duration. Reports include first/last timestamps and distinct
+packet durations; packet hashes are diagnostic metadata, not a production buffer.
+
+Observed with Node on the earlier real `native-final/capture.mov`: 4 AVC packets
+with distinct durations 0.375, 0.033333 and 8.24 seconds; 394 AAC packets starting
+at 0.183604 seconds; movie end 8.681667 seconds. All assertions passed and FFmpeg
+fully decoded the resulting MP4 without errors. The helper's 418 audio callback
+samples are not encoded AAC packet counts. Audio remained the previously measured
+silent source (-91 dB); audible loopback and AV sync are unproven. Bun also passed
+on the new video-only off take (2 packets, 0.998333-second movie, variable packet
+durations 0.965 and 0.033333 seconds). This validates packet remuxing from a finished
+native artifact; it does not validate live transport, CPU parity or production integration.
+
+Before live helper integration: define encoded payload framing and decoder-config
+changes, preserve native PTS/duration/timebase and shared audio/video epoch, deliver
+packets in decode order, bound IPC queues with awaited backpressure, propagate
+errors/end-of-stream and finalize/cancel safely, and handle helper lifecycle including
+SIGINT/SIGTERM. Add signed helper packaging/TCC identity, sustained motion/load and
+audible audio/AV-sync measurements. Raw 4K RGBA must not be transported over IPC.
+Keep production capture unchanged until those contracts and cursor provenance for
+editable overlays are implemented and verified. Owner-machine Electron launches
+require asking first per the user's no-local-e2e memory; native probes do not waive it.

@@ -31,4 +31,8 @@ expect_refusal 'Rect must be finite' --cursor-sck-diagnostic 2 "$PROBE_DIR/captu
 expect_refusal 'Rect must be finite' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --rect -1,0,20,20
 expect_refusal 'Rect must be finite' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --rect 0,0,abc,100,100
 expect_refusal 'Rect must be finite' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --rect 0,0,,100,100
-echo '10 CLI refusal checks passed; no capture requested'
+for duration in nan inf 0 -1 31 abc; do
+  expect_refusal 'Duration must' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --duration "$duration"
+done
+expect_refusal 'Duration must' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --duration
+echo '17 CLI refusal checks passed; no capture requested'

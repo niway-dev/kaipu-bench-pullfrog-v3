@@ -15,19 +15,31 @@ struct Options {
     let displayID: UInt32
     let audio: Bool
     let rect: CGRect?
+    let showsCursor: Bool
+    let duration: Double
 
     init(_ args: [String]) throws {
         guard args.first == "--cursor-sck-diagnostic", args.count >= 3,
               let display = UInt32(args[1]) else {
-            throw ProbeError(message: "Usage: --cursor-sck-diagnostic DISPLAY_ID NEW_OUTPUT_DIRECTORY [--audio] [--rect x,y,width,height]")
+            throw ProbeError(message: "Usage: --cursor-sck-diagnostic DISPLAY_ID NEW_OUTPUT_DIRECTORY [--audio] [--rect x,y,width,height] [--show-cursor] [--duration 0.5...30]")
         }
         displayID = display
         output = URL(fileURLWithPath: args[2], isDirectory: true)
+        var showsCursor = false
+        var duration = 8.0
         var audio = false
         var rect: CGRect?
         var index = 3
         while index < args.count {
             switch args[index] {
+            case "--show-cursor": showsCursor = true
+            case "--duration":
+                index += 1
+                guard index < args.count, let value = Double(args[index]), value.isFinite,
+                      value >= 0.5, value <= 30 else {
+                    throw ProbeError(message: "Duration must be finite seconds in 0.5...30")
+                }
+                duration = value
             case "--audio": audio = true
             case "--rect":
                 index += 1
@@ -43,6 +55,8 @@ struct Options {
             }
             index += 1
         }
+        self.showsCursor = showsCursor
+        self.duration = duration
         self.audio = audio
         self.rect = rect
     }
@@ -185,7 +199,7 @@ final class Sink: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendabl
             let width = max(2, Int(rect.width * scale) / 2 * 2)
             let height = max(2, Int(rect.height * scale) / 2 * 2)
             let config = SCStreamConfiguration()
-            config.showsCursor = false
+            config.showsCursor = options.showsCursor
             config.width = width; config.height = height
             config.sourceRect = rect
             config.minimumFrameInterval = CMTime(value: 1, timescale: 30)
@@ -202,19 +216,35 @@ final class Sink: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendabl
             let stream = SCStream(filter: filter, configuration: config, delegate: sink)
             try stream.addStreamOutput(sink, type: .screen, sampleHandlerQueue: sink.queue)
             if options.audio { try stream.addStreamOutput(sink, type: .audio, sampleHandlerQueue: sink.queue) }
+            // CGEvent reads the global top-left desktop coordinate; no pointer input is sent.
+            func pointerSnapshot() -> [String: Any] {
+                guard let event = CGEvent(source: nil) else { return ["error": "CGEvent pointer query unavailable"] }
+                let point = event.location
+                let displayBounds = CGDisplayBounds(options.displayID)
+                return ["globalPoints": [point.x, point.y],
+                        "displayLocalPoints": [point.x - displayBounds.minX, point.y - displayBounds.minY],
+                        "hostTimeSeconds": CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock()))]
+            }
+            let pointerBefore = pointerSnapshot()
             var report: [String: Any]
             do {
                 try await stream.startCapture()
-                try await Task.sleep(nanoseconds: 8_000_000_000)
+                try await Task.sleep(nanoseconds: UInt64(options.duration * 1_000_000_000))
                 try await stream.stopCapture()
                 report = try await sink.finish()
             } catch {
                 let originalFailure = await sink.cancel()
                 throw ProbeError(message: originalFailure ?? error.localizedDescription)
             }
-            report["schemaVersion"] = 1
+            report["schemaVersion"] = 2
+            report["pointerBefore"] = pointerBefore
+            report["pointerAfter"] = pointerSnapshot()
+            report["durationRequestedSeconds"] = options.duration
+            report["pointPixelScale"] = scale
+            let displayBounds = CGDisplayBounds(options.displayID)
+            report["displayBoundsGlobalPoints"] = [displayBounds.minX, displayBounds.minY, displayBounds.width, displayBounds.height]
             report["captureBackend"] = "ScreenCaptureKit diagnostic / AVAssetWriter"
-            report["showsCursorRequested"] = false
+            report["showsCursorRequested"] = config.showsCursor
             report["cursorPixels"] = "not inspected"
             report["audioRequested"] = options.audio
             report["audibleSystemAudio"] = "not inspected"
