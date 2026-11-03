@@ -13,6 +13,7 @@ export function CursorLayer({
   frame,
   redactions,
   onSelect,
+  claim,
   selected = false,
 }: {
   data: CursorLayerData;
@@ -22,8 +23,11 @@ export function CursorLayer({
   hidden: boolean;
   frame: { width: number; height: number };
   redactions: Redaction[];
-  /** Clicking the drawn pointer opens its settings. Omitted while a drawing tool is active. */
+  /** Clicking the drawn pointer opens its settings. */
   onSelect?: () => void;
+  /** Receives this layer's hit-test; the annotation layer calls it for Select presses
+   *  on empty space. */
+  claim?: React.MutableRefObject<((clientX: number, clientY: number) => boolean) | null>;
   /** Its settings are open: outline it in the preview so it reads as the selection. */
   selected?: boolean;
 }): React.JSX.Element {
@@ -55,59 +59,28 @@ export function CursorLayer({
     },
     trigger,
   );
-  // The canvas never takes pointer events (the annotation layer below must keep them), so
-  // the stage listens in the capture phase and claims only presses on the drawn pointer.
+  // The canvas never takes pointer events: the annotation layer above the footage owns
+  // them, hit-tests its own shapes and handles first, and only then asks `claim`.
   useEffect(() => {
-    const host = canvas.current?.parentElement;
-    if (!host || !onSelect) return;
-    const hit = (event: PointerEvent): boolean => {
+    if (!claim) return;
+    claim.current = (clientX, clientY) => {
       const c = drawn.current;
       const box = canvas.current?.getBoundingClientRect();
-      if (!c || !box || box.width === 0) return false;
-      if (!pressReachesBackground(event.target, canvas.current?.previousElementSibling))
-        return false;
+      if (!c || !box || box.width === 0 || !onSelect) return false;
       const scale = frame.width / box.width;
-      return hitsCursor(
+      const hit = hitsCursor(
         c,
-        (event.clientX - box.left) * scale,
-        (event.clientY - box.top) * scale,
+        (clientX - box.left) * scale,
+        (clientY - box.top) * scale,
         Math.max(8 * scale, c.size * 0.25),
       );
+      if (hit) onSelect();
+      return hit;
     };
-    let hovering = false;
-    const move = (event: PointerEvent): void => {
-      const over = hit(event);
-      if (over === hovering) return;
-      hovering = over;
-      host.style.cursor = over ? "pointer" : "";
-    };
-    // The press that selects the pointer must not also reach the stage's own click
-    // (play/pause on the background).
-    let swallowClick = false;
-    const down = (event: PointerEvent): void => {
-      // A press released off the stage never fires `click`; never carry its swallow over.
-      swallowClick = false;
-      if (event.button !== 0 || !hit(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      swallowClick = true;
-      onSelect();
-    };
-    const click = (event: MouseEvent): void => {
-      if (!swallowClick) return;
-      swallowClick = false;
-      event.stopPropagation();
-    };
-    host.addEventListener("pointermove", move);
-    host.addEventListener("pointerdown", down, true);
-    host.addEventListener("click", click, true);
     return () => {
-      host.removeEventListener("pointermove", move);
-      host.removeEventListener("pointerdown", down, true);
-      host.removeEventListener("click", click, true);
-      host.style.cursor = "";
+      claim.current = null;
     };
-  }, [onSelect, frame.width]);
+  }, [claim, onSelect, frame.width]);
   return (
     <canvas
       ref={canvas}
@@ -161,19 +134,4 @@ export function hitsCursor(c: CursorFrame, x: number, y: number, pad: number): b
     return dx >= -pad && dx <= c.size * 0.65 + pad && dy >= -pad && dy <= c.size + pad;
   const radius = c.size * (c.style === "spotlight" ? 1.25 : 0.22);
   return Math.hypot(dx, dy) <= radius + pad;
-}
-
-/**
- * The pointer may claim a press only on the footage itself: the video, a layer laid over
- * it, or the empty space of the annotation canvas. Anything with its own handling wins —
- * an annotation shape or text box (inside `content`), and the camera box, region editor,
- * webcam bubble and buttons (siblings after the cursor canvas, outside `content`).
- */
-export function pressReachesBackground(
-  target: EventTarget | null,
-  content: Element | null | undefined,
-): boolean {
-  if (!(target instanceof Element) || !content?.contains(target)) return false;
-  if (target instanceof SVGElement && !(target instanceof SVGSVGElement)) return false;
-  return target.closest("input, textarea, button, [contenteditable]") === null;
 }

@@ -1,6 +1,5 @@
-// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { hitsCursor, pressReachesBackground } from "./cursor-layer";
+import { hitsCursor } from "./cursor-layer";
 import type { CursorFrame } from "./cursor-model";
 
 const arrow: CursorFrame = { x: 100, y: 100, size: 40, style: "arrow", bounce: 1, click: null };
@@ -18,28 +17,5 @@ describe("clicking the drawn pointer", () => {
     expect(hitsCursor(dot, 100 + 40 * 0.22 + 3, 100, 4)).toBe(true);
     expect(hitsCursor(dot, 100 + 40 * 0.22 + 5, 100, 4)).toBe(false);
     expect(hitsCursor({ ...arrow, style: "spotlight" }, 145, 100, 4)).toBe(true);
-  });
-
-  it("only claims presses on the footage, never on a control laid over it", () => {
-    const stage = document.createElement("div");
-    stage.innerHTML = `
-      <div id="content">
-        <video id="video"></video>
-        <div id="layer">
-          <svg id="svg"><rect id="shape" /></svg>
-          <textarea id="text"></textarea>
-        </div>
-      </div>
-      <canvas></canvas>
-      <div id="camera-box"></div>`;
-    const content = stage.querySelector("#content");
-    const at = (id: string) => pressReachesBackground(stage.querySelector(`#${id}`), content);
-    expect(at("video")).toBe(true);
-    expect(at("layer")).toBe(true);
-    expect(at("svg")).toBe(true); // empty annotation canvas
-    expect(at("shape")).toBe(false); // an annotation
-    expect(at("text")).toBe(false); // a text being edited
-    expect(at("camera-box")).toBe(false); // chrome outside the content
-    expect(pressReachesBackground(null, content)).toBe(false);
   });
 });

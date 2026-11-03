@@ -97,6 +97,10 @@ export interface VideoAnnotationLayerProps {
    *  toggle play/pause even though this layer sits on top of it and swallows the
    *  click (see preview-stage.tsx: the layer is a full-cover sibling of <video>). */
   onBackgroundClick?(): void;
+  /** Asked first when the SELECT tool presses empty space (after shapes and handles had
+   *  their chance). Returning true claims the press — the drawn cursor uses it to open
+   *  its settings — and it then neither deselects nor toggles playback. */
+  onBackgroundPress?(clientX: number, clientY: number): boolean;
 }
 
 /** The visibility window for a freshly created overlay — clamped so a 0-length
@@ -121,6 +125,7 @@ export function VideoAnnotationLayer({
   onInteractStart,
   onInteractEnd,
   onBackgroundClick,
+  onBackgroundPress,
 }: VideoAnnotationLayerProps): React.JSX.Element {
   const t = useTranslations("videoEditor");
   const ref = useRef<HTMLDivElement>(null);
@@ -231,6 +236,7 @@ export function VideoAnnotationLayer({
       // the selected one (rendered dimmed even off-window — see the SVG below).
       const candidates = overlays.filter((o) => visibleIds.has(o.id) || o.id === selectedId);
       const hit = hitTest(candidates, p, size);
+      if (!hit && onBackgroundPress?.(e.clientX, e.clientY)) return;
       onSelect(hit?.id ?? null);
       if (hit) {
         onInteractStart();

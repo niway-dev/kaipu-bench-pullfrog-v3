@@ -1171,6 +1171,9 @@ function VideoEditor({
     if (selectionKey.replaceAll("|", "") !== "") setCursorInspectorOpen(false);
   }, [selectionKey]);
   const setVideoTool = videoTools.setTool;
+  // The drawn cursor's hit-test, filled in by CursorLayer; the annotation layer asks it
+  // when a Select press lands on empty space.
+  const cursorClaimRef = useRef<((clientX: number, clientY: number) => boolean) | null>(null);
   const openCursorInspector = useCallback(() => {
     clearSelection();
     setVideoTool("select");
@@ -1420,7 +1423,8 @@ function VideoEditor({
                 cursorData && (
                   <CursorLayer
                     data={cursorData}
-                    onSelect={videoTools.tool === "select" ? openCursorInspector : undefined}
+                    claim={cursorClaimRef}
+                    onSelect={openCursorInspector}
                     selected={cursorInspectorOpen}
                     videoRef={playback.videoRef}
                     path={cameraPath}
@@ -1511,6 +1515,7 @@ function VideoEditor({
               overlay={
                 !holdingOriginal && (
                   <VideoAnnotationLayer
+                    onBackgroundPress={(x, y) => cursorClaimRef.current?.(x, y) ?? false}
                     overlays={scene.overlays}
                     visibleIds={visibleIds}
                     selectedId={selectedOverlayId}
