@@ -3,11 +3,11 @@
  * from base.css — same convention as the screenshot editor.
  */
 
-/* Three rows: the top bar, the workspace, the timeline. The fourth row this
-   once reserved belonged to the title header, which is now the window title. */
+/* Two rows: the workspace and the timeline. The top bar that used to be the first
+   row now sits in the right-hand column (NIW2-611), so the preview gets its height. */
 .page {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: 1fr auto;
   height: 100%;
 }
 
@@ -25,7 +25,6 @@
 
 /* "ORIGINAL UNTOUCHED" — a reminder, not a control (v2 PR 10 polish, W12). */
 .saveState {
-  margin-left: 10px;
   background: none;
   border: none;
   padding: 0;
@@ -59,11 +58,7 @@
   background: var(--bg-app);
 }
 
-/* Video region: centers PreviewStage and caps it at 50 vh so the video is a
-   contained "player" window (CapCut-style) rather than filling the whole stage.
-   The 50 vh cap keeps the toolbar, transport, and timeline all comfortably visible
-   on a normal window without the video eating the screen. In fullscreen mode the
-   page lifts this cap via an inline style (isFullscreen ? { maxHeight: "none" } : …).
+/* Video region: centers PreviewStage in whatever height the stage's 1fr row leaves.
    min-height: 0 prevents the grid row from growing beyond its allocated fraction. */
 .videoRegion {
   display: grid;
@@ -72,16 +67,14 @@
   overflow: hidden;
   /* Makes this the box that .content's container query units measure. Safe as a size
      container because both of its own dimensions come from the grid, never from its
-     contents: the column for width, the stage area's 1fr row (capped below) for height. */
+     contents: the column for width, the stage area's 1fr row for height. */
   container-type: size;
-  /* v2 PR 10 polish: row-relative, not just viewport-relative. The footer grew with
-     PR 6/8's lanes (≈196–238 px), so below a ≈810–850 px window this 1fr row is
-     already shorter than 50vh — a bare `max-height: 50vh` then let .content (below)
-     size itself up to the viewport figure instead of the row's real, smaller one, and
-     `overflow: hidden` clipped the picture. `100%` here is this grid item's own
-     stretched box (definite, from the page grid's 1fr row), so the smaller of the two
-     always wins. */
-  max-height: min(50vh, 100%);
+  /* NIW2-611: no longer capped at 50vh. The cap kept the video a small "player" while
+     a top bar, the transport and the timeline all shared the height; with the top bar
+     moved to the right-hand column it was the cap, not the room, that kept the
+     picture small. `100%` (this grid item's own stretched box) still stops .content
+     from sizing itself past the row and getting clipped. */
+  max-height: 100%;
 }
 
 /* Transport bar: always-visible auto row below the video region. */
@@ -210,6 +203,16 @@
 .workspace > .stage {
   flex: 1;
   min-width: 0;
+}
+
+/* Right-hand column (NIW2-611): the toolbar card on top, the inspector filling the
+   rest. Its width is the inspector's own 288 px. */
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-height: 0;
+  flex-shrink: 0;
 }
 
 /* "4 zooms detected" · "2 private regions" (UI spec § 5). */

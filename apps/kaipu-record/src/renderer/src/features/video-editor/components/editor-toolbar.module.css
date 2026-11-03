@@ -1,9 +1,9 @@
 /*
  * Video-editor chrome, in two pieces.
  *
- * `.toolbar` is the top row: the active tool's hint, the history and clip
- * actions, the status chips and Export. `.rail` is the vertical tool column
- * beside the preview — the drawing tools moved there because a horizontal strip
+ * `.toolbar` is the card at the top of the right-hand column: the history and
+ * clip actions, the status chips, Export and the active tool's hint. `.rail` is
+ * the vertical tool column to the right of the preview — the drawing tools moved there because a horizontal strip
  * of them spent the full width of the window on eight icons, and width is what
  * the timeline needs.
  *
@@ -42,10 +42,13 @@
   background: var(--border);
 }
 
+/* A card at the top of the right-hand column (NIW2-611), as wide as the inspector
+   below it: the actions on one line, then the status chips, Export, and the hint. */
 .toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -95,7 +98,17 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: 6px;
+}
+
+/* The original-untouched pill and the autosave state. Wraps rather than overflow
+   the column when both are showing. */
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  min-width: 0;
 }
 
 .iconBtn {
@@ -142,6 +155,7 @@
 .exportBtn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   height: 34px;
   padding: 0 var(--space-md);
@@ -167,14 +181,11 @@
   cursor: default;
 }
 
-/* Contextual hint (UI spec § 3.2): one line, muted, takes the free space between the
-   tool groups and the actions so the actions stay right-aligned. */
+/* Contextual hint (UI spec § 3.2): muted, under Export. It wraps: the column is
+   narrow, and a cut-off instruction is worse than a second line. */
 .hint {
-  flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
   color: var(--text-muted);
 }

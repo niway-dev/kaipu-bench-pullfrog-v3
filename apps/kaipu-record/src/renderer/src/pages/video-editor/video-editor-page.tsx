@@ -1300,56 +1300,11 @@ function VideoEditor({
 
   return (
     <div className={styles.page}>
-      <EditorToolbar
-        canUndo={controller.canUndo}
-        canRedo={controller.canRedo}
-        onUndo={controller.undo}
-        onRedo={controller.redo}
-        onSplit={handleSplit}
-        splitDisabled={splitDisabled}
-        onDeleteSelected={handleDeleteSelected}
-        deleteDisabled={deleteDisabled}
-        onAddImage={handleAddImage}
-        tool={videoTools.tool}
-        onExport={handleExport}
-        exportDisabled={gifExport.status === "exporting" || scene.items.length === 0}
-      >
-        {/* Not interactive — a reminder, not a control (plans/video-editor-v2/08 § PR 10
-            polish, W12's "ORIGINAL UNTOUCHED" pill). The original recording on disk and
-            its library thumbnail are untouched by every edit in this page. */}
-        <Badge variant="neutral" style={sxEditor.originalPill}>
-          <Shield size={12} strokeWidth={2} /> {t("originalUntouched")}
-        </Badge>
-        {autosave.state !== "idle" && (
-          <button
-            type="button"
-            className={styles.saveState}
-            data-state={autosave.state}
-            onClick={autosave.state === "failed" ? () => void autosave.retry() : undefined}
-            disabled={autosave.state !== "failed"}
-            aria-live="polite"
-          >
-            {autosave.state === "saving" && t("saveStateSaving")}
-            {autosave.state === "saved" && t("saveStateSaved")}
-            {autosave.state === "failed" && t("saveStateFailed")}
-          </button>
-        )}
-      </EditorToolbar>
       <div className={styles.workspace}>
-        <EditorToolRail
-          onAddMute={handleAddMute}
-          onToggleMuteAll={mutes.toggleAll}
-          audioMuted={mutes.audioMuted}
-          tool={videoTools.tool}
-          onToolChange={handleToolChange}
-          onAddZoom={handleAddZoom}
-          privacyDisabled={onSlide}
-          onHideWebcam={hasWebcam ? handleHideWebcam : undefined}
-        />
         <main className={styles.stage} ref={stageRef}>
           {/* Video region: 1fr grid row — centers PreviewStage and constrains its height
               so the transport bar below is never clipped regardless of video aspect ratio.
-              In fullscreen mode the 50 vh cap is lifted via an inline style override. */}
+              In fullscreen mode the height cap is lifted via an inline style override. */}
           <div
             className={styles.videoRegion}
             style={isFullscreen ? { maxHeight: "none" } : undefined}
@@ -1449,8 +1404,9 @@ function VideoEditor({
                     selectedId={selectedOverlayId}
                     // A click on the canvas background deselects EVERYTHING (spec § 10.5),
                     // not just the annotation — otherwise a selected zoom would survive it
-                    // and the inspector would keep showing the Zoom panel. The same click
-                    // still toggles play/pause through onBackgroundClick below.
+                    // and the inspector would keep showing the Zoom panel. It does not
+                    // toggle playback: only the play button and Space do (NIW2-611), so a
+                    // click meant to deselect never starts the video by surprise.
                     onSelect={(id) => (id === null ? clearSelection() : selectKind("overlay", id))}
                     tool={isPrivacyTool(videoTools.tool) ? "select" : videoTools.tool}
                     toolState={{
@@ -1475,7 +1431,6 @@ function VideoEditor({
                     }}
                     onInteractStart={controller.beginInteract}
                     onInteractEnd={controller.endInteract}
-                    onBackgroundClick={playback.toggle}
                   />
                 )
               }
@@ -1531,91 +1486,140 @@ function VideoEditor({
             </div>
           </div>
         </main>
-        <EditorInspector>
-          {selectedRedaction?.kind === "blur" ? (
-            <BlurInspector
-              redaction={selectedRedaction}
-              range={timelineRangeOf(selectedRedaction.start, selectedRedaction.end)}
-              edits={redactionEdits}
-              onRemoved={() => selectKind("redaction", null)}
-            />
-          ) : selectedRedaction?.kind === "cover" ? (
-            <CoverInspector
-              redaction={selectedRedaction}
-              range={timelineRangeOf(selectedRedaction.start, selectedRedaction.end)}
-              edits={redactionEdits}
-              onRemoved={() => selectKind("redaction", null)}
-            />
-          ) : selectedMute ? (
-            <MuteInspector
-              range={selectedMute}
-              index={scene.mutedRanges.indexOf(selectedMute) + 1}
-              layout={layout}
-              mutes={mutes}
-              onRemoved={() => selectKind("mute", null)}
-            />
-          ) : selectedZoom ? (
-            <ZoomInspector
-              segment={selectedZoom}
-              index={zooms.visibleZooms.indexOf(selectedZoom) + 1}
-              layout={layout}
-              zooms={zooms}
-              sourceHeight={sourceHeight}
-              anchorNow={() =>
-                boxCenterAt(
-                  selectedZoom,
-                  cameraPath,
-                  sourceTimeAtTimeline(layout, playback.timelineTime) ?? selectedZoom.start,
-                )
-              }
-              onRemoved={() => selectKind("zoom", null)}
-            />
-          ) : scene.webcam && webcamTarget?.kind === "layer" ? (
-            <WebcamInspector
-              layout={scene.webcam.layout}
-              edits={webcamEdits}
-              frame={frameSize}
-              onHideHere={handleHideWebcam}
-            />
-          ) : selectedWebcamSegment ? (
-            <WebcamSegmentInspector
-              segment={selectedWebcamSegment}
-              index={webcamEdits.visibleSegments.indexOf(selectedWebcamSegment) + 1}
-              range={timelineRangeOf(selectedWebcamSegment.start, selectedWebcamSegment.end)}
-              layout={webcamAt(scene, selectedWebcamSegment.start) ?? scene.webcam!.layout}
-              edits={webcamEdits}
-              frame={frameSize}
-              onRemoved={() => selectKind("webcam", null)}
-            />
-          ) : selectedOverlay ? (
-            <AnnotationInspector
-              overlay={selectedOverlay}
-              tools={videoTools}
-              // Unlike the redaction/zoom `start`/`end` above (source time, converted via
-              // timelineRangeOf), an overlay's `start`/`end` are ALREADY timeline time
-              // (scene.ts's OverlayBase docs) — so the inspector's range is the overlay's
-              // own window verbatim, no block conversion needed.
-              range={{ start: selectedOverlay.start, end: selectedOverlay.end }}
-              onCommitOverlay={handleCommitOverlay}
-              // handleDeleteOverlay reads `selectedOverlayId` itself rather than taking an
-              // id argument, but the inspector only ever renders (and can only call
-              // onRemove) for that same selected overlay, so the ids always match — one
-              // undoable commit, no wrapper needed.
-              onRemove={handleDeleteOverlay}
-              onRemoved={() => setSelectedOverlayId(null)}
-            />
-          ) : videoTools.tool === "box" ||
-            videoTools.tool === "arrow" ||
-            videoTools.tool === "text" ? (
-            <AnnotationDefaultsPanel tools={videoTools} />
-          ) : (
-            <DetectionPanel
-              zooms={zooms}
-              sensitivity={scene.zoomSensitivity}
-              clicksAvailable={cursorTrack?.clicksAvailable ?? false}
-            />
-          )}
-        </EditorInspector>
+        {/* NIW2-611: the video takes the left edge; the tools and the actions moved to
+            the right so the picture gets the width and the height the top bar used. */}
+        <EditorToolRail
+          onAddMute={handleAddMute}
+          onToggleMuteAll={mutes.toggleAll}
+          audioMuted={mutes.audioMuted}
+          tool={videoTools.tool}
+          onToolChange={handleToolChange}
+          onAddZoom={handleAddZoom}
+          privacyDisabled={onSlide}
+          onHideWebcam={hasWebcam ? handleHideWebcam : undefined}
+        />
+        <div className={styles.side}>
+          <EditorToolbar
+            canUndo={controller.canUndo}
+            canRedo={controller.canRedo}
+            onUndo={controller.undo}
+            onRedo={controller.redo}
+            onSplit={handleSplit}
+            splitDisabled={splitDisabled}
+            onDeleteSelected={handleDeleteSelected}
+            deleteDisabled={deleteDisabled}
+            onAddImage={handleAddImage}
+            tool={videoTools.tool}
+            onExport={handleExport}
+            exportDisabled={gifExport.status === "exporting" || scene.items.length === 0}
+          >
+            {/* Not interactive — a reminder, not a control (plans/video-editor-v2/08 § PR 10
+                polish, W12's "ORIGINAL UNTOUCHED" pill). The original recording on disk and
+                its library thumbnail are untouched by every edit in this page. */}
+            <Badge variant="neutral" style={sxEditor.originalPill}>
+              <Shield size={12} strokeWidth={2} /> {t("originalUntouched")}
+            </Badge>
+            {autosave.state !== "idle" && (
+              <button
+                type="button"
+                className={styles.saveState}
+                data-state={autosave.state}
+                onClick={autosave.state === "failed" ? () => void autosave.retry() : undefined}
+                disabled={autosave.state !== "failed"}
+                aria-live="polite"
+              >
+                {autosave.state === "saving" && t("saveStateSaving")}
+                {autosave.state === "saved" && t("saveStateSaved")}
+                {autosave.state === "failed" && t("saveStateFailed")}
+              </button>
+            )}
+          </EditorToolbar>
+          <EditorInspector>
+            {selectedRedaction?.kind === "blur" ? (
+              <BlurInspector
+                redaction={selectedRedaction}
+                range={timelineRangeOf(selectedRedaction.start, selectedRedaction.end)}
+                edits={redactionEdits}
+                onRemoved={() => selectKind("redaction", null)}
+              />
+            ) : selectedRedaction?.kind === "cover" ? (
+              <CoverInspector
+                redaction={selectedRedaction}
+                range={timelineRangeOf(selectedRedaction.start, selectedRedaction.end)}
+                edits={redactionEdits}
+                onRemoved={() => selectKind("redaction", null)}
+              />
+            ) : selectedMute ? (
+              <MuteInspector
+                range={selectedMute}
+                index={scene.mutedRanges.indexOf(selectedMute) + 1}
+                layout={layout}
+                mutes={mutes}
+                onRemoved={() => selectKind("mute", null)}
+              />
+            ) : selectedZoom ? (
+              <ZoomInspector
+                segment={selectedZoom}
+                index={zooms.visibleZooms.indexOf(selectedZoom) + 1}
+                layout={layout}
+                zooms={zooms}
+                sourceHeight={sourceHeight}
+                anchorNow={() =>
+                  boxCenterAt(
+                    selectedZoom,
+                    cameraPath,
+                    sourceTimeAtTimeline(layout, playback.timelineTime) ?? selectedZoom.start,
+                  )
+                }
+                onRemoved={() => selectKind("zoom", null)}
+              />
+            ) : scene.webcam && webcamTarget?.kind === "layer" ? (
+              <WebcamInspector
+                layout={scene.webcam.layout}
+                edits={webcamEdits}
+                frame={frameSize}
+                onHideHere={handleHideWebcam}
+              />
+            ) : selectedWebcamSegment ? (
+              <WebcamSegmentInspector
+                segment={selectedWebcamSegment}
+                index={webcamEdits.visibleSegments.indexOf(selectedWebcamSegment) + 1}
+                range={timelineRangeOf(selectedWebcamSegment.start, selectedWebcamSegment.end)}
+                layout={webcamAt(scene, selectedWebcamSegment.start) ?? scene.webcam!.layout}
+                edits={webcamEdits}
+                frame={frameSize}
+                onRemoved={() => selectKind("webcam", null)}
+              />
+            ) : selectedOverlay ? (
+              <AnnotationInspector
+                overlay={selectedOverlay}
+                tools={videoTools}
+                // Unlike the redaction/zoom `start`/`end` above (source time, converted via
+                // timelineRangeOf), an overlay's `start`/`end` are ALREADY timeline time
+                // (scene.ts's OverlayBase docs) — so the inspector's range is the overlay's
+                // own window verbatim, no block conversion needed.
+                range={{ start: selectedOverlay.start, end: selectedOverlay.end }}
+                onCommitOverlay={handleCommitOverlay}
+                // handleDeleteOverlay reads `selectedOverlayId` itself rather than taking an
+                // id argument, but the inspector only ever renders (and can only call
+                // onRemove) for that same selected overlay, so the ids always match — one
+                // undoable commit, no wrapper needed.
+                onRemove={handleDeleteOverlay}
+                onRemoved={() => setSelectedOverlayId(null)}
+              />
+            ) : videoTools.tool === "box" ||
+              videoTools.tool === "arrow" ||
+              videoTools.tool === "text" ? (
+              <AnnotationDefaultsPanel tools={videoTools} />
+            ) : (
+              <DetectionPanel
+                zooms={zooms}
+                sensitivity={scene.zoomSensitivity}
+                clicksAvailable={cursorTrack?.clicksAvailable ?? false}
+              />
+            )}
+          </EditorInspector>
+        </div>
       </div>
       <footer className={styles.timeline}>
         <TimelineStrip

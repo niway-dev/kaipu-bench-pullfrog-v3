@@ -75,11 +75,8 @@ export function PreviewStage({
           // transport from getting stuck showing "pause" while nothing plays.
           onPlay={playback.onVideoPlay}
           onPause={playback.onVideoPause}
-          // Dead in practice — the overlay above is a full-cover sibling that always
-          // wins the hit-test, so this click never reaches the video. Kept as a
-          // harmless fallback for any future render path without an overlay; the real
-          // toggle-on-click now comes from VideoAnnotationLayer's onBackgroundClick.
-          onClick={playback.toggle}
+          // No onClick: a click on the picture does not toggle playback. The play
+          // button and Space do (NIW2-611).
         />
         {slideUrl && <img className={styles.slide} src={slideUrl} alt="" draggable={false} />}
         {underlay}

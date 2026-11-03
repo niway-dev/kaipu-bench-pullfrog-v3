@@ -4,8 +4,13 @@
   display: flex;
   flex-direction: column;
   width: 288px;
+  flex: 1;
   flex-shrink: 0;
+  min-height: 0;
   overflow-y: auto;
-  border-left: 1px solid var(--border);
+  /* A card under the toolbar card in the right-hand column (NIW2-611), so it takes
+     the same border and radius instead of a single left rule. */
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--bg-card);
 }
