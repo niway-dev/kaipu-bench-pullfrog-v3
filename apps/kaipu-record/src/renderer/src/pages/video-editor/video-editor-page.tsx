@@ -1448,7 +1448,7 @@ function VideoEditor({
                 aria-label={playback.muted ? t("unmute") : t("mute")}
                 onClick={playback.toggleMute}
               >
-                {playback.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                {playback.muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
               </button>
             </div>
             <button
@@ -1457,7 +1457,7 @@ function VideoEditor({
               aria-label={playback.playing ? t("pause") : t("play")}
               onClick={playback.toggle}
             >
-              {playback.playing ? <Pause size={20} /> : <Play size={20} />}
+              {playback.playing ? <Pause size={15} /> : <Play size={15} />}
             </button>
             <div className={`${styles.transportSide} ${styles.transportRight}`}>
               <span className={styles.timeDisplay}>
@@ -1481,7 +1481,7 @@ function VideoEditor({
                 aria-label={isFullscreen ? t("exitFullscreen") : t("fullscreen")}
                 onClick={handleFullscreen}
               >
-                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
               </button>
             </div>
           </div>

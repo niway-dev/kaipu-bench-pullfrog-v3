@@ -22,8 +22,8 @@
   padding: var(--space-sm) 6px;
   overflow-y: auto;
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  /* Flat (NIW2-611): a rule on its left, not a card. */
+  border-left: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -42,8 +42,8 @@
   background: var(--border);
 }
 
-/* A card at the top of the right-hand column (NIW2-611), as wide as the inspector
-   below it: the actions on one line, then the status chips, Export, and the hint. */
+/* The top of the right-hand column (NIW2-611), as wide as the inspector below it,
+   separated from it by a rule: the actions on one line, then the status chips, Export, and the hint. */
 .toolbar {
   display: flex;
   flex-direction: column;
@@ -51,8 +51,7 @@
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 

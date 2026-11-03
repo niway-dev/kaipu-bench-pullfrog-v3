@@ -47,6 +47,12 @@
   background: var(--bg-app);
 }
 
+/* See isFullBleedPath: the page draws its own rules and owns its scrolling. */
+.content[data-full-bleed] {
+  padding: 0;
+  overflow: hidden;
+}
+
 .statusBar {
   position: relative;
   flex-shrink: 0;

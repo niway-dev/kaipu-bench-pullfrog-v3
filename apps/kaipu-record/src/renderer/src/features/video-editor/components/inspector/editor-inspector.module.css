@@ -8,9 +8,7 @@
   flex-shrink: 0;
   min-height: 0;
   overflow-y: auto;
-  /* A card under the toolbar card in the right-hand column (NIW2-611), so it takes
-     the same border and radius instead of a single left rule. */
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  /* Under the toolbar in the right-hand column (NIW2-611); that column draws the
+     rule on the left, so the inspector draws none. */
   background: var(--bg-card);
 }
