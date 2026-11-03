@@ -345,6 +345,15 @@ describe("VideoEditorPage — transport bar", () => {
   });
 });
 
+describe("VideoEditorPage — editable cursor entry", () => {
+  it("hides the Cursor entry for a recording whose cursor is baked into the video", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    expect(screen.queryByRole("button", { name: "Cursor" })).toBeNull();
+  });
+});
+
 describe("VideoEditorPage — add-image wiring", () => {
   beforeEach(() => {
     vi.stubGlobal("Image", FakeImage);

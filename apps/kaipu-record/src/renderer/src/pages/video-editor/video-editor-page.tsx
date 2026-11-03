@@ -1569,30 +1569,27 @@ function VideoEditor({
           </div>
         </main>
         <EditorInspector>
-          <button
-            className={inspectorStyles.cursorEntry}
-            type="button"
-            aria-pressed={cursorInspectorOpen}
-            onClick={() => {
-              clearSelection();
-              videoTools.setTool("select");
-              setCursorInspectorOpen((v) => !v);
-            }}
-          >
-            {t("cursorTitle")}
-          </button>
-          {cursorInspectorOpen ? (
-            cursorData ? (
-              <CursorInspector
-                controller={controller}
-                clicksAvailable={cursorData.track.clicksAvailable}
-              />
-            ) : (
-              <section className={inspectorStyles.panel}>
-                <h2 className={inspectorStyles.title}>{t("cursorTitle")}</h2>
-                <p className={inspectorStyles.note}>{t("cursorUnavailable")}</p>
-              </section>
-            )
+          {/* Only recordings with cursor-free video and a cursor track can redraw it;
+              every other recording keeps the cursor baked into its pixels. */}
+          {cursorData && (
+            <button
+              className={inspectorStyles.cursorEntry}
+              type="button"
+              aria-pressed={cursorInspectorOpen}
+              onClick={() => {
+                clearSelection();
+                videoTools.setTool("select");
+                setCursorInspectorOpen((v) => !v);
+              }}
+            >
+              {t("cursorTitle")}
+            </button>
+          )}
+          {cursorInspectorOpen && cursorData ? (
+            <CursorInspector
+              controller={controller}
+              clicksAvailable={cursorData.track.clicksAvailable}
+            />
           ) : selectedRedaction?.kind === "blur" ? (
             <BlurInspector
               redaction={selectedRedaction}

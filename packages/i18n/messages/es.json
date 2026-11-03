@@ -1506,8 +1506,7 @@
     "cursorBounce": "Rebote al hacer clic",
     "cursorIdleHide": "Ocultar tras 1,5 segundos sin actividad",
     "cursorShapeLimit": "No se grabaron las formas del puntero. Flecha, punto y foco son estilos de presentación; no se pueden reproducir los punteros de mano o texto.",
-    "cursorPrivacyNote": "El cursor se oculta mientras hay una región de privacidad activa.",
-    "cursorUnavailable": "Los cursores editables requieren video sin cursor y posiciones grabadas del cursor. Esta grabación no puede reproducir un cursor editable."
+    "cursorPrivacyNote": "El cursor se oculta mientras hay una región de privacidad activa."
   },
   "panel": {
     "saving": "Guardando…",

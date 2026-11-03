@@ -1506,8 +1506,7 @@
     "cursorBounce": "Click bounce",
     "cursorIdleHide": "Hide after 1.5 seconds idle",
     "cursorShapeLimit": "Pointer shapes were not recorded. Arrow, dot and spotlight are presentation styles; hand and text pointers cannot be replayed.",
-    "cursorPrivacyNote": "The cursor is hidden while a privacy region is active.",
-    "cursorUnavailable": "Editable cursors require cursor-free video and recorded cursor positions. This recording cannot replay an editable cursor."
+    "cursorPrivacyNote": "The cursor is hidden while a privacy region is active."
   },
   "panel": {
     "saving": "Saving…",
