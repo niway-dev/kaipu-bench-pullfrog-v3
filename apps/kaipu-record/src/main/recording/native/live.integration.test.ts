@@ -162,3 +162,49 @@ it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
   },
   10000,
 );
+
+it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
+  "preserves a take across a late pause followed by a queued quick resume",
+  async () => {
+    const reader = spawnNativeVideo(
+      process.env.KAIPU_NATIVE_TEST_HELPER!,
+      {
+        displayId: Number(process.env.KAIPU_NATIVE_TEST_DISPLAY),
+        width: 320,
+        height: 180,
+        frameRate: 30,
+        videoBitrate: 1_000_000,
+      },
+      true,
+    );
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    try {
+      await reader.ready!();
+      await reader.begin!(performance.now());
+      let ended = false,
+        packets = 0;
+      for (;;) {
+        const frame = await reader.next();
+        if (!frame) break;
+        if (frame.header.kind === "config") {
+          timers.push(
+            setTimeout(() => {
+              const at = performance.now();
+              void reader.pause!(at - 800);
+              void reader.resume!(at - 700);
+              timers.push(setTimeout(() => void reader.stop(performance.now()), 400));
+            }, 1200),
+          );
+        }
+        if (frame.header.kind === "packet") packets++;
+        if (frame.header.kind === "end") ended = true;
+      }
+      expect(packets).toBeGreaterThan(2);
+      expect(ended).toBe(true);
+    } finally {
+      timers.forEach(clearTimeout);
+      await reader.cancel();
+    }
+  },
+  10000,
+);

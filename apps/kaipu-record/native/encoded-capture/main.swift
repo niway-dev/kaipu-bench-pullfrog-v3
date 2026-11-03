@@ -111,7 +111,9 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
                         let end = try self.flush(at: at)
                         self.pausedAt = self.epoch! + self.removedUs + end
                     } else if name == "resume", let paused = self.pausedAt {
-                        guard at >= paused else { throw CaptureError(message: "Invalid resume clock") }
+                        // The pause may have been clamped forward to preserve emitted
+                        // packets. A queued quick resume cannot precede that effective edge.
+                        let at = max(at, paused)
                         self.removedUs += at - paused
                         self.pausedAt = nil; self.forceKeyframe = true
                         self.resumeTimestamp = at - self.epoch! - self.removedUs
