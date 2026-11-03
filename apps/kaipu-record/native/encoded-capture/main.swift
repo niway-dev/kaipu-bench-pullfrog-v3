@@ -26,7 +26,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
         try check(VTCompressionSessionCreate(allocator: nil, width: Int32(width), height: Int32(height), codecType: kCMVideoCodecType_H264, encoderSpecification: nil, imageBufferAttributes: nil, compressedDataAllocator: nil, outputCallback: { ref, _, status, _, sample in
             let sink = Unmanaged<Encoder>.fromOpaque(ref!).takeUnretainedValue()
             do { try check(status); if let sample { try sink.encoded(sample) } }
-            catch { sink.failure = error }
+            catch { sink.fail(error) }
         }, refcon: Unmanaged.passUnretained(self).toOpaque(), compressionSessionOut: &session))
         guard let session else { throw CaptureError(message: "Missing encoder") }
         let properties: [(CFString, CFTypeRef)] = [(kVTCompressionPropertyKey_RealTime, kCFBooleanTrue!), (kVTCompressionPropertyKey_AllowFrameReordering, kCFBooleanFalse!), (kVTCompressionPropertyKey_AverageBitRate, bitrate as CFNumber), (kVTCompressionPropertyKey_ExpectedFrameRate, fps as CFNumber), (kVTCompressionPropertyKey_MaxKeyFrameInterval, (fps * 2) as CFNumber)]
@@ -34,6 +34,11 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             try check(VTSessionSetProperty(session, key: key, value: value))
         }
         try check(VTCompressionSessionPrepareToEncodeFrames(session))
+    }
+    func fail(_ error: Error) {
+        // Do not leave the reader waiting for its generic stall timeout.
+        FileHandle.standardError.write(Data("encoded-capture: \(error)\n".utf8))
+        exit(1)
     }
     func emit(_ header: [String: Any], _ payload: Data = Data()) throws {
         let json = try JSONSerialization.data(withJSONObject: header, options: [.sortedKeys])
@@ -67,7 +72,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
         }
         pending = (data, pts, key)
     }
-    func stream(_ stream: SCStream, didStopWithError error: Error) { queue.async { self.failure = error } }
+    func stream(_ stream: SCStream, didStopWithError error: Error) { queue.async { self.fail(error) } }
     func stream(_ stream: SCStream, didOutputSampleBuffer sample: CMSampleBuffer, of type: SCStreamOutputType) {
         guard accepting, type == .screen, sample.isValid,
               let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
@@ -90,7 +95,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             let timestamp = configured ? pts : CMTime.zero
             try check(VTCompressionSessionEncodeFrame(session, imageBuffer: image, presentationTimeStamp: timestamp, duration: .invalid, frameProperties: nil, sourceFrameRefcon: nil, infoFlagsOut: nil))
             try check(VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid))
-        } catch { failure = error }
+        } catch { fail(error) }
     }
     func finish(cancel: Bool) async throws {
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in

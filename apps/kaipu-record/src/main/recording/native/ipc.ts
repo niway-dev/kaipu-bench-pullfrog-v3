@@ -4,6 +4,7 @@ import {
   type NativeCaptureReader,
   type NativeVideoRequest,
 } from "../../../shared/native-capture";
+import { onPageGone } from "../../renderer-lifetime";
 import { nativeHelperPath, spawnNativeVideo, validateNativeHelper } from "./session";
 
 /** Explicit developer transport only. No file path or process arguments come from IPC. */
@@ -63,14 +64,7 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
           const cleanup = () => {
             void cancel();
           };
-          contents.once("destroyed", cleanup);
-          contents.once("render-process-gone", cleanup);
-          contents.once("did-start-navigation", cleanup);
-          detach = () => {
-            contents.removeListener("destroyed", cleanup);
-            contents.removeListener("render-process-gone", cleanup);
-            contents.removeListener("did-start-navigation", cleanup);
-          };
+          detach = onPageGone(contents, cleanup);
           return;
         } finally {
           opening = false;
@@ -79,7 +73,13 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
       if (!reader) throw new Error("No native capture session");
       if (method === "stop") return reader.stop();
       const active = reader;
-      const frame = await active.next();
+      let frame;
+      try {
+        frame = await active.next();
+      } catch (error) {
+        if (reader === active) await cancel();
+        throw error;
+      }
       if (frame === null && reader === active) {
         reader = null;
         detach?.();
