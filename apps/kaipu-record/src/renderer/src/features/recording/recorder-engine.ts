@@ -445,7 +445,9 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
             "[recorder] Experimental native screen; Chromium acquisition retained for audio and thumbnail (duplicate capture)",
           );
         } catch (error) {
-          await bridge.cancel().catch(() => undefined);
+          // No cancel here: main already tears down a session its own open spawned, and
+          // `cancel` is not per-session — a stale prepare whose open lost to a retry
+          // ("already open") would otherwise kill the retry's session.
           native = null;
           console.warn("[recorder] Native fallback before take: helper preparation failed", error);
           options.onNativeDecision?.(
