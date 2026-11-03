@@ -37,6 +37,7 @@ export function CursorInspector({
   );
   return (
     <section className={styles.panel} aria-label={t("cursorTitle")}>
+      <h2 className={styles.title}>{t("cursorTitle")}</h2>
       {toggle("visible", t("cursorVisible"))}
       <label className={styles.field}>
         {t("cursorStyle")}

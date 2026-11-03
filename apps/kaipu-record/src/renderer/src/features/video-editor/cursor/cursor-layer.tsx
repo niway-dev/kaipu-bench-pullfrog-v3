@@ -13,6 +13,7 @@ export function CursorLayer({
   frame,
   redactions,
   onSelect,
+  selected = false,
 }: {
   data: CursorLayerData;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -23,13 +24,15 @@ export function CursorLayer({
   redactions: Redaction[];
   /** Clicking the drawn pointer opens its settings. Omitted while a drawing tool is active. */
   onSelect?: () => void;
+  /** Its settings are open: outline it in the preview so it reads as the selection. */
+  selected?: boolean;
 }): React.JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawn = useRef<CursorFrame | null>(null);
   const at = useMemo(() => prepareCursor(data.track, data.settings), [data.track, data.settings]);
   const trigger = useMemo(
-    () => ({ at, path, cameraEnabled, hidden, frame, redactions }),
-    [at, path, cameraEnabled, hidden, frame, redactions],
+    () => ({ at, path, cameraEnabled, hidden, frame, redactions, selected }),
+    [at, path, cameraEnabled, hidden, frame, redactions, selected],
   );
   useVideoFrameClock(
     videoRef,
@@ -47,6 +50,8 @@ export function CursorLayer({
             redactions,
           );
       drawCursor(ctx, drawn.current);
+      // Preview only: the export never calls this layer, so the outline cannot leak.
+      if (selected && drawn.current) drawSelection(ctx, drawn.current, canvas.current);
     },
     trigger,
   );
@@ -116,4 +121,31 @@ export function CursorLayer({
       }}
     />
   );
+}
+
+/** A rounded accent outline around the drawn pointer, sized in screen pixels. */
+function drawSelection(
+  ctx: CanvasRenderingContext2D,
+  c: CursorFrame,
+  el: HTMLCanvasElement | null,
+): void {
+  const box = el?.getBoundingClientRect();
+  const px = box && box.width > 0 ? el!.width / box.width : 1; // canvas px per screen px
+  const pad = 6 * px;
+  const [left, top, right, bottom] =
+    c.style === "arrow"
+      ? [c.x, c.y, c.x + c.size * 0.65, c.y + c.size]
+      : (() => {
+          const r = c.size * (c.style === "spotlight" ? 1.25 : 0.22);
+          return [c.x - r, c.y - r, c.x + r, c.y + r];
+        })();
+  const accent = el ? getComputedStyle(el).getPropertyValue("--accent-primary").trim() : "";
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(left - pad, top - pad, right - left + 2 * pad, bottom - top + 2 * pad, 6 * px);
+  ctx.lineWidth = 2 * px;
+  ctx.strokeStyle = accent || "#f43f5e";
+  ctx.setLineDash([5 * px, 3 * px]);
+  ctx.stroke();
+  ctx.restore();
 }

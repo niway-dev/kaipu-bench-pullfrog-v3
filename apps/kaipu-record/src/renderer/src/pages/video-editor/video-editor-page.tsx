@@ -166,7 +166,6 @@ import {
   cursorLayerData,
 } from "@renderer/features/video-editor/cursor/cursor-model";
 import { CursorLayer } from "@renderer/features/video-editor/cursor/cursor-layer";
-import inspectorStyles from "@renderer/features/video-editor/components/inspector/inspector.module.css";
 import { CursorInspector } from "@renderer/features/video-editor/components/inspector/cursor-inspector";
 
 export interface VideoEditorSource {
@@ -1385,10 +1384,19 @@ function VideoEditor({
           onToggleMuteAll={mutes.toggleAll}
           audioMuted={mutes.audioMuted}
           tool={videoTools.tool}
-          onToolChange={handleToolChange}
+          onToolChange={(next) => {
+            setCursorInspectorOpen(false);
+            handleToolChange(next);
+          }}
           onAddZoom={handleAddZoom}
           privacyDisabled={onSlide}
           onHideWebcam={hasWebcam ? handleHideWebcam : undefined}
+          onOpenCursor={
+            cursorData
+              ? () => (cursorInspectorOpen ? setCursorInspectorOpen(false) : openCursorInspector())
+              : undefined
+          }
+          cursorSelected={cursorInspectorOpen && cursorData !== null}
         />
         <main className={styles.stage} ref={stageRef}>
           {/* Video region: 1fr grid row — centers PreviewStage and constrains its height
@@ -1413,6 +1421,7 @@ function VideoEditor({
                   <CursorLayer
                     data={cursorData}
                     onSelect={videoTools.tool === "select" ? openCursorInspector : undefined}
+                    selected={cursorInspectorOpen}
                     videoRef={playback.videoRef}
                     path={cameraPath}
                     cameraEnabled={cameraApplied}
@@ -1590,30 +1599,6 @@ function VideoEditor({
           </div>
         </main>
         <EditorInspector>
-          {/* Only recordings with cursor-free video and a cursor track can redraw it;
-              every other recording keeps the cursor baked into its pixels. */}
-          {cursorData && (
-            <div className={inspectorStyles.tabs} role="tablist" aria-label={t("inspectorTabs")}>
-              <button
-                className={inspectorStyles.tab}
-                type="button"
-                role="tab"
-                aria-selected={!cursorInspectorOpen}
-                onClick={() => setCursorInspectorOpen(false)}
-              >
-                {t("inspectorEditTab")}
-              </button>
-              <button
-                className={inspectorStyles.tab}
-                type="button"
-                role="tab"
-                aria-selected={cursorInspectorOpen}
-                onClick={openCursorInspector}
-              >
-                {t("cursorTitle")}
-              </button>
-            </div>
-          )}
           {cursorInspectorOpen && cursorData ? (
             <CursorInspector
               controller={controller}

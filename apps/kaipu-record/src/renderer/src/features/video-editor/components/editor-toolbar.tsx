@@ -5,6 +5,7 @@ import {
   Droplet,
   EyeOff,
   ImagePlus,
+  Mouse,
   MousePointer2,
   Redo2,
   Scissors,
@@ -140,6 +141,11 @@ export interface EditorToolRailProps {
   privacyDisabled: boolean;
   /** "Hide webcam here" (ADR 0038). Absent for a recording without a webcam: no button. */
   onHideWebcam?(): void;
+  /** Open the recorded cursor's settings. Absent when the recording cannot redraw its
+   *  cursor (it is baked into the video): no button. */
+  onOpenCursor?(): void;
+  /** The cursor's settings are open; the Select tool then shows as not active. */
+  cursorSelected?: boolean;
 }
 
 export function EditorToolRail({
@@ -151,6 +157,8 @@ export function EditorToolRail({
   onToggleMuteAll,
   audioMuted,
   onHideWebcam,
+  onOpenCursor,
+  cursorSelected = false,
 }: EditorToolRailProps): React.JSX.Element {
   const t = useTranslations("videoEditor");
   return (
@@ -165,7 +173,7 @@ export function EditorToolRail({
               type="button"
               title={`${label} (${TOOL_SHORTCUT[toolKey]})`}
               aria-label={label}
-              className={`${styles.tool} ${tool === toolKey ? styles.toolActive : ""}`}
+              className={`${styles.tool} ${tool === toolKey && !cursorSelected ? styles.toolActive : ""}`}
               onClick={() => onToolChange(toolKey)}
             >
               <Icon size={19} />
@@ -243,6 +251,25 @@ export function EditorToolRail({
           {audioMuted ? <VolumeOff size={19} /> : <Volume2 size={19} />}
         </button>
       </div>
+      {/* The recorded pointer, redrawn by the editor. A mouse, not an arrow, so it never
+          reads as a second Select tool. */}
+      {onOpenCursor && (
+        <>
+          <span className={styles.railSeparator} aria-hidden />
+          <div className={styles.railGroup}>
+            <button
+              type="button"
+              title={t("hintCursor")}
+              aria-label={t("cursorTitle")}
+              aria-pressed={cursorSelected}
+              className={`${styles.tool} ${cursorSelected ? styles.toolActive : ""}`}
+              onClick={onOpenCursor}
+            >
+              <Mouse size={19} />
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

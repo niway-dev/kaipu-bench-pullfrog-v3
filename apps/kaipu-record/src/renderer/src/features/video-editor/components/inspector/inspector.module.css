@@ -164,36 +164,3 @@
   color: var(--text-secondary);
   cursor: pointer;
 }
-/* Edit | Cursor switch at the top of the inspector, only for recordings that can redraw
-   their cursor. */
-.tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
-  margin: var(--space-md) var(--space-lg) 0;
-  padding: 3px;
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
-}
-.tab {
-  padding: 6px var(--space-sm);
-  border: 0;
-  border-radius: calc(var(--radius-md) - 2px);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  cursor: pointer;
-}
-.tab:hover {
-  color: var(--text-primary);
-}
-.tab[aria-selected="true"] {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
-}
-.tab:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 1px;
-}
