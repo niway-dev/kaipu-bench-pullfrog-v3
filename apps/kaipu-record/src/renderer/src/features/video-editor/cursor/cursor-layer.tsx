@@ -64,14 +64,15 @@ export function CursorLayer({
       const c = drawn.current;
       const box = canvas.current?.getBoundingClientRect();
       if (!c || !box || box.width === 0) return false;
+      if (!pressReachesBackground(event.target, canvas.current?.previousElementSibling))
+        return false;
       const scale = frame.width / box.width;
-      const x = (event.clientX - box.left) * scale - c.x;
-      const y = (event.clientY - box.top) * scale - c.y;
-      const reach = c.style === "spotlight" ? c.size * 1.25 : c.size;
-      const pad = Math.max(8 * scale, c.size * 0.25);
-      return c.style === "arrow"
-        ? x >= -pad && x <= c.size * 0.65 + pad && y >= -pad && y <= c.size + pad
-        : Math.hypot(x, y) <= reach * (c.style === "dot" ? 0.22 : 1) + pad;
+      return hitsCursor(
+        c,
+        (event.clientX - box.left) * scale,
+        (event.clientY - box.top) * scale,
+        Math.max(8 * scale, c.size * 0.25),
+      );
     };
     let hovering = false;
     const move = (event: PointerEvent): void => {
@@ -84,6 +85,8 @@ export function CursorLayer({
     // (play/pause on the background).
     let swallowClick = false;
     const down = (event: PointerEvent): void => {
+      // A press released off the stage never fires `click`; never carry its swallow over.
+      swallowClick = false;
       if (event.button !== 0 || !hit(event)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -148,4 +151,29 @@ function drawSelection(
   ctx.setLineDash([5 * px, 3 * px]);
   ctx.stroke();
   ctx.restore();
+}
+
+/** Whether a press at (x, y), in canvas pixels, lands on the drawn pointer (plus `pad`). */
+export function hitsCursor(c: CursorFrame, x: number, y: number, pad: number): boolean {
+  const dx = x - c.x,
+    dy = y - c.y;
+  if (c.style === "arrow")
+    return dx >= -pad && dx <= c.size * 0.65 + pad && dy >= -pad && dy <= c.size + pad;
+  const radius = c.size * (c.style === "spotlight" ? 1.25 : 0.22);
+  return Math.hypot(dx, dy) <= radius + pad;
+}
+
+/**
+ * The pointer may claim a press only on the footage itself: the video, a layer laid over
+ * it, or the empty space of the annotation canvas. Anything with its own handling wins —
+ * an annotation shape or text box (inside `content`), and the camera box, region editor,
+ * webcam bubble and buttons (siblings after the cursor canvas, outside `content`).
+ */
+export function pressReachesBackground(
+  target: EventTarget | null,
+  content: Element | null | undefined,
+): boolean {
+  if (!(target instanceof Element) || !content?.contains(target)) return false;
+  if (target instanceof SVGElement && !(target instanceof SVGSVGElement)) return false;
+  return target.closest("input, textarea, button, [contenteditable]") === null;
 }
