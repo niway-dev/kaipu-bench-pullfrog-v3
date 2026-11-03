@@ -8,7 +8,10 @@ import type { LocalRecording } from "@shared/types/library-storage";
 import { captureException } from "@renderer/features/analytics";
 import type { LibraryVideo } from "@renderer/features/library/types";
 import type { VideoExportChoice } from "@renderer/features/video-editor/components/export-sheet";
-import { wholeFingerprint } from "@renderer/features/video-editor/export/export-reuse";
+import {
+  CURSOR_COMPOSE_REVISION,
+  wholeFingerprint,
+} from "@renderer/features/video-editor/export/export-reuse";
 import {
   isVideoExportBusy,
   showExportBusyToast,
@@ -50,7 +53,7 @@ export function prepareScene(video: PreparableVideo, probe: SourceProbe): VideoS
  */
 export function prepareFingerprint(scene: VideoScene, editableCursor = false): string {
   const whole = wholeFingerprint(scene.webcam);
-  return editableCursor ? `${whole}:cursor3` : whole;
+  return editableCursor ? `${whole}:${CURSOR_COMPOSE_REVISION}` : whole;
 }
 
 export type ProbeState =

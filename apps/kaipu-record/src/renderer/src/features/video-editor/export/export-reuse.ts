@@ -18,6 +18,8 @@ import { encodeFingerprint, type ExportPresetId } from "./export-presets";
 
 /** Share (no editor): the whole source file, as it is on disk. */
 export const WHOLE_RECORDING_FINGERPRINT = "whole";
+/** The painter revision of a redrawn cursor; bump it when the cursor's drawing changes. */
+export const CURSOR_COMPOSE_REVISION = "cursor3";
 
 /** True for Share's fingerprints: `whole`, or `whole:<hash>` when the face is composed. */
 export function isWholeFingerprint(fingerprint: string | undefined): boolean {
@@ -72,7 +74,8 @@ export function editFingerprint(scene: VideoScene, editableCursor = false): stri
   // so a pre-overlay export can never be reused as an export containing the pointer.
   const { cursor, ...rest } = saved;
   const normalized = stableStringify(cursor) === stableStringify(DEFAULT_CURSOR) ? rest : saved;
-  if (editableCursor) return `edit:cursor3:${hash53(stableStringify(normalized))}`;
+  if (editableCursor)
+    return `edit:${CURSOR_COMPOSE_REVISION}:${hash53(stableStringify(normalized))}`;
   const { webcam, ...withoutWebcam } = normalized;
   return webcam
     ? `edit:${WEBCAM_COMPOSE_REVISION}:${hash53(stableStringify(normalized))}`
@@ -99,7 +102,11 @@ export function wholeFingerprint(webcam: WebcamScene | null): string {
  * export records none, so it is never reused.
  */
 export function facelessFingerprint(fingerprint: string): string | undefined {
-  return isWholeFingerprint(fingerprint) ? WHOLE_RECORDING_FINGERPRINT : undefined;
+  if (!isWholeFingerprint(fingerprint)) return undefined;
+  // A copy that redraws the cursor keeps that revision: the faceless file still has it.
+  return fingerprint.endsWith(`:${CURSOR_COMPOSE_REVISION}`)
+    ? `${WHOLE_RECORDING_FINGERPRINT}:${CURSOR_COMPOSE_REVISION}`
+    : WHOLE_RECORDING_FINGERPRINT;
 }
 
 /** The newest playable MP4 export of each preset whose content matches `fingerprint`. */

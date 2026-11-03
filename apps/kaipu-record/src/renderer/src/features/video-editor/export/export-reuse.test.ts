@@ -5,6 +5,7 @@ import { parseSession, serializeSession } from "../session";
 import { encodeFingerprint, normalizeExportPresetId } from "./export-presets";
 import { seedWebcamScene } from "../webcam/webcam-model";
 import {
+  facelessFingerprint,
   WHOLE_RECORDING_FINGERPRINT,
   editFingerprint,
   findReusableExports,
@@ -254,4 +255,12 @@ it("never reuses a pre-cursor export for an eligible source, even with default s
   expect(editFingerprint({ ...scene, cursor: { ...scene.cursor!, size: 64 } }, true)).not.toBe(
     editFingerprint(scene, true),
   );
+});
+
+describe("facelessFingerprint", () => {
+  it("keeps the cursor revision of a cursor-redrawing copy that lost its face", () => {
+    expect(facelessFingerprint("whole:abc123:cursor3")).toBe("whole:cursor3");
+    expect(facelessFingerprint("whole:abc123")).toBe("whole");
+    expect(facelessFingerprint("edit:wc2:abc")).toBeUndefined();
+  });
 });
