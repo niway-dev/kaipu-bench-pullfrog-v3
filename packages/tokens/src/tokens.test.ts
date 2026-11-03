@@ -11,13 +11,25 @@ describe("token sources", () => {
     expect(dark["glow-accent"]).toBe("0 10px 26px -8px rgba(246, 5, 92, 0.75)");
   });
 
-  it("legacy names alias the new ones so consumers migrate part by part", () => {
-    expect(dark["bg-app"]).toBe(dark["bg-canvas"]);
-    expect(dark["bg-sidebar"]).toBe(dark["bg-panel"]);
-    expect(dark["bg-card"]).toBe(dark["bg-raised"]);
-    expect(dark["border"]).toBe(dark["line"]);
-    expect(dark["text-primary"]).toBe(dark["text"]);
-    expect(dark["text-muted"]).toBe(dark["text-3"]);
+  // Every legacy name must keep the value of the new name it stands for, or a
+  // surface migrating in parts 2-4 silently changes color.
+  it.each([
+    ["bg-app", "bg-canvas"],
+    ["bg-sidebar", "bg-panel"],
+    ["bg-card", "bg-raised"],
+    ["bg-card-hover", "bg-hover"],
+    ["bg-input", "bg-raised"],
+    ["bg-modal", "bg-panel"],
+    ["border", "line"],
+    ["border-light", "line-strong"],
+    ["text-primary", "text"],
+    ["text-secondary", "text-2"],
+    ["text-muted", "text-3"],
+    ["accent-primary", "accent"],
+    ["accent-primary-soft", "accent-soft"],
+    ["accent-primary-ring", "accent-ring"],
+  ] as const)("legacy %s aliases %s", (legacy, current) => {
+    expect(dark[legacy]).toBe(dark[current]);
   });
 
   it("base carries the theme-invariant values verbatim", () => {
