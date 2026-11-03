@@ -32,8 +32,9 @@ struct Options {
             case "--rect":
                 index += 1
                 guard index < args.count else { throw ProbeError(message: "Missing rect") }
-                let values = args[index].split(separator: ",").compactMap { Double($0) }
-                guard values.count == 4, values.allSatisfy({ $0.isFinite }),
+                let tokens = args[index].split(separator: ",", omittingEmptySubsequences: false)
+                let values = tokens.compactMap { Double($0) }
+                guard tokens.count == 4, values.count == 4, values.allSatisfy({ $0.isFinite }),
                       values[0] >= 0, values[1] >= 0, values[2] > 0, values[3] > 0 else {
                     throw ProbeError(message: "Rect must be finite x,y,width,height in display points")
                 }
@@ -115,6 +116,17 @@ final class Sink: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendabl
         }
     }
 
+    func cancel() async -> String? {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                self.accepting = false
+                self.lastFrame = nil
+                self.writer.cancelWriting()
+                continuation.resume(returning: self.failure)
+            }
+        }
+    }
+
     func finish() async throws -> [String: Any] {
         let stopPTS = CMClockGetTime(CMClockGetHostTimeClock())
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -190,10 +202,16 @@ final class Sink: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendabl
             let stream = SCStream(filter: filter, configuration: config, delegate: sink)
             try stream.addStreamOutput(sink, type: .screen, sampleHandlerQueue: sink.queue)
             if options.audio { try stream.addStreamOutput(sink, type: .audio, sampleHandlerQueue: sink.queue) }
-            try await stream.startCapture()
-            try await Task.sleep(nanoseconds: 8_000_000_000)
-            try await stream.stopCapture()
-            var report = try await sink.finish()
+            var report: [String: Any]
+            do {
+                try await stream.startCapture()
+                try await Task.sleep(nanoseconds: 8_000_000_000)
+                try await stream.stopCapture()
+                report = try await sink.finish()
+            } catch {
+                let originalFailure = await sink.cancel()
+                throw ProbeError(message: originalFailure ?? error.localizedDescription)
+            }
             report["schemaVersion"] = 1
             report["captureBackend"] = "ScreenCaptureKit diagnostic / AVAssetWriter"
             report["showsCursorRequested"] = false

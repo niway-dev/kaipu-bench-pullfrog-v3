@@ -29,4 +29,6 @@ expect_refusal 'Missing rect' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --r
 expect_refusal 'Rect must be finite' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --rect 0,0,nan,20
 expect_refusal 'Rect must be finite' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --rect 0,0,0,20
 expect_refusal 'Rect must be finite' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --rect -1,0,20,20
-echo '8 CLI refusal checks passed; no capture requested'
+expect_refusal 'Rect must be finite' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --rect 0,0,abc,100,100
+expect_refusal 'Rect must be finite' --cursor-sck-diagnostic 2 "$PROBE_DIR/capture" --rect 0,0,,100,100
+echo '10 CLI refusal checks passed; no capture requested'

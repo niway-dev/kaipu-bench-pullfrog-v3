@@ -154,3 +154,5 @@ frame reordering was disabled and the writer session end was set. Those takes ar
 superseded timing probes, not passing evidence. This timing failure is why the
 prototype retains one frame and reports its host-clock interval independently of
 sample count. The final movie's audible-audio and cursor verdicts remain unverified.
+
+Native follow-up: malformed rects with extra nonnumeric or empty tokens are rejected (10 CLI refusal checks). Start/stop/finalize errors cancel the writer on its serial queue and prefer the original stream error. SIGINT/SIGTERM recovery remains unimplemented; this diagnostic is not a production recorder. The retained last frame consumes an additional SCK surface; motion-load behavior remains unverified.
