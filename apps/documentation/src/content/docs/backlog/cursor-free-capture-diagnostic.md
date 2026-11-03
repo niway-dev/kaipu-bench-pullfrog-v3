@@ -18,14 +18,14 @@ recording-library write or cursor overlay. Closing the window exits the diagnost
 
 ## Run the packaged measurement
 
-1. Quit any running Kaipu instance (the app retains its normal single-instance lock).
+1. Use a fresh `--user-data-dir` for an isolated diagnostic process; do not quit an active installed instance. This separates the instance lock/settings, not macOS permission identity.
 2. Build through the normal macOS packaging path, including native dependency rebuilding
    and signing: `bun run --cwd apps/kaipu-record build:mac`. Use the generated `.app` path
    from that command. Do not substitute a development run for packaged evidence.
 3. Launch the executable directly, passing the flag:
 
    ```sh
-   "/path/to/Kaipu Record.app/Contents/MacOS/Kaipu Record" --cursor-capture-diagnostic
+   env -u ELECTRON_RUN_AS_NODE "/path/to/Kaipu Record.app/Contents/MacOS/Kaipu Record" --cursor-capture-diagnostic --user-data-dir=/tmp/kaipu-cursor-probe-user-data
    ```
 
 4. Select a display. Leave **Request system audio** unchecked for cursor comparisons. Choose **Current legacy baseline**,
@@ -63,8 +63,8 @@ and unspecified resolution are a capture-path probe, not the production recorder
 resolution/bitrate configuration.
 
 Packaged launch, downloads, cursor pixels, permission prompts, audible loopback and CPU
-remain manual evidence gaps. No ScreenCaptureKit helper or build/signing integration exists
-in this slice. Existing `.cursor.json` data, default baked cursor recordings and editor
+remain manual evidence gaps. A standalone ScreenCaptureKit prototype is described below; production helper
+build/signing integration is still absent. Existing `.cursor.json` data, default baked cursor recordings and editor
 controls are unchanged.
 
 ## Next implementation slice
@@ -77,3 +77,80 @@ styling controls; baked-cursor recordings must retain today's behavior. Shape ID
 image/hotspot table follow the cursor-free frame path, then the shared preview/export layer.
 
 Audio experiments may fail independently of cursor support. In particular, macOS loopback permissions and the packaged Info.plist audio usage description need separate validation; an audio-enabled failure is not evidence that cursor exclusion failed. The diagnostic does not register the kaipu protocol or handle second-instance deep links.
+
+## Native ScreenCaptureKit prototype (explicit opt-in)
+
+`native/cursor-capture/main.swift` is a separate macOS 14+ diagnostic executable. It is
+not bundled or invoked by the recorder. Build it to a location outside Git:
+
+```sh
+bash apps/kaipu-record/scripts/build-cursor-sck-diagnostic.sh /tmp/kaipu-cursor-sck
+/tmp/kaipu-cursor-sck --cursor-sck-diagnostic DISPLAY_ID /tmp/new-capture-directory --rect 0,0,640,360
+```
+
+The executable refuses to run without that flag. Output must be a new directory.
+An unavailable display ID reports the available IDs. `--rect` uses selected-display
+points; output uses the filter's pixel scale and even H.264 dimensions. Omit it for
+the whole display. Audio is off unless `--audio` is supplied. The helper preflights
+Screen Recording access and fails without requesting permission when unavailable.
+Its permission identity is the helper/launching host, not necessarily the signed app.
+Do not reset permissions or quit an installed instance to run this probe.
+
+The eight-second stream requests `showsCursor = false`, BGRA frames and an optional
+48 kHz stereo system-audio stream excluding the helper's own audio. It writes an
+H.264/AAC MOV through AVAssetWriter as an inspectable intermediate, plus JSON with
+sample counts, readiness drops, source rectangle, output dimensions and host-clock
+epoch. Both tracks retain ScreenCaptureKit presentation timestamps. Audio preceding
+the first complete video frame is dropped explicitly. A serial sample queue, SCK
+queue depth of three and writer-readiness checks bound the frame pipeline. One last
+frame is retained to span static-screen intervals through the stop timestamp; frame
+reordering is disabled. Failure to write that duration frame fails the probe.
+
+This establishes a native capture/encode experiment, not the mediabunny transport.
+No raw-frame IPC, cursor provenance migration, editable controls, cursor shapes,
+preview/export overlay, window capture, production helper signing, pause/resume or
+production lifecycle integration is implemented. Backpressure counters are observable,
+but sustained overload and CPU parity still need measurements. Existing recordings
+and capture defaults are unchanged.
+
+```sh
+bash apps/kaipu-record/scripts/check-cursor-sck-diagnostic.sh
+```
+
+This compiles the helper and checks eight invalid-invocation refusals before capture.
+It does not prove OS permissions, pixels, system audio audibility or encoder timing.
+
+### Local packaged probe observations (2026-11-02)
+
+At foundation commit `5e9d7ec3`, `build:unpack` completed using Electron 39.8.10 and
+the patched native rebuild. The machine had zero valid signing identities, so the
+builder skipped signing. This is packaged evidence, not release-signing parity.
+The shell inherited `ELECTRON_RUN_AS_NODE=1`; direct launch rejected Electron flags
+until launched using `env -u ELECTRON_RUN_AS_NODE`. With a separate `--user-data-dir`,
+the package reached source enumeration and reported screen permission `granted`.
+That directory isolates settings/lock, not TCC permission identity.
+
+Native UI automation could not select the package: the exact path timed out twice,
+and selecting the bundle ID returned ambiguity with `/Applications/Kaipu Record.app`.
+The installed app was left running. No Electron `legacy`/`always`/`never` take,
+download or cursor-pixel comparison was obtained; these remain open rather than
+being inferred from permission or settings. The standalone SCK probe can run
+independently of that UI driver. Local evidence is outside Git under
+`/tmp/kaipu-cursor-evidence`; those files are transient and not release artifacts.
+
+The standalone helper compiled with Apple Swift 6.4 targeting macOS 14. A 640×360
+crop produced H.264 video; a separate audio-enabled take produced 418 audio samples
+and a 48 kHz stereo AAC track. `ffprobe` measured 8.681667 seconds, within 1 ms of
+the 8.6808905-second reported host-clock interval. Both readiness-drop counters
+were zero for that small static workload. FFmpeg volume analysis measured silence
+(mean/max -91 dB); this does **not** validate audible loopback. A decoded frame was
+inspected for capture content, but no controlled pointer movement was recorded,
+so cursor exclusion remains unverified. This small crop does not establish full-screen
+performance, overload behavior or audio/video synchronization under motion.
+
+An earlier static-screen take encoded only 0.133 seconds before final-frame padding
+was implemented. An intermediate audio take overshot its host-clock interval before
+frame reordering was disabled and the writer session end was set. Those takes are
+superseded timing probes, not passing evidence. This timing failure is why the
+prototype retains one frame and reports its host-clock interval independently of
+sample count. The final movie's audible-audio and cursor verdicts remain unverified.
