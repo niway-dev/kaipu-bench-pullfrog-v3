@@ -73,6 +73,11 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
           if (reader || opening) throw new Error("Native capture already open");
           opening = true;
           const openedGeneration = generation;
+          // A reload during the awaits below neither destroys the contents nor reaches
+          // the page-gone listener attached after spawn; invalidate this open instead.
+          const detachEarly = onPageGone(contents, () => {
+            generation++;
+          });
           try {
             if (
               !(await capability()).transportAvailable ||
@@ -111,6 +116,7 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
             }
             return;
           } finally {
+            detachEarly();
             opening = false;
           }
         }

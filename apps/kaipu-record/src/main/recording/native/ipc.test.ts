@@ -27,7 +27,7 @@ describe("native IPC session ownership", () => {
   const call = (method: keyof typeof channels, sender = contents) =>
     fake.handlers.get(channels[method])!(
       { sender, senderFrame: sender.mainFrame },
-      { displayId: 3, width: 320, height: 180, fps: 30, bitrate: 1000000 },
+      { displayId: 3, width: 320, height: 180, frameRate: 30, videoBitrate: 1000000 },
     );
   beforeEach(() => {
     vi.clearAllMocks();
@@ -106,5 +106,30 @@ describe("native IPC session ownership", () => {
     expect(await capability(false)).toMatchObject({ transportAvailable: false });
     await expect(call("open")).rejects.toThrow("unavailable");
     expect(fake.spawn).toHaveBeenCalledOnce();
+  });
+  it("does not spawn when the page reloads while open is still awaiting", async () => {
+    let resolve!: () => void;
+    fake.validate.mockImplementationOnce(
+      () =>
+        new Promise<void>((done) => {
+          resolve = done;
+        }),
+    );
+    const opening = call("open");
+    contents.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false });
+    resolve();
+    await expect(opening).rejects.toThrow("unavailable");
+    expect(fake.spawn).not.toHaveBeenCalled();
+    expect(contents.listenerCount("did-start-navigation")).toBe(0);
+  });
+  it("hands the renderer's request to the helper unchanged", async () => {
+    await call("open");
+    expect(fake.spawn).toHaveBeenCalledWith("/helper", {
+      displayId: 3,
+      width: 320,
+      height: 180,
+      frameRate: 30,
+      videoBitrate: 1000000,
+    });
   });
 });
