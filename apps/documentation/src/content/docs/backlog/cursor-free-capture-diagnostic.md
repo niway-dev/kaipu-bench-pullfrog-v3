@@ -216,3 +216,126 @@ audible audio/AV-sync measurements. Raw 4K RGBA must not be transported over IPC
 Keep production capture unchanged until those contracts and cursor provenance for
 editable overlays are implemented and verified. Owner-machine Electron launches
 require asking first per the user's no-local-e2e memory; native probes do not waive it.
+
+## Live encoded transport slice (2026-11-03)
+
+**Status: 🟡 Staged integration, not a selectable recording backend.**
+
+`native/encoded-capture/main.swift` is a separate live ScreenCaptureKit/VideoToolbox
+helper, not a finished-file remux. It emits AVC access units directly to stdout.
+`showsCursor=false`, no frame reordering, explicit dimensions/fps/bitrate, one retained
+native surface, serial encoding and blocking pipe writes bound the pipeline. A timer
+encodes the retained surface during idle intervals. One encoded packet is held until
+the next PTS establishes its duration; stop flushes that packet through the host stop
+time and emits an explicit end duration. This currently encodes repeated idle frames
+at the requested cadence; it does not claim VFR efficiency or CPU parity.
+
+Wire v1: eight-byte big-endian prefix (`uint32 JSON length`, `uint32 payload length`),
+UTF-8 JSON header, binary payload. Header maximum 16 KiB, payload maximum 8 MiB.
+`config` carries version, AVC codec string, dimensions and monotonic host `epochUs`;
+its payload is avcC. `packet` carries epoch-relative integer `ptsUs`, `durationUs` and
+`keyframe`; payload is length-prefixed AVC. `end` carries the exact last packet end.
+Config changes, non-key first packets, nonzero first PTS, overlap, invalid sizes/times,
+truncation and missing end fail the take. This version intentionally forbids B frames.
+Absolute epoch uses CoreMedia host time, not wall time or renderer performance.now().
+
+`main/recording/native/session.ts` pulls frames from stdout only when requested,
+validates them, rejects concurrent pulls, bounds stderr, times out stalled reads,
+and kills/cancels on failure. Stop sends `stop` on stdin and requires continued
+consumption through end/EOF; cancel destroys the pipe, sends SIGTERM and escalates
+to SIGKILL after one second. Helper EOF on stdin cancels cooperatively. Native
+SIGINT/SIGTERM still use OS termination: explicit native signal-driven SCK/VT teardown
+is an open barrier, not a solved lifecycle claim. There is no switch to Chromium
+after capture starts.
+
+Main/preload expose `electronAPI.nativeCapture` only to the main window's main frame.
+The methods are always present, but capability/open require macOS, the explicit
+`--experimental-native-encoded-transport` app flag and an exact helper `--version`
+match. Capability always returns `recordingReady:false`. Destruction, navigation,
+renderer failure and application quit cancel the owned session. An in-flight open
+is invalidated by cancel. No arbitrary executable path is accepted over IPC.
+
+Build explicitly (no installation, auto-build or signing):
+
+```sh
+bash apps/kaipu-record/scripts/build-encoded-capture.sh /tmp/kaipu-encoded-capture-v1
+/tmp/kaipu-encoded-capture-v1 --version
+```
+
+Packaged discovery is fixed at
+`process.resourcesPath/app.asar.unpacked/resources/native/kaipu-encoded-capture`.
+Existing `asarUnpack: resources/**` supports this location, but the helper is **not**
+automatically copied/built/signed by release scripts. Missing/incompatible helpers
+report unavailable; packaging and signed TCC identity must be implemented/validated
+before changing the capability gate. Do not launch Electron locally without owner
+permission to exercise the bridge.
+
+`recorder-engine.ts` exports `attachNativeEncodedVideo(output, reader)`: attach before
+`output.start()`, await `pump()`, then finalize output. It uses the installed
+mediabunny `EncodedVideoPacketSource("avc")`/`EncodedPacket` API, supplies decoder
+config on the first packet and awaits every add before requesting the next IPC frame.
+It closes only after explicit end plus EOF, cancels reader/output on error, and returns
+host epoch, dimensions and excluded-cursor provenance. It accepts the preload reader
+structurally. The caller owns stop/cancel and the Output target; `prepareEngine` and
+`recorder-store` do **not** select this path yet. No new UI is exposed.
+
+New Chromium recordings persist `capture.cursorPixels:"embedded"` through the existing
+capture-sidecar path. Sanitization preserves explicit `embedded`/`excluded` values;
+legacy/imported/unknown data remains ineligible under `canOverlayRecordedCursor`.
+The experimental consumer returns `excluded`, but no native take is saved to the
+library yet. No cursor overlay/style UI exists in this slice. Never infer editable
+cursor eligibility from a cursor JSON track alone.
+
+### Verification and remaining barriers
+
+Targeted framing/lifecycle/provenance/consumer tests cover fragmented input, truncation,
+oversize prefixes, config/keyframe/order/end rejection, concurrent pulls, cancellation
+of an in-flight read, process failure/version refusal and awaited mediabunny pressure.
+The consumer test intentionally mocks the writer to hold backpressure; a separate
+opt-in integration test uses the real helper and real mediabunny muxer:
+
+```sh
+KAIPU_NATIVE_TEST_HELPER=/tmp/kaipu-encoded-capture-v1 \
+KAIPU_NATIVE_TEST_DISPLAY=3 \
+KAIPU_NATIVE_TEST_OUTPUT=/tmp/NEW-live.mp4 \
+bun run --cwd apps/kaipu-record test -- src/main/recording/native/live.integration.test.ts
+```
+
+Choose a currently available 16:9 display; the test requests a 320×180 whole-display
+video at 30 fps/1 Mbps and stops 700 ms after receiving config. On this host display 3
+passed: actual live AVC was muxed, reopened, and checked for zero first PTS, first
+keyframe, multiple packets and matching final duration. A stronger follow-up checks
+every packet payload/type and PTS/duration against the live wire. The installed MP4
+muxer defaults to a 57,600 Hz timebase, so this live test allows one container tick
+(17.37 µs), not the finished-MOV probe's 2 µs tolerance. An initial 2 µs assertion
+failed by 3.53 µs; that was a quantization mismatch, not lost packet bytes. FFmpeg decoded the resulting
+MP4 without errors. Artifact: `/tmp/kaipu-cursor-evidence/live-encoded-v1.mp4` (local,
+transient, not committed). This proves a small native video pipeline, not Electron IPC,
+rendered pixels, audible audio, cursor shape/motion, 4K load or signed release behavior.
+The default integration test is skipped unless the explicit helper environment is set.
+
+Before recorder selection: connect the quality preset/source/area geometry planner
+without distortion; add system audio and mic mixing/live controls; watermark/webcam
+and thumbnail handling; cursor host epoch mapping; a single pause-gap clock shared by
+video/audio/cursor with matching idle/end semantics; prepared/countdown/start failure
+and writer lifecycle; signed helper resource build, version/TCC checks and native
+signal cleanup. Requests currently accept only whole-display video parameters;
+unknown option fields are rejected. There is no audio/mic/pause API to silently ignore.
+Pre-take unsupported configurations must produce an explicit fallback decision; no
+fallback is selected by this transport. Only then can `recordingReady` become true.
+The next independent review is pending; this slice is not labelled production-ready.
+
+Final checks for this slice: targeted recording/transport/writer/store tests exit 0,
+149 passed and one opt-in native test skipped; the opt-in native test separately
+passes (1/1), including packet conservation, and its validated MP4 decodes with
+FFmpeg (exit 0). Swift build, app type checks and Electron-Vite build exit 0.
+Repository lint exits 0 with 17 warnings outside this slice. The broad app suite
+exits 1: four library suites cannot import the installed Electron dependency
+(`Electron failed to install correctly`); 4,587 tests passed and one then-stale
+provenance expectation failed. That expectation is corrected and its 93-test store
+suite passes in the final targeted run. No dependency repair or Electron launch
+was attempted. Full-suite green, Electron bridge execution, packaged/native signing
+and user-visible editable capture remain unverified. Logs stay outside Git in
+`/tmp/kaipu-cursor-evidence/live-slice-*.log`. The new tests encode the project-specific
+lessons (explicit end, bounded pull, fail-closed provenance); no shared skill/hub edit
+was needed.

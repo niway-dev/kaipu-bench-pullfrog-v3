@@ -26,6 +26,8 @@ export type RecordingCaptureMode = (typeof RECORDING_CAPTURE_MODES)[number];
 
 export interface RecordingCapture {
   mode: RecordingCaptureMode;
+  /** Absent on legacy/imported media; never infer exclusion from cursor-track presence. */
+  cursorPixels?: "embedded" | "excluded";
   /** Output size of the encoded video, in pixels (0 when unknown). */
   width: number;
   height: number;
@@ -93,9 +95,10 @@ export function buildRecordingCapture(input: BuildRecordingCaptureInput): Record
     width = 0;
     height = 0;
   }
-  if (mode !== "area" || !area) return { mode, width, height, ratio: null };
+  if (mode !== "area" || !area)
+    return { mode, width, height, ratio: null, cursorPixels: "embedded" };
   const ratio = isRecordingRatio(area.ratio) ? area.ratio : inferRecordingRatio(width, height);
-  return { mode, width, height, ratio, displayId: area.displayId };
+  return { mode, width, height, ratio, displayId: area.displayId, cursorPixels: "embedded" };
 }
 
 /**
@@ -119,6 +122,8 @@ export function sanitizeRecordingCapture(value: unknown): RecordingCapture | nul
   if (mode === "area" && typeof raw.displayId === "number" && Number.isFinite(raw.displayId)) {
     capture.displayId = raw.displayId;
   }
+  if (raw.cursorPixels === "embedded" || raw.cursorPixels === "excluded")
+    capture.cursorPixels = raw.cursorPixels;
   return capture;
 }
 

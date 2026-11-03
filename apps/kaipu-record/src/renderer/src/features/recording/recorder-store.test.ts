@@ -617,6 +617,7 @@ describe("recorder-store", () => {
       expect.any(String),
       expect.objectContaining({
         capture: {
+          cursorPixels: "embedded",
           mode: "area",
           width: 1280,
           height: 720,

@@ -1,4 +1,5 @@
 import { registerAppActivation } from "./app-activation";
+import { registerNativeCaptureTransport } from "./recording/native/ipc";
 import {
   CURSOR_CAPTURE_DIAGNOSTIC_FLAG,
   openCursorCaptureDiagnostic,
@@ -892,6 +893,7 @@ app.whenReady().then(async () => {
   initMainAnalytics(getDeviceId(), getAppSettings().diagnosticsEnabled);
   onSettingsChanged((settings) => setMainAnalyticsEnabled(settings.diagnosticsEnabled));
   registerAnalyticsIpc();
+  registerNativeCaptureTransport(() => mainWindow?.webContents);
 
   // Capture Panel → show the main window (the panel's "Open ↗" button).
   ipcMain.on("capture-panel:open-main", () => {

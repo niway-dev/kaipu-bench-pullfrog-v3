@@ -1219,3 +1219,6 @@ async function captureThumbnail(
     return null;
   }
 }
+
+// Experimental encoded transport seam; not selected by prepareEngine until feature parity.
+export { attachNativeEncodedVideo } from "./native-encoded-video";

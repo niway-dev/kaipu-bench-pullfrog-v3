@@ -109,6 +109,15 @@ document.hasFocus = () => true;
 // Minimal `window.electronAPI` stub so renderer code that talks to the preload
 // bridge (e.g. usePermissions) works under jsdom. Individual tests can override.
 window.electronAPI = {
+  nativeCapture: {
+    capability: async () => ({ transportAvailable: false, recordingReady: false, reason: "test" }),
+    open: async () => {
+      throw new Error("Native transport unavailable");
+    },
+    next: async () => null,
+    stop: async () => {},
+    cancel: async () => {},
+  },
   platform: "darwin",
   getAppVersion: async () => "1.0.0",
   notifyReady: () => {},

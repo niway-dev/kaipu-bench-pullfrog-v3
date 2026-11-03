@@ -1,3 +1,4 @@
+import { NATIVE_CAPTURE_CHANNELS as nativeChannels } from "@shared/native-capture";
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import { IPC_CHANNELS } from "@shared/types";
@@ -88,6 +89,13 @@ async function scopedInvoke<T>(channel: string, ...args: unknown[]): Promise<T> 
 
 // Custom Kaipu bridge. Only methods with a live main-process handler are exposed.
 const kaipuApi: KaipuElectronAPI = {
+  nativeCapture: {
+    capability: () => ipcRenderer.invoke(nativeChannels.capability),
+    open: (request) => ipcRenderer.invoke(nativeChannels.open, request),
+    next: () => ipcRenderer.invoke(nativeChannels.next),
+    stop: () => ipcRenderer.invoke(nativeChannels.stop),
+    cancel: () => ipcRenderer.invoke(nativeChannels.cancel),
+  },
   platform: process.platform,
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.getAppVersion),
   notifyReady: () => ipcRenderer.send(IPC_CHANNELS.appReady),

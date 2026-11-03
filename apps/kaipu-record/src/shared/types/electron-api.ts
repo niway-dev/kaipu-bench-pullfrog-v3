@@ -1,3 +1,4 @@
+import type { NativeCaptureBridge } from "../native-capture";
 import type { WindowPresetName } from "../window-size";
 /**
  * Contract for the renderer-facing `window.electronAPI` bridge (implemented in
@@ -252,6 +253,8 @@ export interface WorkspacesBridge {
 }
 
 export interface KaipuElectronAPI {
+  /** Developer opt-in only; recordingReady remains false. */
+  nativeCapture: NativeCaptureBridge;
   /** Host OS (`process.platform`), exposed because the renderer must not read `process` itself. */
   readonly platform: string;
   /** The running app version (`app.getVersion()`), used by the version gate. */

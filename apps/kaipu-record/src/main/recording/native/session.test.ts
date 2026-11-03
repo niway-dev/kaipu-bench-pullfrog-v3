@@ -1,0 +1,83 @@
+import { afterEach, expect, it } from "vitest";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  spawnNativeVideo,
+  validateNativeHelper,
+  validateNativeRequest,
+  nativeHelperPath,
+} from "./session";
+const directories: string[] = [];
+afterEach(async () => {
+  await Promise.all(
+    directories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+  );
+});
+const request = { displayId: 3, width: 320, height: 180, frameRate: 30, videoBitrate: 1_000_000 };
+async function helper(body: string) {
+  const directory = await mkdtemp(join(tmpdir(), "kaipu-native-session-"));
+  directories.push(directory);
+  const path = join(directory, "helper");
+  await writeFile(path, `#!/usr/bin/env node\n${body}`, { mode: 0o700 });
+  return path;
+}
+it("cancels an in-flight blocked read and refuses concurrent pulls", async () => {
+  const path = await helper("process.stdin.resume(); setInterval(() => {}, 1000);");
+  const reader = spawnNativeVideo(path, request);
+  const pending = reader.next();
+  const rejected = expect(pending).rejects.toThrow();
+  await expect(reader.next()).rejects.toThrow("Concurrent");
+  await reader.cancel();
+  await rejected;
+  await reader.cancel();
+});
+it("rejects process failure and EOF without end rather than finalizing a partial take", async () => {
+  for (const body of [
+    'process.stderr.write("encoder failed");process.exit(2);',
+    "process.exit(0);",
+  ]) {
+    const reader = spawnNativeVideo(await helper(body), request);
+    await expect(reader.next()).rejects.toThrow();
+    await reader.cancel();
+  }
+});
+it("gates helper version and refuses invalid quality dimensions before spawning", async () => {
+  await expect(validateNativeHelper(await helper('console.log("old-helper/0")'))).rejects.toThrow(
+    "version",
+  );
+  expect(() => validateNativeRequest({ ...request, width: 321 })).toThrow();
+  expect(() => validateNativeRequest({ ...request, videoBitrate: Infinity })).toThrow();
+  expect(nativeHelperPath("/package/Contents/Resources")).toBe(
+    "/package/Contents/Resources/app.asar.unpacked/resources/native/kaipu-encoded-capture",
+  );
+});
+it("times out a helper that closes stdout after end but never exits", async () => {
+  const frame = (header: object, payload: number[] = []) => {
+    const json = Buffer.from(JSON.stringify(header));
+    const prefix = Buffer.alloc(8);
+    prefix.writeUInt32BE(json.length);
+    prefix.writeUInt32BE(payload.length, 4);
+    return Buffer.concat([prefix, json, Buffer.from(payload)]);
+  };
+  const bytes = Buffer.concat([
+    frame(
+      { kind: "config", version: 1, codec: "avc1.64001f", width: 320, height: 180, epochUs: 123 },
+      [1, 100, 0, 31, 255, 225, 0],
+    ),
+    frame({ kind: "packet", ptsUs: 0, durationUs: 500000, keyframe: true }, [1]),
+    frame({ kind: "end", endUs: 500000 }),
+  ]);
+  const path = await helper(
+    `process.stdout.end(Buffer.from("${bytes.toString("base64")}", "base64")); process.stdin.resume(); setInterval(() => {}, 1000);`,
+  );
+  const reader = spawnNativeVideo(path, request);
+  try {
+    await reader.next();
+    await reader.next();
+    await reader.next();
+    await expect(reader.next()).rejects.toThrow("stalled");
+  } finally {
+    await reader.cancel();
+  }
+}, 8000);
