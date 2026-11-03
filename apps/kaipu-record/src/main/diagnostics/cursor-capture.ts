@@ -82,7 +82,7 @@ export async function openCursorCaptureDiagnostic(): Promise<void> {
           platform: process.platform,
           architecture: process.arch,
           versions: process.versions,
-          screenPermissionBefore:
+          screenPermissionAfterEnumeration:
             process.platform === "darwin"
               ? systemPreferences.getMediaAccessStatus("screen")
               : "unknown",

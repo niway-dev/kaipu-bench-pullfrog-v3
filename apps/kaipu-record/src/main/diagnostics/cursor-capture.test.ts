@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Script } from "node:vm";
+import { readFileSync } from "node:fs";
 import { cursorCapturePage } from "./cursor-capture-page";
 
 const fake = vi.hoisted(() => ({
@@ -70,7 +71,12 @@ describe("cursor capture diagnostic isolation", () => {
 });
 
 describe("diagnostic capture lifecycle", () => {
-  async function run(mode: string, failRecorder = false, failAudio = false) {
+  async function run(
+    mode: string,
+    failRecorder = false,
+    failAudio = false,
+    audioRequested = false,
+  ) {
     const stop = vi.fn();
     const track = {
       kind: "video",
@@ -79,7 +85,10 @@ describe("diagnostic capture lifecycle", () => {
       getConstraints: () => ({}),
     };
     const stream = { getTracks: () => [track], getAudioTracks: () => [] };
-    const getDisplayMedia = vi.fn(async () => stream);
+    const getDisplayMedia = vi.fn(async () => {
+      if (failAudio && audioRequested) throw new Error("loopback denied");
+      return stream;
+    });
     const getUserMedia = vi.fn(async (constraints) => {
       if (failAudio && constraints.audio !== false) throw new Error("loopback denied");
       return stream;
@@ -87,6 +96,7 @@ describe("diagnostic capture lifecycle", () => {
     const elements: Record<string, any> = {
       "#source": { add: vi.fn(), value: "screen:1:0" },
       "#mode": { value: mode },
+      "#audio": { checked: audioRequested },
       "#start": {},
       "#video": { pause: vi.fn(), play: vi.fn(async () => {}), removeAttribute: vi.fn() },
       "#report": {},
@@ -140,7 +150,7 @@ describe("diagnostic capture lifecycle", () => {
   it("requests cursor never without treating reported settings as proof", async () => {
     const capture = await run("never");
     expect(capture.getDisplayMedia).toHaveBeenCalledWith({
-      audio: true,
+      audio: false,
       video: { cursor: "never", frameRate: 30 },
     });
     expect(capture.getUserMedia).not.toHaveBeenCalled();
@@ -150,8 +160,19 @@ describe("diagnostic capture lifecycle", () => {
     expect(capture.stop).toHaveBeenCalledOnce();
     expect(capture.elements["#downloads"].append).toHaveBeenCalledTimes(2);
   });
+  it("keeps an explicit audio experiment failure distinct from a cursor-only take", async () => {
+    const capture = await run("never", false, true, true);
+    expect(capture.result.audioRequested).toBe(true);
+    expect(capture.result.error.message).toBe("loopback denied");
+    expect(capture.getUserMedia).not.toHaveBeenCalled();
+    expect(capture.result.cursorFree).toBe("unverified");
+    const videoOnly = await run("never", false, true);
+    expect(videoOnly.result.audioRequested).toBe(false);
+    expect(videoOnly.result.error).toBeUndefined();
+    expect(videoOnly.result.bytes).toBeGreaterThan(0);
+  });
   it("records legacy audio failure and explicitly falls back to video-only", async () => {
-    const capture = await run("legacy", false, true);
+    const capture = await run("legacy", false, true, true);
     expect(capture.getUserMedia).toHaveBeenCalledTimes(2);
     expect(capture.getUserMedia.mock.calls[1][0].audio).toBe(false);
     expect(capture.result.legacyAudioFailure.message).toBe("loopback denied");
@@ -175,5 +196,20 @@ describe("diagnostic capture lifecycle", () => {
     expect(capture.result.error.message).toBe("encoder unavailable");
     expect(capture.stop).toHaveBeenCalledOnce();
     expect(capture.elements["#start"].disabled).toBe(false);
+  });
+});
+
+// Startup must leave normal protocol/deep-link/second-instance handlers outside this mode.
+describe("diagnostic startup isolation", () => {
+  it("gates the normal instance handlers before the early diagnostic startup", () => {
+    const startup = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
+    expect(startup).toContain("} else if (!cursorDiagnosticRun) {");
+    const handlers = startup.slice(
+      startup.indexOf("} else if (!cursorDiagnosticRun) {"),
+      startup.indexOf("// Must run before `app.whenReady`"),
+    );
+    expect(handlers).toContain('app.on("second-instance"');
+    expect(handlers).toContain('app.on("open-url"');
+    expect(handlers).toContain("app.setAsDefaultProtocolClient");
   });
 });

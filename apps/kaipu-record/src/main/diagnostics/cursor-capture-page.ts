@@ -12,12 +12,14 @@ export function cursorCapturePage(
 <p>Experimental measurement only. Move the pointer across text and buttons while playing system audio. Each take lasts 8 seconds. Inspect the saved video for cursor pixels and audible audio; track settings do not prove either.</p>
 <label>Source <select id="source"></select></label>
 <label>Path <select id="mode"><option value="legacy">Current legacy baseline</option><option value="always">getDisplayMedia: cursor always</option><option value="never">getDisplayMedia: cursor never</option></select></label>
+<label><input id="audio" type="checkbox"> Request system audio (separate audio experiment)</label>
 <button id="start">Record 8 seconds</button><p id="downloads"></p>
 <video id="video" controls muted></video><pre id="report"></pre>
 <script>
 const metadata = ${json(metadata)};
 const sources = ${json(sources)};
 const source = document.querySelector('#source'), mode = document.querySelector('#mode');
+const audio = document.querySelector('#audio');
 const start = document.querySelector('#start'), video = document.querySelector('#video');
 const report = document.querySelector('#report'), downloads = document.querySelector('#downloads');
 for (const item of sources) source.add(new Option(item.name, item.id));
@@ -31,10 +33,11 @@ function link(blob, name) {
 }
 if (sources.length === 0) link(new Blob([report.textContent], { type: 'application/json' }), 'cursor-source-enumeration.json');
 start.onclick = async () => {
-  start.disabled = true; source.disabled = true; mode.disabled = true;
+  start.disabled = true; source.disabled = true; mode.disabled = true; audio.disabled = true;
   video.pause(); video.srcObject = null; video.removeAttribute('src');
   urls.splice(0).forEach(url => URL.revokeObjectURL(url)); downloads.replaceChildren();
-  const result = { ...metadata, startedAt: new Date().toISOString(), path: mode.value, sourceId: source.value,
+  const result = { ...metadata, startedAt: new Date().toISOString(), path: mode.value, sourceId: source.value, audioRequested: audio.checked,
+    captureProfile: '30fps probe; resolution and bitrate not matched to production',
     cursorPixels: 'not inspected', audibleSystemAudio: 'not inspected', cursorFree: 'unverified' };
   let stream, timer;
   const started = performance.now();
@@ -43,17 +46,17 @@ start.onclick = async () => {
     if (mode.value === 'legacy') {
       const videoConstraints = { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: source.value, maxFrameRate: 30 } };
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { mandatory: { chromeMediaSource: 'desktop' } }, video: videoConstraints });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: audio.checked ? { mandatory: { chromeMediaSource: 'desktop' } } : false, video: videoConstraints });
       } catch (error) {
         result.legacyAudioFailure = { name: error.name, message: error.message };
         stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints });
       }
     } else {
       result.supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
-      stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: { cursor: mode.value, frameRate: 30 } });
+      stream = await navigator.mediaDevices.getDisplayMedia({ audio: audio.checked, video: { cursor: mode.value, frameRate: 30 } });
     }
     result.acquisitionMs = performance.now() - started;
-    result.tracks = stream.getTracks().map(t => ({ kind: t.kind, settings: t.getSettings(), constraints: t.getConstraints() }));
+    result.tracks = stream.getTracks().map(t => ({ kind: t.kind, label: t.label, settings: t.getSettings(), constraints: t.getConstraints() }));
     result.audioTrackCount = stream.getAudioTracks().length;
     video.srcObject = stream; await video.play();
     const recorder = new MediaRecorder(stream);
@@ -74,7 +77,7 @@ start.onclick = async () => {
     clearTimeout(timer); stream?.getTracks().forEach(t => t.stop()); video.srcObject = null;
     report.textContent = JSON.stringify(result, null, 2);
     link(new Blob([report.textContent], { type: 'application/json' }), 'cursor-' + mode.value + '.json');
-    start.disabled = false; source.disabled = false; mode.disabled = false;
+    start.disabled = false; source.disabled = false; mode.disabled = false; audio.disabled = false;
   }
 };
 </script>`;

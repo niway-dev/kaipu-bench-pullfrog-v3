@@ -208,6 +208,7 @@ if (devIdentity) {
 // settings file. The second copy quits before creating any window; the first one is
 // told through `second-instance` and brings its window back. The lock is keyed on the
 // userData directory, so E2E launches with their own `--user-data-dir` do not collide.
+const cursorDiagnosticRun = process.argv.includes(CURSOR_CAPTURE_DIAGNOSTIC_FLAG);
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 // `kaipu://` links (browser sign-in hand-back, later billing) reach the app three ways, and all
@@ -227,7 +228,7 @@ const deepLinks = createDeepLinkRouter({
 
 if (!hasSingleInstanceLock) {
   app.quit();
-} else {
+} else if (!cursorDiagnosticRun) {
   // Only a packaged build owns the scheme. A dev run is Electron's own bundle: registering it
   // would, on Windows, replace the installed app as the handler of every kaipu:// link, and
   // macOS does not route custom schemes to unpackaged apps anyway. Dev uses the paste-code
@@ -802,7 +803,7 @@ app.whenReady().then(async () => {
   // A second copy is already quitting (see the single-instance lock above).
   if (!hasSingleInstanceLock) return;
 
-  if (process.argv.includes(CURSOR_CAPTURE_DIAGNOSTIC_FLAG)) {
+  if (cursorDiagnosticRun) {
     await openCursorCaptureDiagnostic();
     return;
   }

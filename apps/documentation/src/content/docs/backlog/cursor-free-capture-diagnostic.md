@@ -28,18 +28,18 @@ recording-library write or cursor overlay. Closing the window exits the diagnost
    "/path/to/Kaipu Record.app/Contents/MacOS/Kaipu Record" --cursor-capture-diagnostic
    ```
 
-4. Select a display. Play recognizable system audio. Choose **Current legacy baseline**,
+4. Select a display. Leave **Request system audio** unchecked for cursor comparisons. Choose **Current legacy baseline**,
    then **Record 8 seconds**. Move the pointer over text and buttons on the selected source.
    The baseline requests loopback alongside video and, like the current recorder, falls back
    to video-only on rejection; the report retains the audio failure.
 5. Save both WebM and JSON using the links. Repeat with **cursor always** and **cursor never**
-   on the same source and audio workload. Repeat for window capture.
+   on the same source, with audio unchecked. Inspect the video to confirm the intended source; the JSON includes the actual video track label/settings. Run separate audio experiments with the checkbox enabled and recognizable audio playing. Repeat for window capture.
 6. Play each saved file with sound enabled. The diagnostic's live monitor is muted to avoid
    feedback. Inspect cursor pixels while moving and stationary, including arrow, I-beam and
    hand transitions. Note audible system audio separately from audio-track presence.
 7. Repeat after denying screen permission, then after granting it and restarting. Record
    which prompt appeared, its wording and whether restart was necessary. The JSON records
-   permission status **before acquisition**, not the final permission state.
+   permission status before and after source enumeration, not the final permission state.
 
 Each JSON includes app/package/runtime versions, architecture, selected source ID,
 requested path, supported constraints (display-media paths), track settings and constraints,
@@ -75,3 +75,5 @@ and frame timestamps feeding mediabunny. Measure CPU, loopback, permission and s
 behavior against the baseline before enabling it. Store capture provenance before exposing
 styling controls; baked-cursor recordings must retain today's behavior. Shape IDs and the
 image/hotspot table follow the cursor-free frame path, then the shared preview/export layer.
+
+Audio experiments may fail independently of cursor support. In particular, macOS loopback permissions and the packaged Info.plist audio usage description need separate validation; an audio-enabled failure is not evidence that cursor exclusion failed. The diagnostic does not register the kaipu protocol or handle second-instance deep links.
