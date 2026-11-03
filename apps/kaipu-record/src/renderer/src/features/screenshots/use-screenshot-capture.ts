@@ -48,9 +48,8 @@ export function useScreenshotCapture(): {
         window.electronAPI.revealAfterCapture();
         return;
       }
-      // Copy: main already saved and copied it and put the main window back where it was
-      // (hidden stays hidden, the page stays the page). No editor, and no reveal: that
-      // would force the window on screen.
+      // Quiet Capture and Copy stay in main's preview/confirmation. Keep the main window
+      // hidden: revealing here would cover the application where the user wants to paste.
       if (shot.after === "quiet") return;
       // Navigate first (synchronous in the router), THEN ask main to bring the app
       // back — so it reappears already on the editor, not the previous page.

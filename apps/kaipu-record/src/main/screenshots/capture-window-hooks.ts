@@ -32,8 +32,8 @@ export interface CaptureWindowHooksDeps {
  *
  * - `editor`: the renderer reveals the window itself once the editor shows.
  * - `cancelled`: a window that was up comes back, focused, as before the capture.
- * - `quiet` (failure 7): a window that was up comes back WITHOUT focus (`showInactive`),
- *   so the app the user was in keeps the foreground and ⌘V pastes there.
+ * - `quiet`: the main window stays hidden. `showInactive` would raise it in the window
+ *   stack even without focus, covering the app where the user wants to paste.
  * - `recording`: the overlay started a take; the window stays hidden (the countdown is drawn
  *   on the chosen region) and comes back when the take stops, like any recording.
  *
@@ -62,7 +62,6 @@ export function createCaptureWindowHooks(deps: CaptureWindowHooksDeps): CaptureW
     },
     afterCapture: (ending: CaptureEnding) => {
       if (wasVisible && ending === "cancelled") deps.showMainWindow();
-      if (wasVisible && ending === "quiet") liveWindow()?.showInactive();
       deps.restoreCameraBubble();
     },
     reveal: () => deps.bringAppToFront(),

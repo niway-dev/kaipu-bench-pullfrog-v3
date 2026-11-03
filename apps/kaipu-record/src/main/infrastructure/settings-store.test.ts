@@ -179,6 +179,20 @@ describe("updateAppSettings (main-side writers)", () => {
     await rm(mockState.userDataDir, { recursive: true, force: true });
   });
 
+  it("persists the Capture destination through settings IPC and reload", async () => {
+    const store = await loadStore();
+    store.registerSettings();
+    expect(store.getAppSettings().screenshotAfterCapture).toBe("preview");
+    expect(updateSettings({ screenshotAfterCapture: "editor" }).screenshotAfterCapture).toBe(
+      "editor",
+    );
+    const disk = JSON.parse(await readFile(join(mockState.userDataDir, "settings.json"), "utf8"));
+    expect(disk.screenshotAfterCapture).toBe("editor");
+    const restarted = await loadStore();
+    restarted.registerSettings();
+    expect(restarted.getAppSettings().screenshotAfterCapture).toBe("editor");
+  });
+
   it("persists the current screenshot mode, notifies listeners, and survives a reload", async () => {
     const store = await loadStore();
     store.registerSettings();

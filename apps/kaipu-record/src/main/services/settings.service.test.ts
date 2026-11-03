@@ -94,6 +94,7 @@ describe("mergeSettings", () => {
       recordingCountdownSeconds: 5,
       showBrandBadge: true,
       screenshotCopy: "manual",
+      screenshotAfterCapture: "preview",
       shortcuts,
       deviceId: "stored-id",
       uploadMode: "manual",
@@ -518,5 +519,17 @@ describe("mergeSettings — audio", () => {
       duckSystemAudioWhileTalking: false,
     });
     expect(mergeSettings({ audio: 3 } as never).audio.micLevel).toBe(100);
+  });
+});
+
+describe("screenshotAfterCapture", () => {
+  it("defaults old or invalid settings to preview and preserves an editor choice", () => {
+    expect(mergeSettings(null).screenshotAfterCapture).toBe("preview");
+    expect(mergeSettings({ screenshotAfterCapture: "editor" }).screenshotAfterCapture).toBe(
+      "editor",
+    );
+    expect(
+      mergeSettings({ screenshotAfterCapture: "unknown" as never }).screenshotAfterCapture,
+    ).toBe("preview");
   });
 });

@@ -134,6 +134,8 @@ export function mergeSettings(
     screenshotCopy: isValidScreenshotCopyMode(safe.screenshotCopy)
       ? safe.screenshotCopy
       : DEFAULT_SETTINGS.screenshotCopy,
+    screenshotAfterCapture:
+      safe.screenshotAfterCapture === "editor" ? "editor" : DEFAULT_SETTINGS.screenshotAfterCapture,
     shortcuts: mergeShortcuts(safe.shortcuts, platform),
     deviceId: typeof safe.deviceId === "string" ? safe.deviceId : "",
     uploadMode: isValidUploadMode(safe.uploadMode) ? safe.uploadMode : DEFAULT_SETTINGS.uploadMode,

@@ -11,7 +11,7 @@ import {
   type RecordingRatio,
   type SavedScreenshotRef,
 } from "@shared/types/screenshot-capture";
-import type { ScreenshotCopyMode } from "@shared/types";
+import type { ScreenshotAfterCapture, ScreenshotCopyMode } from "@shared/types";
 import type { ScreenshotCapturedProperties } from "@shared/analytics";
 import { screenshotTitle } from "@shared/screenshot-title";
 import { decideAfterCapture } from "./after-capture-policy";
@@ -21,8 +21,8 @@ import type { ProviderResult, ScreenshotCaptureProvider } from "./screenshot-cap
 
 /**
  * How a capture ended, for `afterCapture`: `editor` (the renderer is about to show the
- * editor and reveals the window itself), `quiet` (main saved and copied; the window
- * comes back where it was, without taking focus), `cancelled` (nothing was captured: Esc,
+ * editor and reveals the window itself), `quiet` (main saved and optionally copied; the main
+ * window stays hidden), `cancelled` (nothing was captured: Esc,
  * an unsupported answer or a throw; the window comes back where it was), `recording` (the
  * overlay started a recording: the countdown runs on the chosen region and the window stays
  * out of sight, as it does for the whole take).
@@ -65,7 +65,7 @@ interface CaptureHandlerDeps {
    * starts, and bound to it as its policy (ADR 0034, decision 4): a switch or a Settings
    * edit while the overlay is open changes nothing about this capture.
    */
-  settings(): { copy: ScreenshotCopyMode };
+  settings(): { copy: ScreenshotCopyMode; afterCapture?: ScreenshotAfterCapture };
   /**
    * The vault write the `screenshot:save` handler uses (`manual: false`); resolves the new
    * item. `workspaceId` is the workspace the capture started in: the write is refused if
@@ -195,7 +195,7 @@ export function createCaptureHandler(
       answer = { kind: "cancelled" };
     } finally {
       capturing = false;
-      // Only the editor path reveals the window itself; cancel and quiet restore it here.
+      // Only the editor path reveals the window itself; cancel restores it here; quiet keeps it hidden.
       deps.windows.afterCapture(
         answer.kind === "captured" ? answer.after : recordStarted ? "recording" : "cancelled",
       );
@@ -230,7 +230,12 @@ function readPolicy(
   workspace: CaptureWorkspace | null,
 ): CapturePolicy | null {
   try {
-    return { workspaceId: workspace?.id ?? null, screenshotCopy: deps.settings().copy };
+    const settings = deps.settings();
+    return {
+      workspaceId: workspace?.id ?? null,
+      screenshotCopy: settings.copy,
+      ...(settings.afterCapture ? { screenshotAfterCapture: settings.afterCapture } : {}),
+    };
   } catch (error) {
     console.error("screenshot capture: settings unknown", error);
     return null;
@@ -286,7 +291,11 @@ async function finish(
   // No policy (the settings could not be read when the capture started): the editor opens, and
   // copies nothing on its own.
   if (!policy) return toEditor();
-  const decision = decideAfterCapture(shot.action, policy.screenshotCopy);
+  const decision = decideAfterCapture(
+    shot.action,
+    policy.screenshotCopy,
+    policy.screenshotAfterCapture,
+  );
 
   let saved: SavedScreenshotRef | null = null;
   try {
@@ -323,8 +332,10 @@ async function finish(
     });
   }
   try {
+    const confirmation = shot.action === "copy" && copied && saved !== null;
     deps.onQuietCapture?.({
-      thumbnail: deps.thumbnail(png),
+      ...(confirmation ? { presentation: "copied" as const } : {}),
+      thumbnail: confirmation ? "" : deps.thumbnail(png),
       width,
       height,
       mode: shot.mode,

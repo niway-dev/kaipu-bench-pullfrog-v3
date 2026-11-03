@@ -69,6 +69,17 @@ export function CaptureToast({
 
   if (!payload) return null;
 
+  if (payload.presentation === "copied") {
+    return (
+      <div className={styles.frame}>
+        <div role="status" className={`${styles.card} ${styles.confirmation}`}>
+          <Check size={16} aria-hidden />
+          <span>{t("toast.copied")}</span>
+        </div>
+      </div>
+    );
+  }
+
   const { imageHeight } = previewCardSize(payload.width, payload.height);
   const workspace = payload.workspace?.name ?? null;
   const pasteKey = platform === "mac" ? "⌘V" : "Ctrl+V";

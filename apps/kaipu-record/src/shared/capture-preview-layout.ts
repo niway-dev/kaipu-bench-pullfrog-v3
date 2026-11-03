@@ -23,6 +23,14 @@ export const PREVIEW_FOOTER_HEIGHT = 30;
 /** The thumbnail's longest side, in px: twice the largest image area, for HiDPI displays. */
 export const PREVIEW_THUMBNAIL_MAX_SIDE = 2 * PREVIEW_IMAGE_WIDTH;
 
+/** Compact Copy confirmation: no image, metadata, buttons or progress bar. */
+export const COPY_CONFIRMATION_SIZE = {
+  imageHeight: 0,
+  cardHeight: 48,
+  windowWidth: PREVIEW_CARD_WIDTH + 2 * PREVIEW_WINDOW_PADDING,
+  windowHeight: 48 + 2 * PREVIEW_WINDOW_PADDING,
+};
+
 export interface PreviewCardSize {
   imageHeight: number;
   cardHeight: number;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ScreenshotCopyMode } from "@shared/types";
+import type { ScreenshotAfterCapture, ScreenshotCopyMode } from "@shared/types";
 import type { CaptureAction } from "@shared/types/screenshot-capture";
 import { createCaptureHandler } from "./capture-handler";
 import { clearLastQuietCapture, takeLastQuietCapture } from "./last-quiet-capture";
@@ -17,7 +17,7 @@ const overlay: OverlayPort = {
 };
 
 // Copying manual by default, so a Capture touches the clipboard only when a test asks.
-let prefs: { copy: ScreenshotCopyMode } = { copy: "manual" };
+let prefs: { copy: ScreenshotCopyMode; afterCapture?: ScreenshotAfterCapture } = { copy: "manual" };
 beforeEach(() => {
   prefs = { copy: "manual" };
   clearLastQuietCapture();
@@ -396,6 +396,44 @@ describe("createCaptureHandler", () => {
       expect(takeLastQuietCapture()).toBeNull();
     });
 
+    it("configured Capture opens only the saved editor, without a card", async () => {
+      prefs = { copy: "auto", afterCapture: "editor" };
+      const { handler, onQuietCapture, windows, copyToClipboard } = setup(shot("capture"));
+      expect(await handler({ mode: "frame" })).toMatchObject({ after: "editor", copied: true });
+      expect(onQuietCapture).not.toHaveBeenCalled();
+      expect(copyToClipboard).toHaveBeenCalledOnce();
+      expect(windows.afterCapture).toHaveBeenCalledWith("editor");
+    });
+
+    it("Copy ignores the editor preference and only confirms a successful copy", async () => {
+      prefs = { copy: "manual", afterCapture: "editor" };
+      const { handler, onQuietCapture } = setup(shot("copy"));
+      expect(await handler({ mode: "frame" })).toMatchObject({ after: "quiet", copied: true });
+      expect(onQuietCapture).toHaveBeenCalledWith(
+        expect.objectContaining({ presentation: "copied" }),
+      );
+    });
+
+    it("uses the Capture destination from the start, even if preferences change in the overlay", async () => {
+      prefs = { copy: "manual", afterCapture: "editor" };
+      const capture = shot("capture");
+      const { handler } = setup(async (request) => {
+        prefs = { copy: "manual", afterCapture: "preview" };
+        return capture(request);
+      });
+      expect(await handler({ mode: "frame" })).toMatchObject({ after: "editor" });
+    });
+
+    it("a failed explicit Copy shows recovery actions instead of claiming success", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { handler, copyToClipboard, onQuietCapture } = setup(shot("copy"));
+      copyToClipboard.mockImplementationOnce(() => {
+        throw new Error("clipboard unavailable");
+      });
+      expect(await handler({ mode: "frame" })).toMatchObject({ after: "quiet", copied: false });
+      expect(onQuietCapture.mock.calls[0]?.[0]).not.toHaveProperty("presentation");
+    });
+
     it("Capture also copies when copying is automatic", async () => {
       prefs = { copy: "auto" };
       const { handler, copyToClipboard } = setup(shot("capture"));
@@ -457,11 +495,12 @@ describe("createCaptureHandler", () => {
       expect(takeLastQuietCapture()).toBeNull();
     });
 
-    it("hands the toast hook one payload per Copy", async () => {
+    it("hands the toast hook a compact confirmation per successful Copy", async () => {
       const { handler, onQuietCapture } = setup(shot("copy"));
       await handler({ mode: "frame" });
       expect(onQuietCapture).toHaveBeenCalledExactlyOnceWith({
-        thumbnail: "data:image/png;base64,thumb",
+        presentation: "copied",
+        thumbnail: "",
         width: 3,
         height: 2,
         mode: "frame",

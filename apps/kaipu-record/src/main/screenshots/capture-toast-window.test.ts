@@ -831,3 +831,27 @@ describe("CaptureToastWindow on quit", () => {
     expect(deps.createWindow).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("compact Copy confirmation", () => {
+  it("uses a small window and expires after 1.8 s even when hovered", () => {
+    const { toast, ready, windows, timers, hover } = setup();
+    toast.show({ ...SAVED, copied: true, presentation: "copied", displayId: 1 });
+    ready();
+    expect(windows[0]!.setBounds).toHaveBeenLastCalledWith(expect.objectContaining({ height: 80 }));
+    hover(true);
+    timers.tick(1799);
+    expect(windows[0]!.visible).toBe(true);
+    timers.tick(1);
+    expect(windows[0]!.visible).toBe(false);
+  });
+
+  it("replaces a preview and its long timer without opening the editor", () => {
+    const { toast, ready, timers, windows, deps } = setup();
+    toast.show({ ...SAVED, displayId: 1 });
+    ready();
+    toast.show({ ...SAVED, copied: true, presentation: "copied", displayId: 1 });
+    timers.tick(1800);
+    expect(windows[0]!.visible).toBe(false);
+    expect(deps.openSaved).not.toHaveBeenCalled();
+  });
+});

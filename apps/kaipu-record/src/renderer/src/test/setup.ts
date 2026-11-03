@@ -66,6 +66,7 @@ const STUB_SETTINGS = {
   recordingCountdownSeconds: 3,
   showBrandBadge: false,
   screenshotCopy: "auto",
+  screenshotAfterCapture: "preview",
   shortcuts: defaultShortcutsFor("darwin"),
   deviceId: "",
   uploadMode: "local-only",

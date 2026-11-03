@@ -61,6 +61,14 @@ describe("CaptureToast (the capture preview card)", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("explicit Copy is a confirmation without an image, edit actions or metadata", () => {
+    const { container } = renderCard({ ...SAVED, presentation: "copied" });
+    expect(screen.getByRole("status")).toHaveTextContent("Copied");
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText("Personal")).not.toBeInTheDocument();
+  });
+
   it("is the screenshot: the image fills an area sized from the shot's aspect ratio", () => {
     const { container } = renderCard(SAVED);
     const img = container.querySelector("img");
