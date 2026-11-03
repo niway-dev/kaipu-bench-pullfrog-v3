@@ -198,7 +198,7 @@
     "screenshotAfterCaptureEditor": "Open editor",
     "screenshotCopy": "Copy screenshots to the clipboard automatically",
     "screenshotCopyDescription": "Every capture is ready to paste the moment you take it.",
-    "screenshotQuietNote": "Copy only shows a brief confirmation. It never opens the preview or editor. Every screenshot is saved to your library.",
+    "screenshotQuietNote": "When a Copy succeeds, Kaipu only shows a brief confirmation and never opens the preview or editor.",
     "developer": "Developer",
     "accountMoved": "Your account moved to Cloud",
     "accountMovedDetail": "Session, capacity and uploads live in the Cloud section of the sidebar.",
