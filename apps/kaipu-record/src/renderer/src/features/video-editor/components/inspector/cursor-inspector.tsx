@@ -1,6 +1,11 @@
 import { useTranslations } from "@kaipu/i18n";
 import type { VideoSceneController } from "../../use-video-scene";
-import { DEFAULT_CURSOR, type CursorSettings } from "../../cursor/cursor-model";
+import {
+  DEFAULT_CURSOR,
+  cursorSizeToSlider,
+  cursorSliderToSize,
+  type CursorSettings,
+} from "../../cursor/cursor-model";
 import { HistorySlider } from "../history-slider";
 import styles from "./inspector.module.css";
 
@@ -32,7 +37,6 @@ export function CursorInspector({
   );
   return (
     <section className={styles.panel} aria-label={t("cursorTitle")}>
-      <h2 className={styles.title}>{t("cursorTitle")}</h2>
       {toggle("visible", t("cursorVisible"))}
       <label className={styles.field}>
         {t("cursorStyle")}
@@ -47,20 +51,29 @@ export function CursorInspector({
           <option value="spotlight">{t("cursorSpotlight")}</option>
         </select>
       </label>
-      {(["size", "smoothing"] as const).map((key) => (
-        <HistorySlider
-          key={key}
-          label={t(key === "size" ? "cursorSize" : "cursorSmoothing")}
-          value={settings[key]}
-          min={key === "size" ? 16 : 0}
-          max={key === "size" ? 96 : 100}
-          step={1}
-          onBegin={controller.beginInteract}
-          onLive={(v) => change({ [key]: v }, true)}
-          onEnd={controller.endInteract}
-          onCommit={(v) => change({ [key]: v })}
-        />
-      ))}
+      <HistorySlider
+        label={t("cursorSize")}
+        value={Math.round(cursorSizeToSlider(settings.size))}
+        min={0}
+        max={100}
+        step={1}
+        format={() => `${(settings.size / DEFAULT_CURSOR.size).toFixed(1)}×`}
+        onBegin={controller.beginInteract}
+        onLive={(v) => change({ size: cursorSliderToSize(v) }, true)}
+        onEnd={controller.endInteract}
+        onCommit={(v) => change({ size: cursorSliderToSize(v) })}
+      />
+      <HistorySlider
+        label={t("cursorSmoothing")}
+        value={settings.smoothing}
+        min={0}
+        max={100}
+        step={1}
+        onBegin={controller.beginInteract}
+        onLive={(v) => change({ smoothing: v }, true)}
+        onEnd={controller.endInteract}
+        onCommit={(v) => change({ smoothing: v })}
+      />
       <label className={styles.field}>
         {t("cursorClickEffect")}
         <select

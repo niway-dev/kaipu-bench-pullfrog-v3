@@ -288,7 +288,9 @@ describe("cursor preview/export parity", () => {
     });
     compose.clip(FRAME, 0, 1 / 30, 0);
     const scale = log.find((x) => x.canvas === "output" && x.call === "scale")!.args;
-    expect(scale[0]).toBeCloseTo((32 * ((1080 * SOURCE.height) / SOURCE.width)) / 1080);
+    expect(scale[0]).toBeCloseTo(
+      (DEFAULT_CURSOR.size * ((1080 * SOURCE.height) / SOURCE.width)) / 1080,
+    );
   });
   it("has no cursor on slides, suppresses private held frames, and skips missing data", () => {
     const { compose } = composer({
@@ -306,7 +308,7 @@ describe("cursor preview/export parity", () => {
   });
   it("places the pointer after fixed-canvas Fill and keeps its output size independent of framing", () => {
     const { compose } = composer({
-      cursor: { track, settings: DEFAULT_CURSOR },
+      cursor: { track, settings: { ...DEFAULT_CURSOR, smoothing: 0 } },
       framed: { width: 1080, height: 1920, mode: "fill" },
     });
     compose.clip(FRAME, 0, 1 / 30, 0);
@@ -314,6 +316,6 @@ describe("cursor preview/export parity", () => {
       540, 960,
     ]);
     const scale = log.find((x) => x.canvas === "output" && x.call === "scale")!.args;
-    expect(scale[0]).toBeCloseTo((32 * 1920) / 1080);
+    expect(scale[0]).toBeCloseTo((DEFAULT_CURSOR.size * 1920) / 1080);
   });
 });

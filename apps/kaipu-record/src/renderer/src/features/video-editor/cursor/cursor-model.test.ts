@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  CURSOR_SIZE_MAX,
+  CURSOR_SIZE_MIN,
   DEFAULT_CURSOR,
   cursorLayerData,
+  cursorSizeToSlider,
+  cursorSliderToSize,
   parseCursorSettings,
   prepareCursor,
 } from "./cursor-model";
@@ -10,6 +14,7 @@ import { parseSession, serializeSession } from "../session";
 import { buildExportPlan, sliceExportPlan } from "../export/export-plan";
 import type { Redaction } from "../privacy/redaction";
 import { track } from "./cursor-test-fixtures";
+import type { CursorTrack } from "@shared/cursor-track";
 const identity = { cx: 0.5, cy: 0.5, scale: 1 };
 describe("editable cursor", () => {
   it("requires positive exclusion provenance and nonempty recorded positions", () => {
@@ -72,12 +77,10 @@ describe("editable cursor", () => {
     // Native hooks may start milliseconds after the first video packet. Clamp to the
     // first recorded position so opening the initial cursor-free frame has a pointer.
     expect(
-      prepareCursor({ ...track, t: track.t.map((t) => t + 53) }, DEFAULT_CURSOR)(
-        0,
-        identity,
-        1920,
-        1080,
-      ),
+      prepareCursor(
+        { ...track, t: track.t.map((t) => t + 53) },
+        { ...DEFAULT_CURSOR, smoothing: 0 },
+      )(0, identity, 1920, 1080),
     ).toMatchObject({ x: 960, y: 540 });
     expect(
       prepareCursor({ ...track, truncatedAtMs: 600 }, DEFAULT_CURSOR)(0.6, identity, 1920, 1080),
@@ -103,7 +106,9 @@ describe("editable cursor", () => {
     expect(migrated.items).toEqual(scene.items);
     expect(
       parseCursorSettings({ size: 1000, smoothing: -3, style: "hand", visible: false }),
-    ).toMatchObject({ size: 96, smoothing: 0, style: "arrow", visible: false });
+    ).toMatchObject({ size: CURSOR_SIZE_MAX, smoothing: 0, style: "arrow", visible: false });
+    // A field the saved settings lack takes today's default, not "off".
+    expect(parseCursorSettings({ size: 40 })).toEqual({ ...DEFAULT_CURSOR, size: 40 });
     migrated.cursor = {
       ...DEFAULT_CURSOR,
       style: "dot",
@@ -112,5 +117,39 @@ describe("editable cursor", () => {
       idleHide: true,
     };
     expect(parseSession(serializeSession(migrated))!.scene).toEqual(migrated);
+  });
+  it("smooths without lag: a click lands under the pointer, not behind it", () => {
+    // Pointer jumps from x=0.2 to x=0.8 at t=1000 ms and clicks there at t=1100 ms.
+    const t = Array.from({ length: 41 }, (_, i) => i * 50);
+    const step: CursorTrack = {
+      ...track,
+      t,
+      x: t.map((ms) => (ms < 1000 ? 0.2 : 0.8)),
+      y: t.map(() => 0.5),
+      clicks: [{ t: 1100, x: 0.8, y: 0.5, button: 0 }],
+    };
+    const smooth = prepareCursor(step, { ...DEFAULT_CURSOR, smoothing: 50 });
+    const atClick = smooth(1.1, identity, 1000, 1000)!;
+    const raw = prepareCursor(step, { ...DEFAULT_CURSOR, smoothing: 0 })(
+      1.1,
+      identity,
+      1000,
+      1000,
+    )!;
+    expect(raw.x).toBeCloseTo(800);
+    // A causal filter with tau = 100 ms would still be ~37% short (x ≈ 578) 100 ms later.
+    expect(atClick.x).toBeGreaterThan(700);
+    // And the motion is still smoothed: halfway through the jump the pointer is between.
+    const mid = smooth(1.0, identity, 1000, 1000)!.x;
+    expect(mid).toBeGreaterThan(300);
+    expect(mid).toBeLessThan(700);
+  });
+  it("maps the size slider on a ratio scale, so each step is a visible change", () => {
+    expect(cursorSliderToSize(0)).toBe(CURSOR_SIZE_MIN);
+    expect(cursorSliderToSize(100)).toBe(CURSOR_SIZE_MAX);
+    expect(cursorSliderToSize(cursorSizeToSlider(DEFAULT_CURSOR.size))).toBe(DEFAULT_CURSOR.size);
+    // Equal slider distances give equal size ratios.
+    const ratio = (a: number, b: number) => cursorSliderToSize(b) / cursorSliderToSize(a);
+    expect(ratio(25, 50)).toBeCloseTo(ratio(50, 75), 1);
   });
 });

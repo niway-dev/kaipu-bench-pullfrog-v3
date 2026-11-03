@@ -302,7 +302,7 @@ describe("ExportPage", () => {
     await waitFor(() => expect(exportController.start).toHaveBeenCalled());
     expect(startArgs()).toMatchObject({
       cursor: { track, settings: { visible: true, style: "arrow" } },
-      fingerprint: "whole:cursor2",
+      fingerprint: "whole:cursor3",
     });
   });
   it("refuses a cursor-free Prepare copy if positions cannot be loaded", async () => {

@@ -13,22 +13,35 @@ import type { Redaction } from "../privacy/redaction";
 export interface CursorSettings {
   visible: boolean;
   style: "arrow" | "dot" | "spotlight";
-  /** Size in pixels on a 1080-high output; independent of camera magnification. */
+  /** Size in pixels on a 1080-high output; independent of camera magnification.
+   * The inspector moves it on a logarithmic scale (`cursorSizeToSlider`). */
   size: number;
   smoothing: number;
   clickEffect: "none" | "circle" | "ripple";
   clickBounce: boolean;
   idleHide: boolean;
 }
+export const CURSOR_SIZE_MIN = 16;
+export const CURSOR_SIZE_MAX = 240;
 export const DEFAULT_CURSOR: Readonly<CursorSettings> = Object.freeze({
   visible: true,
   style: "arrow",
-  size: 32,
-  smoothing: 0,
-  clickEffect: "none",
-  clickBounce: false,
+  size: 56,
+  smoothing: 50,
+  clickEffect: "ripple",
+  clickBounce: true,
   idleHide: false,
 });
+/** Slider position 0–100 ↔ size. Each step grows the cursor by the same ratio, so the
+ * large end is noticeably larger instead of crawling a few pixels at a time. */
+export function cursorSizeToSlider(size: number): number {
+  const clamped = Math.max(CURSOR_SIZE_MIN, Math.min(CURSOR_SIZE_MAX, size));
+  return (100 * Math.log(clamped / CURSOR_SIZE_MIN)) / Math.log(CURSOR_SIZE_MAX / CURSOR_SIZE_MIN);
+}
+export function cursorSliderToSize(position: number): number {
+  const p = Math.max(0, Math.min(100, position)) / 100;
+  return Math.round(CURSOR_SIZE_MIN * (CURSOR_SIZE_MAX / CURSOR_SIZE_MIN) ** p);
+}
 export function parseCursorSettings(raw: unknown): CursorSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_CURSOR };
   const r = raw as Record<string, unknown>;
@@ -37,13 +50,16 @@ export function parseCursorSettings(raw: unknown): CursorSettings {
       ? Math.max(min, Math.min(max, r[key] as number))
       : fallback;
   return {
-    visible: typeof r.visible === "boolean" ? r.visible : true,
+    visible: typeof r.visible === "boolean" ? r.visible : DEFAULT_CURSOR.visible,
     style: r.style === "dot" || r.style === "spotlight" ? r.style : "arrow",
-    size: num("size", 16, 96, 32),
-    smoothing: num("smoothing", 0, 100, 0),
-    clickEffect: r.clickEffect === "circle" || r.clickEffect === "ripple" ? r.clickEffect : "none",
-    clickBounce: r.clickBounce === true,
-    idleHide: r.idleHide === true,
+    size: num("size", CURSOR_SIZE_MIN, CURSOR_SIZE_MAX, DEFAULT_CURSOR.size),
+    smoothing: num("smoothing", 0, 100, DEFAULT_CURSOR.smoothing),
+    clickEffect:
+      r.clickEffect === "none" || r.clickEffect === "circle" || r.clickEffect === "ripple"
+        ? r.clickEffect
+        : DEFAULT_CURSOR.clickEffect,
+    clickBounce: typeof r.clickBounce === "boolean" ? r.clickBounce : DEFAULT_CURSOR.clickBounce,
+    idleHide: typeof r.idleHide === "boolean" ? r.idleHide : DEFAULT_CURSOR.idleHide,
   };
 }
 export interface CursorLayerData {
@@ -65,21 +81,34 @@ export interface CursorFrame {
   bounce: number;
   click: null | { x: number; y: number; progress: number; effect: "circle" | "ripple" };
 }
-/** Precompute a causal exponential filter and last movement times ONCE per settings/track.
+/** Precompute a zero-lag smoothing filter and last movement times ONCE per settings/track.
  * Sampling never depends on playback history, seek direction, frame rate or cut order. */
 export function prepareCursor(track: CursorTrack, settings: CursorSettings) {
   const x = track.x.slice(),
     y = track.y.slice(),
     moved = track.t.slice();
   const tau = settings.smoothing * 2;
-  let movementAnchor = 0;
-  for (let i = 1; i < track.t.length; i++) {
-    const discontinuity =
-      !isOnDisplay({ x: track.x[i], y: track.y[i] }) ||
-      !isOnDisplay({ x: track.x[i - 1], y: track.y[i - 1] });
-    const k = tau > 0 && !discontinuity ? 1 - Math.exp(-(track.t[i] - track.t[i - 1]) / tau) : 1;
+  const n = track.t.length;
+  const discontinuity = (i: number, j: number): boolean =>
+    !isOnDisplay({ x: track.x[i], y: track.y[i] }) ||
+    !isOnDisplay({ x: track.x[j], y: track.y[j] });
+  const gain = (i: number, j: number): number =>
+    tau > 0 && !discontinuity(i, j) ? 1 - Math.exp(-Math.abs(track.t[i] - track.t[j]) / tau) : 1;
+  // A forward pass alone trails the real pointer by about tau, so a click ring would
+  // appear before the cursor reaches it. The whole track is known, so a backward pass
+  // cancels that lag (forward-backward filtering is zero-phase).
+  for (let i = 1; i < n; i++) {
+    const k = gain(i, i - 1);
     x[i] = x[i - 1] + (x[i] - x[i - 1]) * k;
     y[i] = y[i - 1] + (y[i] - y[i - 1]) * k;
+  }
+  for (let i = n - 2; i >= 0; i--) {
+    const k = gain(i, i + 1);
+    x[i] = x[i + 1] + (x[i] - x[i + 1]) * k;
+    y[i] = y[i + 1] + (y[i] - y[i + 1]) * k;
+  }
+  let movementAnchor = 0;
+  for (let i = 1; i < n; i++) {
     if (
       Math.hypot(track.x[i] - track.x[movementAnchor], track.y[i] - track.y[movementAnchor]) <
       0.0005
@@ -129,7 +158,7 @@ export function prepareCursor(track: CursorTrack, settings: CursorSettings) {
       ...at,
       size: (settings.size * height) / 1080,
       style: settings.style,
-      bounce: settings.clickBounce && age < 240 ? 1 - 0.22 * Math.sin((age / 240) * Math.PI) : 1,
+      bounce: settings.clickBounce && age < 240 ? 1 - 0.15 * Math.sin((age / 240) * Math.PI) : 1,
       click:
         click && age < 500 && effect !== "none" && isOnDisplay(click)
           ? { ...project(click), progress: age / 500, effect }
@@ -145,46 +174,62 @@ export function drawCursor(
   if (!frame) return;
   ctx.save();
   if (frame.click) {
+    // A dark band under a white one stays visible on light and dark screens alike.
     const c = frame.click;
+    const radius = frame.size * (c.effect === "ripple" ? 0.35 + 0.65 * c.progress : 0.6);
+    const fade = 1 - c.progress;
     ctx.beginPath();
-    ctx.arc(
-      c.x,
-      c.y,
-      frame.size * (c.effect === "ripple" ? 0.5 + c.progress : 0.8),
-      0,
-      Math.PI * 2,
-    );
-    ctx.globalAlpha = (1 - c.progress) * 0.65;
-    ctx.fillStyle = "#58a6ff";
-    ctx.strokeStyle = "#58a6ff";
-    ctx.lineWidth = Math.max(1, frame.size / 12);
-    if (c.effect === "circle") ctx.fill();
-    else ctx.stroke();
+    ctx.arc(c.x, c.y, radius, 0, Math.PI * 2);
+    if (c.effect === "circle") {
+      ctx.globalAlpha = fade * 0.35;
+      ctx.fillStyle = "#18181b";
+      ctx.fill();
+    }
+    ctx.globalAlpha = fade * 0.55;
+    ctx.strokeStyle = "#18181b";
+    ctx.lineWidth = Math.max(2, frame.size / 7);
+    ctx.stroke();
+    ctx.globalAlpha = fade * 0.95;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(1, frame.size / 16);
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  // Soft drop shadow in output pixels (shadow sizes ignore the transform below).
+  ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+  ctx.shadowBlur = Math.max(1, frame.size * 0.12);
+  ctx.shadowOffsetY = Math.max(1, frame.size * 0.04);
   ctx.translate(frame.x, frame.y);
   ctx.scale(frame.size * frame.bounce, frame.size * frame.bounce);
-  ctx.lineWidth = 0.055;
-  ctx.strokeStyle = "#18181b";
-  ctx.fillStyle = "#ffffff";
+  ctx.lineJoin = "round";
   ctx.beginPath();
+  if (frame.style === "spotlight") {
+    ctx.arc(0, 0, 1.25, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffdc58";
+    ctx.globalAlpha = 0.45;
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
   if (frame.style === "arrow") {
+    // The macOS arrow: black body, white rim. Hotspot at the tip (0, 0); 1 unit = height.
     ctx.moveTo(0, 0);
-    ctx.lineTo(0.06, 0.88);
-    ctx.lineTo(0.3, 0.66);
-    ctx.lineTo(0.49, 1);
-    ctx.lineTo(0.67, 0.9);
-    ctx.lineTo(0.48, 0.56);
-    ctx.lineTo(0.8, 0.5);
+    ctx.lineTo(0, 0.84);
+    ctx.lineTo(0.21, 0.64);
+    ctx.lineTo(0.36, 0.98);
+    ctx.lineTo(0.5, 0.92);
+    ctx.lineTo(0.36, 0.59);
+    ctx.lineTo(0.63, 0.59);
     ctx.closePath();
   } else {
-    ctx.arc(0, 0, frame.style === "spotlight" ? 1.25 : 0.22, 0, Math.PI * 2);
-    if (frame.style === "spotlight") {
-      ctx.fillStyle = "#ffdc58";
-      ctx.globalAlpha = 0.45;
-    }
+    ctx.arc(0, 0, 0.22, 0, Math.PI * 2);
   }
-  ctx.fill();
+  // The rim is a wide white stroke under the fill; only its outer half shows.
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 0.13;
   ctx.stroke();
+  ctx.shadowColor = "transparent";
+  ctx.fillStyle = "#000000";
+  ctx.fill();
   ctx.restore();
 }

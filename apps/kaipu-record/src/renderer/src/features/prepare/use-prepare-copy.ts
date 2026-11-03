@@ -50,7 +50,7 @@ export function prepareScene(video: PreparableVideo, probe: SourceProbe): VideoS
  */
 export function prepareFingerprint(scene: VideoScene, editableCursor = false): string {
   const whole = wholeFingerprint(scene.webcam);
-  return editableCursor ? `${whole}:cursor2` : whole;
+  return editableCursor ? `${whole}:cursor3` : whole;
 }
 
 export type ProbeState =

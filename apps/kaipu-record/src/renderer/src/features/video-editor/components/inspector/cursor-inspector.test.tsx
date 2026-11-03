@@ -4,6 +4,7 @@ import { useVideoScene } from "../../use-video-scene";
 import { initialScene } from "../../scene";
 import { parseSession, serializeSession } from "../../session";
 import { CursorInspector } from "./cursor-inspector";
+import { DEFAULT_CURSOR, cursorSliderToSize } from "../../cursor/cursor-model";
 function Harness({ clicks = true }: { clicks?: boolean }) {
   const controller = useVideoScene(initialScene(3));
   return (
@@ -26,11 +27,12 @@ it("inspector changes round-trip through persistence and undo/redo, including on
   fireEvent.change(slider, { target: { value: "64" } });
   fireEvent.pointerUp(slider);
   const saved = () => parseSession(screen.getByTestId("saved").textContent!)!.scene.cursor;
-  expect(saved()).toMatchObject({ style: "dot", size: 64 });
+  // The slider is a 0–100 position on a ratio scale, not pixels.
+  expect(saved()).toMatchObject({ style: "dot", size: cursorSliderToSize(64) });
   fireEvent.click(screen.getByText("undo"));
-  expect(saved()).toMatchObject({ style: "dot", size: 32 });
+  expect(saved()).toMatchObject({ style: "dot", size: DEFAULT_CURSOR.size });
   fireEvent.click(screen.getByText("redo"));
-  expect(saved()?.size).toBe(64);
+  expect(saved()?.size).toBe(cursorSliderToSize(64));
   fireEvent.click(screen.getByRole("checkbox", { name: "Show cursor" }));
   expect(saved()?.visible).toBe(false);
 });

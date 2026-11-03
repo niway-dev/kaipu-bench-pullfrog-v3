@@ -72,7 +72,7 @@ export function editFingerprint(scene: VideoScene, editableCursor = false): stri
   // so a pre-overlay export can never be reused as an export containing the pointer.
   const { cursor, ...rest } = saved;
   const normalized = stableStringify(cursor) === stableStringify(DEFAULT_CURSOR) ? rest : saved;
-  if (editableCursor) return `edit:cursor2:${hash53(stableStringify(normalized))}`;
+  if (editableCursor) return `edit:cursor3:${hash53(stableStringify(normalized))}`;
   const { webcam, ...withoutWebcam } = normalized;
   return webcam
     ? `edit:${WEBCAM_COMPOSE_REVISION}:${hash53(stableStringify(normalized))}`
