@@ -7,7 +7,7 @@ const fake = vi.hoisted(() => ({
   spawn: vi.fn(),
 }));
 vi.mock("electron", () => ({
-  app: { on: vi.fn() },
+  app: { on: vi.fn(), getAppPath: () => "/app" },
   ipcMain: { handle: (name: string, handler: any) => fake.handlers.set(name, handler) },
 }));
 vi.mock("./session", () => ({
@@ -35,7 +35,7 @@ describe("native IPC session ownership", () => {
     vi.spyOn(process, "platform", "get").mockReturnValue("darwin");
     vi.spyOn(process, "argv", "get").mockReturnValue([
       "electron",
-      "--experimental-native-encoded-transport",
+      "--experimental-native-recording",
     ]);
     contents = Object.assign(new EventEmitter(), {
       id: 1,

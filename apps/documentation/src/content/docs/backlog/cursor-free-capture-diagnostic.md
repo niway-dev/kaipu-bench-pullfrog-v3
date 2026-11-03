@@ -339,3 +339,88 @@ and user-visible editable capture remain unverified. Logs stay outside Git in
 `/tmp/kaipu-cursor-evidence/live-slice-*.log`. The new tests encode the project-specific
 lessons (explicit end, bounded pull, fail-closed provenance); no shared skill/hub edit
 was needed.
+
+## Recorder integration — 2026-11-03 (current)
+
+The earlier transport-only sections above describe the previous slice. The recorder now
+selects native screen packets in `prepareEngine` only with the explicit main-process
+`--experimental-native-recording` flag. Default behavior remains Chromium. Native readiness
+is experimental, `recordingReady` remains false, and no production/signing claim is made.
+
+The supported take is a macOS 14+ whole display, without area, watermark or webcam.
+Unsupported configurations and preparation failures report a pre-take Chromium fallback
+reason in a toast and console. There is no mid-take source switch. Webcam takes retain the
+existing separate output through Chromium: native exclusion currently removes the whole
+recording application, which would otherwise remove a fallback webcam bubble too.
+
+`open` resolves only after SCK has a screen image; it encodes no countdown frames. `begin`
+sends a stamped `go`. Node `hrtime` maps CMClock host microseconds to main `performance.now`,
+and the existing renderer/main clock handshake maps that to the cursor/media anchor. Bun's
+clock is not used for this bridge. Audio uses the same mediabunny synced-zero anchor.
+Pause/resume/stop receive the renderer clock edges used by the cursor tracker. Native pause
+time is removed, resume forces a keyframe at the active timeline boundary, and stop flushes
+to the requested edge. A bounded 200 ms / 16 packet / 16 MiB lookbehind allows commands to
+trim frames encoded during IPC transit. A command later than that bound fails the take.
+
+Only the screen source changes. The existing Output, StreamTarget, positional writer,
+audio mix and live controls, thumbnail and library finalize path remain in use. Chromium
+screen acquisition stays open for system audio and thumbnails; **screen acquisition is
+duplicated**, so this experiment is not a CPU reduction. Existing audio pause rounding
+(roughly a sample/frame per pause) remains; exact native/video/audio motion sync is unproven.
+`cursorPixels:"excluded"` comes from the validated native config assertion, is checked at
+both IPC boundaries, and reaches the saved capture metadata. No renderer constant grants
+editable-cursor eligibility. Config geometry, avcC parameter sets and packet NAL framing
+are validated. Missing or embedded cursor assertions fail closed.
+
+Builds compile a universal arm64/x86_64 macOS 14 helper into `resources/native`, copied by
+the existing `asarUnpack: resources/**` rule. Development discovers it at the app root or
+compiled main root; packaged discovery uses `app.asar.unpacked`. A helper v2 version check
+refuses stale binaries. Generated Mach-O files are ignored. No signing identity is present;
+packaging a helper is not evidence of its signing, notarization or stable TCC identity.
+
+Reproduce the isolated runtime proof from the app directory, after `bun run build` with
+valid build-time app URLs. The installed app is preserved; the script creates its own
+profile and vault and closes only its own process:
+
+```sh
+KAIPU_PROOF_ELECTRON=/absolute/path/to/Electron.app/Contents/MacOS/Electron \
+KAIPU_PROOF_DISPLAY=3 node scripts/native-recorder-proof.cjs
+```
+
+The proof clicks Screen → Record this display → Pause → Resume → Stop, checks that the
+library sidecar has excluded cursor pixels, and retains artifacts/profile/vault under
+`/tmp/kaipu-native-*`. It uses the actual engine, bridge, helper and writer, not a mocked
+recording path. The runtime build used local non-listening URL placeholders for auth and
+web endpoints; no signed-in/cloud behavior is claimed. The native CLI integration test
+separately allows an unmatched parent **only through a direct test argument**, never IPC,
+and verifies packet conservation, keyframes, pause removal and the requested stop duration
+within 3 microseconds before MP4 timebase quantization.
+
+Remaining gates: editor cursor rendering/style controls; controlled pointer shapes/motion
+and overlay exclusion pixel proof; audible mic/system mix and long-pause A/V sync;
+4K/60 load and delayed-command stress; packaged/signed helper execution and TCC identity.
+The isolated dev Electron run does not establish these. No OS permission resets are used.
+
+Observed validation for this integration (2026-11-03):
+
+- Targeted transport/engine/store/provenance suite: exit 0, 220 passed, one opt-in CLI test
+  skipped. Separate real native CLI: exit 0, 1 passed, including a prepared delay,
+  pause/resume, resume keyframe and requested end-edge assertion.
+- Isolated Electron 39.8.10: actual Screen → countdown → begin → pause → resume → stop →
+  save, exit 0. Library listing returned the new local item with excluded cursor metadata,
+  thumbnail and cursor sidecar. External 1920×1080 and built-in 1662×1080 output takes saved.
+  The built-in take decoded through FFmpeg with exit 0: H.264 4.327899 s, AAC starts
+  at 0.046396 s and ends at 4.398396 s. This exposes an approximately 70 ms audio tail;
+  it does not prove exact A/V sync or audible audio. No controlled pointer motion was run.
+- Type checks, Vite build, lint (16 existing warnings / zero errors), and electron-builder
+  directory packaging: exit 0. Packaged helper has matching SHA-256 to the built universal
+  helper and reports helper v2. Signing was skipped: zero valid identities.
+- Full suite: exit 1, 4,602 tests passed / one skipped; four library suites fail importing
+  the incomplete local Electron npm installation (`Electron failed to install correctly`).
+  Runtime proof used a separate cached Electron extraction, without repairing dependencies.
+
+Local transient artifacts and exact command logs are indexed in
+`/tmp/kaipu-native-recorder-proof/EVIDENCE.md`. These are observed execution results, not
+an independent review approval. No children, pushes or PRs were used for this slice.
+The project-specific lessons are enforced by handshake, timestamp, eligibility and wire
+validation tests; no shared skill or knowledge-hub change is needed.

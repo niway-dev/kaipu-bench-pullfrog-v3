@@ -16,17 +16,18 @@ it("awaits mediabunny backpressure before pulling another IPC frame; propagates 
     {
       header: {
         kind: "config",
+        cursorPixels: "excluded",
         version: 1,
         codec: "avc1.64001f",
         epochUs: 999,
         width: 640,
         height: 360,
       },
-      payload: new Uint8Array([1, 100, 0, 31, 255, 225, 0]),
+      payload: new Uint8Array([1, 100, 0, 31, 255, 225, 0, 1, 103, 1, 0, 1, 104]),
     },
     {
       header: { kind: "packet", ptsUs: 0, durationUs: 8000000, keyframe: true },
-      payload: new Uint8Array([1]),
+      payload: new Uint8Array([0, 0, 0, 1, 5]),
     },
   ];
   const reader: NativeCaptureReader = {

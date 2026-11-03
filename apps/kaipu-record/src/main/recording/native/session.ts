@@ -1,4 +1,6 @@
 import { spawn, execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { performance } from "node:perf_hooks";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { decodeNativeFrames } from "./framing";
@@ -6,7 +8,13 @@ import { NativeSequence } from "../../../shared/native-capture-sequence";
 import type { NativeCaptureReader } from "../../../shared/native-capture";
 
 import type { NativeVideoRequest } from "../../../shared/native-capture";
-export function nativeHelperPath(resourcesPath: string): string {
+export function nativeHelperPath(resourcesPath: string, appPath?: string): string {
+  if (appPath) {
+    for (const root of [appPath, join(appPath, "..", "..")]) {
+      const dev = join(root, "resources", "native", "kaipu-encoded-capture");
+      if (existsSync(dev)) return dev;
+    }
+  }
   return join(resourcesPath, "app.asar.unpacked", "resources", "native", "kaipu-encoded-capture");
 }
 export async function validateNativeHelper(path: string): Promise<void> {
@@ -14,7 +22,7 @@ export async function validateNativeHelper(path: string): Promise<void> {
     timeout: 2000,
     maxBuffer: 1024,
   });
-  if (stdout.trim() !== "kaipu-encoded-capture/1 video-only no-pause")
+  if (stdout.trim() !== "kaipu-encoded-capture/2 prepared pause-clock")
     throw new Error("Unsupported native helper version");
 }
 export function validateNativeRequest(request: NativeVideoRequest): void {
@@ -42,7 +50,11 @@ export function validateNativeRequest(request: NativeVideoRequest): void {
 }
 
 /** One awaited pull crosses IPC at a time; stdout's pipe is the bounded queue. */
-export function spawnNativeVideo(path: string, request: NativeVideoRequest): NativeCaptureReader {
+export function spawnNativeVideo(
+  path: string,
+  request: NativeVideoRequest,
+  testAllowUnmatchedParent = false,
+): NativeCaptureReader {
   validateNativeRequest(request);
   const child = spawn(
     path,
@@ -53,12 +65,25 @@ export function spawnNativeVideo(path: string, request: NativeVideoRequest): Nat
       request.height,
       request.frameRate,
       request.videoBitrate,
+      ...(testAllowUnmatchedParent ? ["--test-allow-unmatched-parent"] : []),
     ].map(String),
     { stdio: ["pipe", "pipe", "pipe"] },
   );
   child.stdin.on("error", () => {}); // Exit/next reports pipe failures with bounded stderr.
   const frames = decodeNativeFrames(child.stdout);
   const sequence = new NativeSequence();
+  // Node hrtime and CMClock host time share macOS monotonic uptime. Bun does not.
+  const hostOffsetUs = Number(process.hrtime.bigint() / 1000n) - performance.now() * 1000;
+  const hostAt = (ms: number) => {
+    if (!Number.isFinite(ms) || Math.abs(ms - performance.now()) > 10_000)
+      throw new Error("Invalid native command clock");
+    return Math.round(ms * 1000 + hostOffsetUs);
+  };
+  const command = async (name: string, ms: number) => {
+    if (cancelled || ended) throw new Error("Native capture closed");
+    child.stdin.write(`${name} ${hostAt(ms)}\n`);
+  };
+  let prepared = false;
   let busy = false,
     cancelled = false,
     stopped = false,
@@ -90,7 +115,19 @@ export function spawnNativeVideo(path: string, request: NativeVideoRequest): Nat
       clearTimeout(kill);
     }
   };
-  return {
+  const reader: NativeCaptureReader = {
+    async ready() {
+      if (prepared) return;
+      const frame = await reader.next();
+      if (frame?.header.kind !== "ready" || frame.header.version !== 1 || frame.payload.length) {
+        await cancel();
+        throw new Error("Native helper did not become ready");
+      }
+      prepared = true;
+    },
+    begin: (ms) => command("go", ms),
+    pause: (ms) => command("pause", ms),
+    resume: (ms) => command("resume", ms),
     async next() {
       if (busy) throw new Error("Concurrent native packet pull");
       if (cancelled) throw new Error("Native capture cancelled");
@@ -115,7 +152,11 @@ export function spawnNativeVideo(path: string, request: NativeVideoRequest): Nat
           ended = true;
           return null;
         }
-        sequence.accept(result.value);
+        if (result.value.header.kind === "ready") {
+          if (prepared) throw new Error("Duplicate native readiness");
+        } else sequence.accept(result.value);
+        if (result.value.header.kind === "config")
+          result.value.header.epochMainMs = (result.value.header.epochUs - hostOffsetUs) / 1000;
         return result.value;
       } catch (error) {
         await cancel();
@@ -125,11 +166,12 @@ export function spawnNativeVideo(path: string, request: NativeVideoRequest): Nat
         busy = false;
       }
     },
-    async stop() {
+    async stop(atMainMs = performance.now()) {
       if (cancelled || stopped || ended) return;
       stopped = true;
-      child.stdin.end("stop\n"); // Consumer must keep pulling through end and process exit.
+      child.stdin.end(`stop ${hostAt(atMainMs)}\n`); // Consumer must keep pulling through end and process exit.
     },
     cancel,
   };
+  return reader;
 }

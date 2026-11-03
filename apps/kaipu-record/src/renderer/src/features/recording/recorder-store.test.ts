@@ -628,6 +628,24 @@ describe("recorder-store", () => {
     );
   });
 
+  it("saves native wire cursor provenance through recordingFinalize", async () => {
+    const handle = fakeEngine({ cursorPixels: "excluded" });
+    prepareEngineMock.mockResolvedValue(fakePrepared(handle));
+    store.requestStartRecording(() => input);
+    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(1000);
+    store.pauseRecording();
+    store.resumeRecording();
+    await stopAndSettle();
+    expect(handle.pause).toHaveBeenCalled();
+    expect(handle.resume).toHaveBeenCalled();
+    expect(handle.stop).toHaveBeenCalled();
+    expect(window.electronAPI.recordingFinalize).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ capture: expect.objectContaining({ cursorPixels: "excluded" }) }),
+    );
+  });
+
   it("tears down and restores the window when the engine fails mid-recording", async () => {
     let onError: ((error: unknown) => void) | undefined;
     prepareEngineMock.mockImplementation(async (opts) => {

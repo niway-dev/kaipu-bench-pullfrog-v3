@@ -504,6 +504,9 @@ function acquireStart(input: StartInput): PendingStart {
     if (pendingStart !== start) throw new Error("start cancelled before it was created");
     start.engine = prepareEngine({
       sourceId: input.sourceId,
+      onNativeDecision: (message) => {
+        showToast({ message, durationMs: 10000 });
+      },
       area: input.area ?? null,
       microphoneDeviceId: input.microphoneDeviceId,
       systemAudio: input.systemAudio,
@@ -647,6 +650,7 @@ async function beginTake(
       area: input.area ?? null,
       output: handle.outputSize,
     });
+    if (capture && handle.cursorPixels) capture.cursorPixels = handle.cursorPixels;
     webcamBubble = input.webcam?.bubble ?? null;
     webcamUnavailable = start.webcamUnavailable === true;
     // The forwarder attached when the take was acquired keeps running for the take.
@@ -983,7 +987,7 @@ export function pauseRecording(): void {
   // here would move the store out of "finalizing" under a take that is saving.
   if (snapshot.status !== "recording" || !engine || !clock) return;
   const pausedAt = performance.now();
-  engine.pause();
+  engine.pause(pausedAt);
   cursorTrack?.pause(pausedAt);
   if (videoClock) videoClock = pauseElapsed(videoClock, pausedAt);
   clock = pauseElapsed(clock, Date.now());
@@ -993,7 +997,7 @@ export function pauseRecording(): void {
 export function resumeRecording(): void {
   if (snapshot.status !== "paused" || !engine || !clock) return;
   const resumedAt = performance.now();
-  engine.resume();
+  engine.resume(resumedAt);
   cursorTrack?.resume(resumedAt);
   if (videoClock) videoClock = resumeElapsed(videoClock, resumedAt);
   clock = resumeElapsed(clock, Date.now());
@@ -1022,7 +1026,8 @@ async function stopRecording(): Promise<void> {
   // from when the bar started: the thumbnail capture delays the bar's clock by >= 150 ms,
   // which the cursor tracker's tail cut cannot absorb. Falls back to the wall clock when
   // t0 never resolved (cursor track off, or the first-media wait timed out).
-  const durationMs = videoClock ? elapsedMs(videoClock, performance.now()) : wallMs;
+  const stoppedAt = performance.now();
+  const durationMs = videoClock ? elapsedMs(videoClock, stoppedAt) : wallMs;
   // The camera-off periods; one still open (the camera off at the stop) ends with the take.
   const webcamGaps = activeLive?.webcamGaps(durationMs) ?? [];
   if (activeLive?.webcamReopenFailed()) webcamUnavailable = true;
@@ -1045,7 +1050,7 @@ async function stopRecording(): Promise<void> {
     // even when the clip is tiny and the write is instant.
     [recording] = await Promise.all([
       (async (): Promise<LocalRecording> => {
-        await activeEngine.stop();
+        await activeEngine.stop(stoppedAt);
         markRecordTiming("engine.stop resolved");
         // Settled by stop (or given up on): a poster frame still pending saves without one.
         const thumbnail = await Promise.race([activeEngine.thumbnail, Promise.resolve(null)]);

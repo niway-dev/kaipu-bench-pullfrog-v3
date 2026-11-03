@@ -3,6 +3,7 @@ import {
   MediaStreamAudioTrackSource,
   MediaStreamVideoTrackSource,
   Output,
+  EncodedVideoPacketSource,
   StreamTarget,
 } from "mediabunny";
 import { Mp4OutputFormat } from "mediabunny";
@@ -25,6 +26,12 @@ vi.mock("./recording-compositor", () => ({
 // The constructors use `function` (not arrows) so the engine's `new` calls work,
 // and return the instance object so `.mock.results` exposes the spies.
 vi.mock("mediabunny", () => ({
+  EncodedPacket: vi.fn(function (...args) {
+    return { args };
+  }),
+  EncodedVideoPacketSource: vi.fn(function () {
+    return { add: vi.fn(async () => {}), close: vi.fn() };
+  }),
   Output: vi.fn(function () {
     return {
       addVideoTrack: vi.fn(),
@@ -1260,7 +1267,6 @@ describe("webcam", () => {
           start: vi.fn(async () => {}),
           finalize: vi.fn(async () => {}),
           cancel: vi.fn(async () => {}),
-          _firstMediaStreamTimestamp: null,
         } as never;
       });
       const starting = startEngine(baseOptions({ webcam }));
@@ -1844,5 +1850,126 @@ describe("webcam: the camera turned off and on mid-take", () => {
       .mock.calls.find((c) => c[0] === (webcamTrack as unknown));
     expect(call).toBeDefined();
     expect(handle.turnWebcamOff()).toBe(false);
+  });
+});
+
+describe("experimental native recorder lifecycle", () => {
+  const original = window.electronAPI.nativeCapture;
+  afterEach(() => {
+    window.electronAPI.nativeCapture = original;
+  });
+  function nativeBridge() {
+    const make = vi.mocked(Output).getMockImplementation()!;
+    vi.mocked(Output).mockImplementationOnce(function (...args) {
+      return Object.assign(Reflect.construct(make, args), { _firstMediaStreamTimestamp: null });
+    });
+    let end!: () => void;
+    const stopped = new Promise<void>((resolve) => {
+      end = resolve;
+    });
+    let index = 0;
+    const bridge = {
+      capability: vi.fn(async () => ({
+        transportAvailable: true,
+        recordingReady: false as const,
+        reason: "experimental",
+      })),
+      open: vi.fn(async () => {}),
+      begin: vi.fn(async () => {}),
+      pause: vi.fn(async (_at: number) => {}),
+      resume: vi.fn(async (_at: number) => {}),
+      cancel: vi.fn(async () => {
+        end();
+      }),
+      stop: vi.fn(async () => {
+        end();
+      }),
+      next: vi.fn(async () => {
+        index++;
+        if (index === 1)
+          return {
+            header: {
+              kind: "config" as const,
+              version: 1 as const,
+              codec: "avc1.64001f",
+              width: 1920,
+              height: 1080,
+              epochUs: 1000,
+              epochMainMs: performance.now(),
+              cursorPixels: "excluded" as const,
+            },
+            payload: new Uint8Array([1, 100, 0, 31, 255, 225, 0, 1, 103, 1, 0, 1, 104]),
+          };
+        if (index === 2) {
+          await stopped;
+          return {
+            header: { kind: "packet" as const, ptsUs: 0, durationUs: 1000000, keyframe: true },
+            payload: new Uint8Array([0, 0, 0, 1, 5]),
+          };
+        }
+        if (index === 3)
+          return { header: { kind: "end" as const, endUs: 1000000 }, payload: new Uint8Array() };
+        return null;
+      }),
+    };
+    window.electronAPI.nativeCapture = bridge;
+    return bridge;
+  }
+  it("prepares without encoding, begins native packets alongside existing audio, pauses and drains before finalizing", async () => {
+    const bridge = nativeBridge();
+    const prepared = await prepareEngine(
+      baseOptions({ sourceId: "screen:3:0", microphoneDeviceId: "mic-1" }),
+    );
+    expect(bridge.open).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceId: "screen:3:0", width: 1920, height: 1080 }),
+    );
+    expect(bridge.begin).not.toHaveBeenCalled();
+    expect(bridge.next).not.toHaveBeenCalled();
+    expect(MediaStreamVideoTrackSource).not.toHaveBeenCalled();
+    expect(MediaStreamAudioTrackSource).toHaveBeenCalledOnce();
+    expect(EncodedVideoPacketSource).toHaveBeenCalledOnce();
+    const handle = await prepared.begin();
+    expect(bridge.begin).toHaveBeenCalledOnce();
+    expect(handle.cursorPixels).toBe("excluded");
+    expect((await handle.firstMediaTimestamp).quality).toBe("exact");
+    handle.pause(100);
+    handle.resume(200);
+    expect(bridge.pause).toHaveBeenCalledWith(expect.any(Number));
+    expect(bridge.resume.mock.calls[0][0] - bridge.pause.mock.calls[0][0]).toBe(100);
+    await handle.stop();
+    expect(bridge.stop).toHaveBeenCalledOnce();
+    expect(lastOutput().finalize).toHaveBeenCalledOnce();
+    expect(screenVideoTrack.stop).toHaveBeenCalled();
+    expect(micTrack.stop).toHaveBeenCalled();
+    expect(bridge.cancel).toHaveBeenCalled();
+  });
+  it("releases a prepared native helper without beginning a take", async () => {
+    const bridge = nativeBridge();
+    const prepared = await prepareEngine(baseOptions({ sourceId: "screen:3:0" }));
+    prepared.release();
+    expect(bridge.cancel).toHaveBeenCalled();
+    expect(bridge.begin).not.toHaveBeenCalled();
+  });
+  it.each([
+    { sourceId: "window:3:0" },
+    { watermark: { text: "test" } },
+    {
+      area: {
+        displayId: 3,
+        displaySize: { width: 1920, height: 1080 },
+        rect: { x: 0, y: 0, width: 640, height: 360 },
+      },
+    },
+    { webcam: { deviceId: null, lines: 720 } },
+  ])("falls back before encoding unsupported options %o", async (over) => {
+    const bridge = nativeBridge();
+    const onNativeDecision = vi.fn();
+    const prepared = await prepareEngine(
+      baseOptions({ ...over, onNativeDecision } as Partial<EngineOptions>),
+    );
+    expect(onNativeDecision).toHaveBeenCalledWith(expect.stringContaining("using Chromium"));
+    expect(bridge.open).not.toHaveBeenCalled();
+    expect(MediaStreamVideoTrackSource).toHaveBeenCalled();
+    prepared.release();
   });
 });

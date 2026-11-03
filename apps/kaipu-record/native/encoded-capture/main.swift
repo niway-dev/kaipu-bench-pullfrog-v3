@@ -1,4 +1,4 @@
-// Experimental live video-only transport. Never selected by the recorder UI.
+// Experimental prepared whole-display screen source; audio remains in Chromium.
 import Foundation
 import Darwin
 import ScreenCaptureKit
@@ -15,10 +15,16 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     var image: CVPixelBuffer?
     var timer: DispatchSourceTimer?
     var epoch: Int64?
-    var pending: (Data, Int64, Bool)?
+    var pending: [(Data, Int64, Bool)] = []
+    var emittedEnd: Int64 = 0
+    var resumeTimestamp: Int64?
     var configured = false
     var failure: Error?
     var accepting = true
+    var ready = false
+    var pausedAt: Int64?
+    var removedUs: Int64 = 0
+    var forceKeyframe = true
     let fps: Int
     init(width: Int, height: Int, fps: Int, bitrate: Int) throws {
         self.fps = fps
@@ -56,7 +62,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             guard let atoms = CMFormatDescriptionGetExtension(format, extensionKey: kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms) as? [String: Any], let avcc = atoms["avcC"] as? Data, avcc.count >= 4 else { throw CaptureError(message: "Missing avcC") }
             let dims = CMVideoFormatDescriptionGetDimensions(format)
             let codec = String(format: "avc1.%02x%02x%02x", avcc[1], avcc[2], avcc[3])
-            try emit(["kind": "config", "version": 1, "codec": codec, "width": Int(dims.width), "height": Int(dims.height), "epochUs": epoch], avcc)
+            try emit(["kind": "config", "version": 1, "codec": codec, "width": Int(dims.width), "height": Int(dims.height), "epochUs": epoch, "cursorPixels": "excluded"], avcc)
             configured = true
         }
         let pts = Int64((CMTimeGetSeconds(sample.presentationTimeStamp) * 1_000_000).rounded())
@@ -66,11 +72,16 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
         guard size > 0, size <= 8 * 1024 * 1024 else { throw CaptureError(message: "Oversize AVC packet") }
         var data = Data(count: size)
         try data.withUnsafeMutableBytes { try check(CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: size, destination: $0.baseAddress!)) }
-        if let previous = pending {
-            guard pts > previous.1 else { throw CaptureError(message: "Nonmonotonic encoder PTS") }
-            try emit(["kind": "packet", "ptsUs": previous.1, "durationUs": pts - previous.1, "keyframe": previous.2], previous.0)
+        if let previous = pending.last, pts <= previous.1 { throw CaptureError(message: "Nonmonotonic encoder PTS") }
+        pending.append((data, pts, key))
+        // Hold 200 ms so stamped commands can trim frames encoded while IPC was in flight.
+        // Bound both packet count and retained bytes; excessive latency fails the take.
+        while pending.count > 1, pts - pending[0].1 >= 200_000 {
+            let previous = pending.removeFirst()
+            emittedEnd = pending[0].1
+            try emit(["kind": "packet", "ptsUs": previous.1, "durationUs": emittedEnd - previous.1, "keyframe": previous.2], previous.0)
         }
-        pending = (data, pts, key)
+        guard pending.count <= 16, pending.reduce(0, { $0 + $1.0.count }) <= 16 * 1024 * 1024 else { throw CaptureError(message: "Command lookbehind buffer exceeded") }
     }
     func stream(_ stream: SCStream, didStopWithError error: Error) { queue.async { self.fail(error) } }
     func stream(_ stream: SCStream, didOutputSampleBuffer sample: CMSampleBuffer, of type: SCStreamOutputType) {
@@ -79,25 +90,64 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
               attachments.first?[.status] as? Int == SCFrameStatus.complete.rawValue,
               let buffer = sample.imageBuffer else { return }
         image = buffer // One retained surface; timer encodes it even while SCK is idle.
-        if timer == nil {
-            epoch = hostUs()
-            let timer = DispatchSource.makeTimerSource(queue: queue)
-            timer.schedule(deadline: .now(), repeating: .nanoseconds(1_000_000_000 / fps))
-            timer.setEventHandler { [weak self] in self?.tick() }
-            self.timer = timer; timer.resume()
+        if !ready {
+            ready = true
+            do { try emit(["kind": "ready", "version": 1]) } catch { fail(error) }
         }
     }
+    func control(_ name: String, at: Int64) async throws {
+        try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
+            queue.async { [self] in
+                do {
+                    guard self.ready else { throw CaptureError(message: "Capture not ready") }
+                    if name == "go" {
+                        guard self.epoch == nil else { throw CaptureError(message: "Already begun") }
+                        self.epoch = at
+                        let timer = DispatchSource.makeTimerSource(queue: self.queue)
+                        timer.schedule(deadline: .now(), repeating: .nanoseconds(1_000_000_000 / self.fps))
+                        timer.setEventHandler { [weak self] in self?.tick() }
+                        self.timer = timer; timer.resume()
+                    } else if name == "pause", self.pausedAt == nil {
+                        try self.flush(at: at)
+                        self.pausedAt = at
+                    } else if name == "resume", let paused = self.pausedAt {
+                        guard at >= paused else { throw CaptureError(message: "Invalid resume clock") }
+                        self.removedUs += at - paused
+                        self.pausedAt = nil; self.forceKeyframe = true
+                        self.resumeTimestamp = at - self.epoch! - self.removedUs
+                        self.tick()
+                    } else { throw CaptureError(message: "Invalid command state") }
+                    c.resume()
+                } catch { c.resume(throwing: error) }
+            }
+        }
+    }
+    func flush(at: Int64) throws {
+        guard let epoch else { throw CaptureError(message: "Not begun") }
+        let end = max(0, at - epoch - removedUs)
+        guard end >= emittedEnd else { throw CaptureError(message: "Command exceeded 200 ms lookbehind") }
+        let kept = pending.filter { $0.1 < end }
+        for (index, packet) in kept.enumerated() {
+            let next = index + 1 < kept.count ? kept[index + 1].1 : end
+            try emit(["kind": "packet", "ptsUs": packet.1, "durationUs": next - packet.1, "keyframe": packet.2], packet.0)
+        }
+        if !kept.isEmpty { emittedEnd = end }
+        pending.removeAll()
+    }
+
     func tick() {
-        guard accepting, failure == nil, let image, let session, let epoch else { return }
+        guard accepting, pausedAt == nil, failure == nil, let image, let session, let epoch else { return }
         do {
-            let pts = CMTime(value: hostUs() - epoch, timescale: 1_000_000)
+            let pts = CMTime(value: hostUs() - epoch - removedUs, timescale: 1_000_000)
             // First frame is exactly zero on the shared epoch.
-            let timestamp = configured ? pts : CMTime.zero
-            try check(VTCompressionSessionEncodeFrame(session, imageBuffer: image, presentationTimeStamp: timestamp, duration: .invalid, frameProperties: nil, sourceFrameRefcon: nil, infoFlagsOut: nil))
+            let timestamp = resumeTimestamp.map { CMTime(value: $0, timescale: 1_000_000) } ?? (configured ? pts : CMTime.zero)
+            resumeTimestamp = nil
+            try check(VTCompressionSessionEncodeFrame(session, imageBuffer: image, presentationTimeStamp: timestamp, duration: .invalid, frameProperties: forceKeyframe ? [kVTEncodeFrameOptionKey_ForceKeyFrame: true] as CFDictionary : nil, sourceFrameRefcon: nil, infoFlagsOut: nil))
+            forceKeyframe = false
             try check(VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid))
         } catch { fail(error) }
     }
-    func finish(cancel: Bool) async throws {
+    func finish(cancel: Bool, at: Int64 = hostUs()) async throws {
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             queue.async {
                 self.accepting = false; self.timer?.cancel(); self.timer = nil; self.image = nil
@@ -105,12 +155,13 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
                 do {
                     if !cancel {
                         if let failure = self.failure { throw failure }
-                        guard let epoch = self.epoch, let last = self.pending else { throw CaptureError(message: "No video received") }
-                        let end = max(last.1 + 1, hostUs() - epoch)
-                        try self.emit(["kind": "packet", "ptsUs": last.1, "durationUs": end - last.1, "keyframe": last.2], last.0)
+                        guard let epoch = self.epoch, self.configured else { throw CaptureError(message: "No video received") }
+                        let edge = self.pausedAt ?? at
+                        try self.flush(at: edge)
+                        let end = edge - epoch - self.removedUs
                         try self.emit(["kind": "end", "endUs": end])
                     }
-                    self.pending = nil; c.resume()
+                    self.pending.removeAll(); c.resume()
                 } catch { c.resume(throwing: error) }
             }
         }
@@ -121,15 +172,18 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     static func main() async {
         do {
             let args = Array(CommandLine.arguments.dropFirst())
-            if args == ["--version"] { print("kaipu-encoded-capture/1 video-only no-pause"); return }
-            guard args.count == 6, args[0] == "--encoded-capture-v1", let displayID = UInt32(args[1]),
+            if args == ["--version"] { print("kaipu-encoded-capture/2 prepared pause-clock"); return }
+            guard (args.count == 6 || (args.count == 7 && args[6] == "--test-allow-unmatched-parent")), args[0] == "--encoded-capture-v1", let displayID = UInt32(args[1]),
                   let width = Int(args[2]), let height = Int(args[3]), let fps = Int(args[4]), let bitrate = Int(args[5]),
                   width >= 2, width <= 7680, width % 2 == 0, height >= 2, height <= 7680, height % 2 == 0,
                   fps >= 1, fps <= 60, bitrate >= 100_000, bitrate <= 100_000_000 else { throw CaptureError(message: "Usage: --encoded-capture-v1 DISPLAY WIDTH HEIGHT FPS BITRATE (video only, no pause)") }
             guard CGPreflightScreenCaptureAccess() else { throw CaptureError(message: "Screen Recording permission unavailable; no permission requested") }
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard let display = content.displays.first(where: { $0.displayID == displayID }) else { throw CaptureError(message: "Display unavailable") }
-            let filter = SCContentFilter(display: display, excludingWindows: [])
+            // Exclude this helper's parent Electron application, including floating controls.
+            let excluded = content.applications.filter { $0.processID == getppid() }
+            guard !excluded.isEmpty || args.last == "--test-allow-unmatched-parent" else { throw CaptureError(message: "Cannot identify recording application for exclusion") }
+            let filter = SCContentFilter(display: display, excludingApplications: excluded, exceptingWindows: [])
             let nativeW = Double(filter.contentRect.width) * Double(filter.pointPixelScale)
             let nativeH = Double(filter.contentRect.height) * Double(filter.pointPixelScale)
             guard Double(width) <= nativeW, Double(height) <= nativeH, abs(Double(width) / Double(height) - nativeW / nativeH) < 0.01 else { throw CaptureError(message: "Dimensions must preserve display aspect and cannot upscale") }
@@ -143,11 +197,16 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             // EOF/cancel terminates the session. Signals terminate without finalizing; main
             // escalates to SIGKILL if a blocked pipe/OS stop prevents cooperative teardown.
             try await stream.startCapture()
-            let cancel = await Task.detached { () -> Bool in
-                let command = readLine()
-                return command != "stop"
-            }.value
-            do { try await stream.stopCapture(); try await encoder.finish(cancel: cancel) }
+            var stopAt = hostUs()
+            var cancel = true
+            while let line = await Task.detached(operation: { readLine() }).value {
+                let parts = line.split(separator: " ")
+                guard parts.count == 2, let at = Int64(parts[1]), abs(hostUs() - at) < 10_000_000 else { throw CaptureError(message: "Invalid stamped command") }
+                let command = String(parts[0])
+                if command == "stop" { stopAt = at; cancel = false; break }
+                try await encoder.control(command, at: at)
+            }
+            do { try await encoder.finish(cancel: cancel, at: stopAt); try await stream.stopCapture() }
             catch { try? await encoder.finish(cancel: true); throw error }
         } catch {
             FileHandle.standardError.write(Data("encoded-capture: \(error)\n".utf8)); exit(1)

@@ -6,13 +6,14 @@ import { MAX_NATIVE_PAYLOAD, type NativeCaptureFrame } from "../../../shared/nat
 export const config: NativeCaptureFrame = {
   header: {
     kind: "config",
+    cursorPixels: "excluded",
     version: 1,
     codec: "avc1.64001f",
     width: 640,
     height: 360,
     epochUs: 123456789,
   },
-  payload: new Uint8Array([1, 100, 0, 31, 255, 225, 0]),
+  payload: new Uint8Array([1, 100, 0, 31, 255, 225, 0, 1, 103, 1, 0, 1, 104]),
 };
 export const packet = (ptsUs = 0, durationUs = 33333, keyframe = true): NativeCaptureFrame => ({
   header: { kind: "packet", ptsUs, durationUs, keyframe },
@@ -105,4 +106,26 @@ describe("native stream contract", () => {
       s.accept({ header: { kind: "end", endUs: 1 }, payload: new Uint8Array() }),
     ).toThrow();
   });
+});
+
+it("fails closed on missing cursor assertion, mismatched AVC config and malformed NALs", () => {
+  for (const change of [
+    { cursorPixels: undefined },
+    { cursorPixels: "embedded" },
+    { width: 641 },
+    { codec: "avc1.42001f" },
+  ]) {
+    const frame = { ...config, header: { ...config.header, ...change } } as NativeCaptureFrame;
+    expect(() => new NativeSequence().accept(frame)).toThrow();
+  }
+  for (const payload of [
+    new Uint8Array([0, 0, 0]),
+    new Uint8Array([0, 0, 0, 2, 5]),
+    new Uint8Array([0, 0, 0, 0]),
+    new Uint8Array([0, 0, 0, 1, 128]),
+  ]) {
+    const sequence = new NativeSequence();
+    sequence.accept(config);
+    expect(() => sequence.accept({ ...packet(), payload })).toThrow("AVC NAL");
+  }
 });

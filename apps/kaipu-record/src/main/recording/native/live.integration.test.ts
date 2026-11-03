@@ -18,17 +18,30 @@ it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
   async () => {
     const path = process.env.KAIPU_NATIVE_TEST_HELPER!;
     await validateNativeHelper(path);
-    const reader = spawnNativeVideo(path, {
-      displayId: Number(process.env.KAIPU_NATIVE_TEST_DISPLAY),
-      width: 320,
-      height: 180,
-      frameRate: 30,
-      videoBitrate: 1_000_000,
-    });
+    const reader = spawnNativeVideo(
+      path,
+      {
+        displayId: Number(process.env.KAIPU_NATIVE_TEST_DISPLAY),
+        width: 320,
+        height: 180,
+        frameRate: 30,
+        videoBitrate: 1_000_000,
+      },
+      true,
+    ); // CLI-only test bypass; IPC never enables unmatched-parent capture.
+    await reader.ready!();
+    await new Promise((resolve) => setTimeout(resolve, 100)); // prepared frames stay out
+    const beginAt = performance.now();
+    await reader.begin!(beginAt);
+    let pauseAt = 0,
+      resumeAt = 0,
+      stopAt = 0,
+      endUs = 0;
     const target = new BufferTarget();
     const output = new Output({ format: new Mp4OutputFormat(), target });
     const original: { timestamp: number; duration: number; type: string; data: Uint8Array }[] = [];
     let stop: ReturnType<typeof setTimeout> | undefined;
+    const commands: ReturnType<typeof setTimeout>[] = [];
     const transport = attachNativeEncodedVideo(output, {
       ...reader,
       async next() {
@@ -40,10 +53,25 @@ it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
             type: frame.header.keyframe ? "key" : "delta",
             data: Uint8Array.from(frame.payload),
           });
-        if (frame?.header.kind === "config")
+        if (frame?.header.kind === "config") {
+          commands.push(
+            setTimeout(() => {
+              pauseAt = performance.now();
+              void reader.pause!(pauseAt);
+            }, 200),
+          );
+          commands.push(
+            setTimeout(() => {
+              resumeAt = performance.now();
+              void reader.resume!(resumeAt);
+            }, 400),
+          );
           stop = setTimeout(() => {
-            void reader.stop();
-          }, 700);
+            stopAt = performance.now();
+            void reader.stop(stopAt);
+          }, 900);
+        }
+        if (frame?.header.kind === "end") endUs = frame.header.endUs;
         return frame;
       },
     });
@@ -53,6 +81,7 @@ it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
       await output.finalize();
       expect(result).toMatchObject({ width: 320, height: 180, cursorPixels: "excluded" });
       expect(result.epochUs).toBeGreaterThan(0);
+      expect(Math.abs(endUs - (stopAt - beginAt - (resumeAt - pauseAt)) * 1000)).toBeLessThan(3);
       const input = new Input({ source: new BufferSource(target.buffer!), formats: ALL_FORMATS });
       try {
         const track = await input.getPrimaryVideoTrack();
@@ -61,6 +90,7 @@ it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
         expect(packets.length).toBeGreaterThan(2);
         expect(packets[0].timestamp).toBe(0);
         expect(packets[0].type).toBe("key");
+        expect(packets.filter((packet) => packet.type === "key").length).toBeGreaterThanOrEqual(2);
         expect(packets.length).toBe(original.length);
         // Installed mediabunny MP4 muxer GLOBAL_TIMESCALE=57600: allow one tick.
         for (let i = 0; i < packets.length; i++) {
@@ -86,6 +116,7 @@ it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
       }
     } finally {
       clearTimeout(stop);
+      commands.forEach(clearTimeout);
       await reader.cancel();
     }
   },

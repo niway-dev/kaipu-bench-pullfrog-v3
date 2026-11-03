@@ -5,10 +5,13 @@ description: "Future improvement for the video editor's auto-zoom: exclude the O
 
 # Cursor-free capture and a drawn cursor
 
-> **Status: ⚪ Idea — deferred from video editor v2** (2026-09-22). Not scheduled. This is
-> the one structural gap between our auto-zoom and Screen Studio / Cap, recorded here so
-> the decision and its trigger are not lost. Reopen when the condition in
-> [When to pick this up](#when-to-pick-this-up) is met. Design background:
+> **Status: in progress — experimental native recorder integration** (2026-11-03).
+> Default capture remains Chromium. An explicit `--experimental-native-recording` flag
+> selects cursor-free native video for eligible macOS whole-display takes; area,
+> watermark and webcam takes explicitly fall back before recording. The editor cursor
+> layer is still unimplemented: this is not completion of the editable-cursor feature.
+> Current evidence and limitations: [native capture execution](/backlog/cursor-free-capture-diagnostic/).
+> Design background:
 > [plan 12 — capture resolution and cursor sprite](/plans/video-editor-v2/12-capture-resolution-and-cursor-sprite/).
 
 ## The gap

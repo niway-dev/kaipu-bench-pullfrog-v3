@@ -4,7 +4,17 @@ export const MAX_NATIVE_HEADER = 16 * 1024;
 export const MAX_NATIVE_PAYLOAD = 8 * 1024 * 1024;
 export type NativeCaptureFrame = {
   header:
-    | { kind: "config"; version: 1; codec: string; width: number; height: number; epochUs: number }
+    | { kind: "ready"; version: 1 }
+    | {
+        kind: "config";
+        version: 1;
+        codec: string;
+        width: number;
+        height: number;
+        epochUs: number;
+        cursorPixels: "excluded";
+        epochMainMs?: number;
+      }
     | { kind: "packet"; ptsUs: number; durationUs: number; keyframe: boolean }
     | { kind: "end"; endUs: number };
   /** config: avcC; packet: length-prefixed AVC access unit; end: empty. */
@@ -12,7 +22,11 @@ export type NativeCaptureFrame = {
 };
 export interface NativeCaptureReader {
   next(): Promise<NativeCaptureFrame | null>;
-  stop(): Promise<void>;
+  ready?(): Promise<void>;
+  begin?(atMainMs: number): Promise<void>;
+  pause?(atMainMs: number): Promise<void>;
+  resume?(atMainMs: number): Promise<void>;
+  stop(atMainMs?: number): Promise<void>;
   cancel(): Promise<void>;
 }
 
@@ -32,15 +46,26 @@ export interface NativeVideoRequest {
   videoBitrate: number;
 }
 export interface NativeCaptureBridge {
-  capability(): Promise<{ transportAvailable: boolean; recordingReady: false; reason: string }>;
-  open(request: NativeVideoRequest): Promise<void>;
+  capability(): Promise<{
+    transportAvailable: boolean;
+    recordingReady: false;
+    reason: string;
+    experimentalRequested?: boolean;
+  }>;
+  open(request: NativeVideoRequest & { sourceId?: string }): Promise<void>;
+  begin(atMainMs: number): Promise<void>;
+  pause(atMainMs: number): Promise<void>;
+  resume(atMainMs: number): Promise<void>;
   next(): Promise<NativeCaptureFrame | null>;
-  stop(): Promise<void>;
+  stop(atMainMs?: number): Promise<void>;
   cancel(): Promise<void>;
 }
 export const NATIVE_CAPTURE_CHANNELS = {
   capability: "native-capture:capability",
   open: "native-capture:open",
+  begin: "native-capture:begin",
+  pause: "native-capture:pause",
+  resume: "native-capture:resume",
   next: "native-capture:next",
   stop: "native-capture:stop",
   cancel: "native-capture:cancel",

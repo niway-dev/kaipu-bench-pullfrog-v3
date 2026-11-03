@@ -115,6 +115,9 @@ window.electronAPI = {
       throw new Error("Native transport unavailable");
     },
     next: async () => null,
+    begin: async () => {},
+    pause: async () => {},
+    resume: async () => {},
     stop: async () => {},
     cancel: async () => {},
   },

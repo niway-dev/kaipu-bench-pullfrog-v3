@@ -62,10 +62,18 @@ it("times out a helper that closes stdout after end but never exits", async () =
   };
   const bytes = Buffer.concat([
     frame(
-      { kind: "config", version: 1, codec: "avc1.64001f", width: 320, height: 180, epochUs: 123 },
-      [1, 100, 0, 31, 255, 225, 0],
+      {
+        kind: "config",
+        cursorPixels: "excluded",
+        version: 1,
+        codec: "avc1.64001f",
+        width: 320,
+        height: 180,
+        epochUs: 123,
+      },
+      [1, 100, 0, 31, 255, 225, 0, 1, 103, 1, 0, 1, 104],
     ),
-    frame({ kind: "packet", ptsUs: 0, durationUs: 500000, keyframe: true }, [1]),
+    frame({ kind: "packet", ptsUs: 0, durationUs: 500000, keyframe: true }, [0, 0, 0, 1, 5]),
     frame({ kind: "end", endUs: 500000 }),
   ]);
   const path = await helper(
@@ -81,3 +89,44 @@ it("times out a helper that closes stdout after end but never exits", async () =
     await reader.cancel();
   }
 }, 8000);
+
+it("waits ready then sends go/pause/resume/stop on one Node host clock", async () => {
+  const path = await helper(`
+const readline = require('node:readline');
+function frame(header,payload=[]) {
+ const json=Buffer.from(JSON.stringify(header)), prefix=Buffer.alloc(8);
+ prefix.writeUInt32BE(json.length);prefix.writeUInt32BE(payload.length,4);
+ process.stdout.write(Buffer.concat([prefix,json,Buffer.from(payload)]));
+}
+frame({kind:'ready',version:1});
+const commands=[];
+readline.createInterface({input:process.stdin}).on('line',line=>{
+ const [name,value]=line.split(' '); commands.push([name,Number(value)]);
+ if(name==='stop') {
+  const [go,pause,resume,stop]=commands;
+  if(commands.map(x=>x[0]).join(',')!=='go,pause,resume,stop') process.exit(2);
+  if(resume[1]-pause[1]!==100000) process.exit(3);
+  frame({kind:'config',version:1,codec:'avc1.64001f',width:320,height:180,epochUs:go[1],cursorPixels:'excluded'},[1,100,0,31,255,225,0,1,103,1,0,1,104]);
+  const end=stop[1]-go[1]-(resume[1]-pause[1]);
+  frame({kind:'packet',ptsUs:0,durationUs:end,keyframe:true},[0,0,0,1,5]);
+  frame({kind:'end',endUs:end});process.stdout.end();
+ }
+});`);
+  const reader = spawnNativeVideo(path, request);
+  try {
+    await reader.ready!();
+    const at = performance.now();
+    await reader.begin!(at);
+    await reader.pause!(at + 100);
+    await reader.resume!(at + 200);
+    await reader.stop(at + 300);
+    const config = await reader.next();
+    expect(config?.header.kind).toBe("config");
+    if (config?.header.kind === "config") expect(config.header.epochMainMs).toBeCloseTo(at, 2);
+    expect((await reader.next())?.header).toMatchObject({ kind: "packet", durationUs: 200000 });
+    expect((await reader.next())?.header).toEqual({ kind: "end", endUs: 200000 });
+    expect(await reader.next()).toBeNull();
+  } finally {
+    await reader.cancel();
+  }
+});
