@@ -108,8 +108,8 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
                         timer.setEventHandler { [weak self] in self?.tick() }
                         self.timer = timer; timer.resume()
                     } else if name == "pause", self.pausedAt == nil {
-                        try self.flush(at: at)
-                        self.pausedAt = at
+                        let end = try self.flush(at: at)
+                        self.pausedAt = self.epoch! + self.removedUs + end
                     } else if name == "resume", let paused = self.pausedAt {
                         guard at >= paused else { throw CaptureError(message: "Invalid resume clock") }
                         self.removedUs += at - paused
@@ -122,10 +122,13 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             }
         }
     }
-    func flush(at: Int64) throws {
+    func flush(at: Int64) throws -> Int64 {
         guard let epoch else { throw CaptureError(message: "Not begun") }
-        let end = max(0, at - epoch - removedUs)
-        guard end >= emittedEnd else { throw CaptureError(message: "Command exceeded 200 ms lookbehind") }
+        let requested = max(0, at - epoch - removedUs)
+        let end = max(requested, emittedEnd)
+        if end > requested {
+            FileHandle.standardError.write(Data("encoded-capture: late command clamped by \(end - requested) us to preserve emitted video\n".utf8))
+        }
         let kept = pending.filter { $0.1 < end }
         for (index, packet) in kept.enumerated() {
             let next = index + 1 < kept.count ? kept[index + 1].1 : end
@@ -133,6 +136,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
         }
         if !kept.isEmpty { emittedEnd = end }
         pending.removeAll()
+        return end
     }
 
     func tick() {
@@ -155,10 +159,9 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
                 do {
                     if !cancel {
                         if let failure = self.failure { throw failure }
-                        guard let epoch = self.epoch, self.configured else { throw CaptureError(message: "No video received") }
+                        guard self.epoch != nil, self.configured else { throw CaptureError(message: "No video received") }
                         let edge = self.pausedAt ?? at
-                        try self.flush(at: edge)
-                        let end = edge - epoch - self.removedUs
+                        let end = try self.flush(at: edge)
                         try self.emit(["kind": "end", "endUs": end])
                     }
                     self.pending.removeAll(); c.resume()

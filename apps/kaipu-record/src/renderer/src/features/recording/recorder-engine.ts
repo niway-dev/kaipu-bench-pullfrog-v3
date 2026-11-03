@@ -202,6 +202,8 @@ const DUCK_POLL_MS = 50;
 export interface EngineOptions {
   sourceId: string;
   onNativeDecision?(message: string): void;
+  /** Native pixels may exclude the cursor only after its position tracker is ready. */
+  nativeCursorTrackReady?: Promise<boolean>;
   /**
    * Record only this part of the source's display (ADR 0030). The source is still the whole
    * display; the compositor draws just the area, so it always runs when this is set.
@@ -409,7 +411,11 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
         `Experimental native capture: using Chromium. ${capability.reason}`,
       );
     if (capability.transportAvailable) {
-      const reason = nativeEligibility(options);
+      const reason =
+        nativeEligibility(options) ??
+        ((await options.nativeCursorTrackReady?.catch(() => false)) === true
+          ? null
+          : "cursor position tracking is unavailable");
       if (reason) {
         console.warn(`[recorder] Native fallback before take: ${reason}`);
         options.onNativeDecision?.(

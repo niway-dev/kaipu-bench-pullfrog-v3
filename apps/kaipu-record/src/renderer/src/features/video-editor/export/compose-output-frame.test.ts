@@ -281,6 +281,15 @@ describe("cursor preview/export parity", () => {
     );
     expect(painted).toEqual(log.map(({ call, args }) => ({ call, args })));
   });
+  it("keeps pointer scale relative to the footage in portrait Fit", () => {
+    const { compose } = composer({
+      cursor: { track, settings: DEFAULT_CURSOR },
+      framed: { width: 1080, height: 1920, mode: "fit" },
+    });
+    compose.clip(FRAME, 0, 1 / 30, 0);
+    const scale = log.find((x) => x.canvas === "output" && x.call === "scale")!.args;
+    expect(scale[0]).toBeCloseTo((32 * ((1080 * SOURCE.height) / SOURCE.width)) / 1080);
+  });
   it("has no cursor on slides, suppresses private held frames, and skips missing data", () => {
     const { compose } = composer({
       cursor: { track, settings: DEFAULT_CURSOR },

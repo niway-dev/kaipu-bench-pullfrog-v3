@@ -202,7 +202,7 @@ export function createOutputComposer(opts: OutputComposerOptions): OutputCompose
           });
           Object.assign(pointer, transform(pointer));
           if (pointer.click) Object.assign(pointer.click, transform(pointer.click));
-          pointer.size = (opts.cursor!.settings.size * final.height) / 1080;
+          pointer.size = (opts.cursor!.settings.size * rect.dh) / 1080;
           final.ctx.save();
           final.ctx.beginPath();
           final.ctx.rect(rect.dx, rect.dy, rect.dw, rect.dh);

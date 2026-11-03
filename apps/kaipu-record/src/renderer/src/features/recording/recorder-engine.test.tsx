@@ -209,6 +209,7 @@ afterEach(() => {
 });
 
 const baseOptions = (over: Partial<EngineOptions> = {}): EngineOptions => ({
+  nativeCursorTrackReady: Promise.resolve(true),
   sourceId: "screen:1",
   microphoneDeviceId: null,
   systemAudio: false,
@@ -1943,6 +1944,26 @@ describe("experimental native recorder lifecycle", () => {
     expect(micTrack.stop).toHaveBeenCalled();
     expect(bridge.cancel).toHaveBeenCalled();
   });
+  it.each([false, undefined])(
+    "falls back before cursor-free capture when tracker readiness is %s",
+    async (ready) => {
+      const bridge = nativeBridge();
+      const decision = vi.fn();
+      const prepared = await prepareEngine(
+        baseOptions({
+          sourceId: "screen:3:0",
+          nativeCursorTrackReady: ready === undefined ? undefined : Promise.resolve(ready),
+          onNativeDecision: decision,
+        }),
+      );
+      expect(bridge.open).not.toHaveBeenCalled();
+      expect(decision).toHaveBeenCalledWith(
+        expect.stringContaining("cursor position tracking is unavailable"),
+      );
+      expect(MediaStreamVideoTrackSource).toHaveBeenCalled();
+      prepared.release();
+    },
+  );
   it("releases a prepared native helper without beginning a take", async () => {
     const bridge = nativeBridge();
     const prepared = await prepareEngine(baseOptions({ sourceId: "screen:3:0" }));

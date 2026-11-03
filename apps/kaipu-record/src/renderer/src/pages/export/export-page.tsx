@@ -242,7 +242,11 @@ function ExportScreen({
     });
 
   // "Ready": a file that already is this copy (same preset, whole recording, same face).
-  const fingerprint = useMemo(() => prepareFingerprint(prepareScene(video, probe)), [video, probe]);
+  const fingerprint = useMemo(
+    () =>
+      prepareFingerprint(prepareScene(video, probe), video.capture?.cursorPixels === "excluded"),
+    [video, probe],
+  );
   const reusable = useMemo(() => findReusableExports(exports, fingerprint), [exports, fingerprint]);
 
   const estimateText = (plan: CopyPlan): string =>

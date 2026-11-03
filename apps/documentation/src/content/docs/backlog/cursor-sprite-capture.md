@@ -47,7 +47,7 @@ hide the export pointer one decoded frame earlier than the preview. The painter 
 source pixels and cannot replace redacted pixels. “Hold to see original” hides the layer.
 
 Default embedded-cursor export fingerprints remain stable. Eligible editor exports carry
-a `cursor1` compositor revision so a pre-overlay file cannot be offered as an equivalent
+a `cursor2` compositor revision so a pre-overlay file cannot be offered as an equivalent
 export, even with default cursor settings.
 
 ### Observed evidence
@@ -96,8 +96,7 @@ bun run test -- src/renderer/src/features/video-editor src/renderer/src/features
    judge provenance gating, selection handoff, history gestures, persistence and worker inputs.
 4. `export/export-reuse.ts`: judge legacy compatibility versus cursor compositor revision.
 
-Remaining: actual pointer-shape capture/replay; cursor replay in the separate **Prepare a
-copy** workflow (this slice wires editor exports); moving native pointer pixel-exclusion
+Remaining: actual pointer-shape capture/replay; moving native pointer pixel-exclusion
 and clock-error proof, long/4K60 capture stress, signed packaged helper/TCC/notarization.
 The GIF worker is wired and type-checked through the shared composer, but GIF remains
 product-disabled and was not runtime-exported here. Fit/Fill and held-frame behavior have
@@ -196,3 +195,11 @@ accepted trade-off.
 Detecting the cursor from the video pixels (shape changes, camouflage, no click
 signal — rejected in the [pipeline spec](/specs/2026-09-21-zoom-cursor-follow-design/)).
 Custom cursor themes. Cursor effects on recordings without a cursor track.
+
+## Review fixes (2026-11-03)
+
+Native pending reads now suspend their stall timeout while paused, rearm on resume and stop, and still cancel on process failure. A real helper test paused for 6.2 seconds and muxed successfully; a separate delayed-stop test preserved the take. Commands beyond lookbehind clamp to the last emitted edge with stderr diagnostics, so extreme main-process stalls can introduce timing drift rather than discard the recording.
+
+The recorder requires a successful cursor-tracking handshake before selecting native capture; failed/disabled/timed-out tracking falls back to Chromium before begin. Prepare copies load and replay the default cursor and use a distinct `whole:cursor2` fingerprint. Missing replay data stops that copy instead of silently producing cursorless video. Fit exports scale the pointer with the fitted footage height, preserving its visual proportion from preview. Editor fingerprints also use cursor2 to invalidate prior framing results.
+
+Parent verification: 287 focused tests across seven files, types and build passed; two real-native integration tests passed, including long pause and late stop. Prepare handoff and missing-data refusal have UI-hook tests; decoded Prepare-copy runtime parity remains unverified. Signed production validation and native motion synchronization remain open.

@@ -1,3 +1,7 @@
+import { parseCursorTrack } from "@shared/cursor-track";
+import { canOverlayRecordedCursor } from "@shared/native-capture";
+import { cursorLayerData } from "@renderer/features/video-editor/cursor/cursor-model";
+import { showToast } from "@renderer/ui/toast-store";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "@kaipu/i18n";
 import type { LocalRecording } from "@shared/types/library-storage";
@@ -44,8 +48,9 @@ export function prepareScene(video: PreparableVideo, probe: SourceProbe): VideoS
  * already made stay reusable; `whole:<hash of the seeded layer>` with one, so a pre-webcam copy
  * (no face) and an editor export are never offered as this one.
  */
-export function prepareFingerprint(scene: VideoScene): string {
-  return wholeFingerprint(scene.webcam);
+export function prepareFingerprint(scene: VideoScene, editableCursor = false): string {
+  const whole = wholeFingerprint(scene.webcam);
+  return editableCursor ? `${whole}:cursor2` : whole;
 }
 
 export type ProbeState =
@@ -119,32 +124,47 @@ export function usePrepareCopy(): { start(input: PrepareCopyInput): boolean } {
         return false;
       }
       const scene = prepareScene(video, probe);
-      void startExport({
-        scene,
-        // The sidecar's webcam: its file is fetched and composed at the recorded layout.
-        webcamTrack: video.webcam ?? null,
-        sourceId: video.id,
-        title: video.title,
-        derivedFromAssetId: video.assetId,
-        sourceSizeBytes: video.fileSizeBytes,
-        videoWidth: probe.width,
-        videoHeight: probe.height,
-        previewWidth: probe.width,
-        slideAssets: createSlideAssetStore(),
-        cameraPath: null,
-        presetId: choice.presetId,
-        framing: choice.framing,
-        sourceInfo: probe,
-        fingerprint: prepareFingerprint(scene),
-        // The progress and ready cards name the place: "Preparing your YouTube copy…".
-        destination: destination ?? destinationOfPreset(choice.presetId),
-        onSaved: (recording) => {
-          try {
-            onSaved?.(recording);
-          } catch (error) {
-            captureException(error, { context: "prepare-saved" });
-          }
-        },
+      void (async () => {
+        const cursorFree = canOverlayRecordedCursor(video.capture);
+        const raw = cursorFree ? await window.electronAPI.loadCursorTrack(video.id) : null;
+        const cursor = cursorLayerData(video.capture, raw ? parseCursorTrack(raw) : null);
+        if (cursorFree && !cursor)
+          throw new Error("Cursor-free recording has no replayable cursor track");
+        if (isVideoExportBusy()) {
+          showExportBusyToast(tEditor);
+          return;
+        }
+        await startExport({
+          cursor,
+          scene,
+          // The sidecar's webcam: its file is fetched and composed at the recorded layout.
+          webcamTrack: video.webcam ?? null,
+          sourceId: video.id,
+          title: video.title,
+          derivedFromAssetId: video.assetId,
+          sourceSizeBytes: video.fileSizeBytes,
+          videoWidth: probe.width,
+          videoHeight: probe.height,
+          previewWidth: probe.width,
+          slideAssets: createSlideAssetStore(),
+          cameraPath: null,
+          presetId: choice.presetId,
+          framing: choice.framing,
+          sourceInfo: probe,
+          fingerprint: prepareFingerprint(scene, cursorFree),
+          // The progress and ready cards name the place: "Preparing your YouTube copy…".
+          destination: destination ?? destinationOfPreset(choice.presetId),
+          onSaved: (recording) => {
+            try {
+              onSaved?.(recording);
+            } catch (error) {
+              captureException(error, { context: "prepare-saved" });
+            }
+          },
+        });
+      })().catch((error) => {
+        captureException(error, { context: "prepare-cursor-export" });
+        showToast({ message: tEditor("exportError") });
       });
       return true;
     },

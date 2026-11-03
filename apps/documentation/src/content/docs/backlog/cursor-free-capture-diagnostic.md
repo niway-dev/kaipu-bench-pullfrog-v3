@@ -360,7 +360,7 @@ clock is not used for this bridge. Audio uses the same mediabunny synced-zero an
 Pause/resume/stop receive the renderer clock edges used by the cursor tracker. Native pause
 time is removed, resume forces a keyframe at the active timeline boundary, and stop flushes
 to the requested edge. A bounded 200 ms / 16 packet / 16 MiB lookbehind allows commands to
-trim frames encoded during IPC transit. A command later than that bound fails the take.
+trim frames encoded during IPC transit. A command later than that bound clamps to the last emitted edge and reports its drift on stderr; already emitted packets are preserved.
 
 Only the screen source changes. The existing Output, StreamTarget, positional writer,
 audio mix and live controls, thumbnail and library finalize path remain in use. Chromium
@@ -434,5 +434,4 @@ arrow; a controlled trimmed/zoomed editor fixture produced an MP4 whose decoded 
 bounds matched preview within one pixel. This closes the editor-layer/control gate named
 in the lifecycle record, with the limitations and reproducible proof recorded in
 [editable cursor implementation](/backlog/cursor-sprite-capture/). Recorded pointer shapes,
-Prepare-copy cursor replay, native exclusion/motion pixels and signed/TCC validation remain
-open. Default capture remains Chromium; no new native capture/signing claim is made here.
+Prepare-copy cursor replay is now connected with missing-track refusal and distinct reuse fingerprints; native exclusion/motion pixels and signed/TCC validation remain open. Default capture remains Chromium; no new native capture/signing claim is made here.

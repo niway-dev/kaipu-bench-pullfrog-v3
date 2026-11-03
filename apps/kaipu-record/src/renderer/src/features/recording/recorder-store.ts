@@ -502,7 +502,14 @@ function acquireStart(input: StartInput): PendingStart {
     // Cancelled while the take's file was being created: the engine must not open the
     // screen or the mic for a take that is already gone (`discardStart` aborts the file).
     if (pendingStart !== start) throw new Error("start cancelled before it was created");
+    const cursorSession = beginCursorTrackSession(
+      window.electronAPI,
+      id,
+      input.sourceId,
+      input.area ? { area: input.area } : {},
+    );
     start.engine = prepareEngine({
+      nativeCursorTrackReady: cursorSession.then((track) => track.enabled),
       sourceId: input.sourceId,
       onNativeDecision: (message) => {
         showToast({ message, durationMs: 10000 });
@@ -568,15 +575,7 @@ function acquireStart(input: StartInput): PendingStart {
     // unknown display), when IPC fails, or after its own 500 ms timeout. Opened during
     // the countdown, it samples the pointer early: those samples come before the take's
     // time 0 (its anchor) and are dropped when the track is built.
-    const [track, prepared] = await Promise.all([
-      beginCursorTrackSession(
-        window.electronAPI,
-        id,
-        input.sourceId,
-        input.area ? { area: input.area } : {},
-      ),
-      start.engine,
-    ]);
+    const [track, prepared] = await Promise.all([cursorSession, start.engine]);
     // From here a level, volume, noise or ducking change reaches the prepared engine: during
     // the countdown it is in effect before the first frame. Changes made while acquiring
     // were kept by `start.audio`.

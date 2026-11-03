@@ -54,6 +54,7 @@ export function spawnNativeVideo(
   path: string,
   request: NativeVideoRequest,
   testAllowUnmatchedParent = false,
+  stallTimeoutMs = 5000,
 ): NativeCaptureReader {
   validateNativeRequest(request);
   const child = spawn(
@@ -83,6 +84,8 @@ export function spawnNativeVideo(
     if (cancelled || ended) throw new Error("Native capture closed");
     child.stdin.write(`${name} ${hostAt(ms)}\n`);
   };
+  let paused = false;
+  let refreshReadTimeout: (() => void) | undefined;
   let prepared = false;
   let busy = false,
     cancelled = false,
@@ -126,8 +129,16 @@ export function spawnNativeVideo(
       prepared = true;
     },
     begin: (ms) => command("go", ms),
-    pause: (ms) => command("pause", ms),
-    resume: (ms) => command("resume", ms),
+    async pause(ms) {
+      await command("pause", ms);
+      paused = true;
+      refreshReadTimeout?.();
+    },
+    async resume(ms) {
+      await command("resume", ms);
+      paused = false;
+      refreshReadTimeout?.();
+    },
     async next() {
       if (busy) throw new Error("Concurrent native packet pull");
       if (cancelled) throw new Error("Native capture cancelled");
@@ -144,7 +155,15 @@ export function spawnNativeVideo(
             return result;
           }),
           new Promise<never>((_, reject) => {
-            timeout = setTimeout(() => reject(new Error("Native capture stalled")), 5000);
+            refreshReadTimeout = () => {
+              clearTimeout(timeout);
+              if (!paused)
+                timeout = setTimeout(
+                  () => reject(new Error("Native capture stalled")),
+                  stallTimeoutMs,
+                );
+            };
+            refreshReadTimeout();
           }),
         ]);
         if (cancelled) throw new Error("Native capture cancelled");
@@ -163,12 +182,15 @@ export function spawnNativeVideo(
         throw error;
       } finally {
         clearTimeout(timeout);
+        refreshReadTimeout = undefined;
         busy = false;
       }
     },
     async stop(atMainMs = performance.now()) {
       if (cancelled || stopped || ended) return;
       stopped = true;
+      paused = false;
+      refreshReadTimeout?.();
       child.stdin.end(`stop ${hostAt(atMainMs)}\n`); // Consumer must keep pulling through end and process exit.
     },
     cancel,

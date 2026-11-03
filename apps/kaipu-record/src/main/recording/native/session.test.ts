@@ -130,3 +130,19 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
     await reader.cancel();
   }
 });
+
+it("suspends an already pending read timeout throughout pause and rearms on resume", async () => {
+  const path = await helper("process.stdin.resume(); setInterval(() => {}, 1000);");
+  const reader = spawnNativeVideo(path, request, false, 60);
+  const pending = reader.next();
+  const rejected = expect(pending).rejects.toThrow("stalled");
+  try {
+    await reader.pause!(performance.now());
+    // Longer than the injected stall limit: the pending pull must remain alive.
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    await reader.resume!(performance.now());
+    await rejected;
+  } finally {
+    await reader.cancel();
+  }
+});
