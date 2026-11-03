@@ -244,3 +244,14 @@ describe("wholeFingerprint (Share)", () => {
     expect(isWholeFingerprint(undefined)).toBe(false);
   });
 });
+
+it("never reuses a pre-cursor export for an eligible source, even with default settings", () => {
+  const scene = initialScene(3);
+  expect(editFingerprint(scene, true)).not.toBe(editFingerprint(scene));
+  expect(editFingerprint(parseSession(serializeSession(scene))!.scene, true)).toBe(
+    editFingerprint(scene, true),
+  );
+  expect(editFingerprint({ ...scene, cursor: { ...scene.cursor!, size: 64 } }, true)).not.toBe(
+    editFingerprint(scene, true),
+  );
+});

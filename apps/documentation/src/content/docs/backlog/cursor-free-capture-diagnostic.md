@@ -424,3 +424,15 @@ Local transient artifacts and exact command logs are indexed in
 an independent review approval. No children, pushes or PRs were used for this slice.
 The project-specific lessons are enforced by handshake, timestamp, eligibility and wire
 validation tests; no shared skill or knowledge-hub change is needed.
+
+## Editable editor cursor follow-up (2026-11-03)
+
+The subsequent editor slice now renders cursor-free recordings with a shared source-time
+Canvas2D model in preview and editor exports, plus persisted Cursor inspector controls.
+An isolated Electron test reopened the native lifecycle take above with a visible default
+arrow; a controlled trimmed/zoomed editor fixture produced an MP4 whose decoded arrow
+bounds matched preview within one pixel. This closes the editor-layer/control gate named
+in the lifecycle record, with the limitations and reproducible proof recorded in
+[editable cursor implementation](/backlog/cursor-sprite-capture/). Recorded pointer shapes,
+Prepare-copy cursor replay, native exclusion/motion pixels and signed/TCC validation remain
+open. Default capture remains Chromium; no new native capture/signing claim is made here.

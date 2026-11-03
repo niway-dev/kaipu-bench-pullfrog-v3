@@ -268,6 +268,7 @@ async function runExportWithInput(
     width: composeSize.width,
     height: composeSize.height,
     camera: msg.camera,
+    cursor: msg.cursor,
     redactions: plan.redactions,
     overlayWindows: plan.overlayWindows,
     overlayBitmaps: new Map(msg.overlays.map((o) => [o.overlayId, o.bitmap])),

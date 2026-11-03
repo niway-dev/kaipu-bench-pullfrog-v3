@@ -59,6 +59,8 @@ export interface VideoEditSession {
   hasZoomData: boolean;
 }
 
+import { parseCursorSettings } from "./cursor/cursor-model";
+
 export function serializeSession(scene: VideoScene): string {
   return JSON.stringify({ version: 1, scene });
 }
@@ -173,6 +175,7 @@ export function parseSession(json: string): VideoEditSession | null {
     version: 1,
     scene: {
       items,
+      cursor: parseCursorSettings(sceneRaw["cursor"]),
       overlays,
       zoomSegments,
       redactions,

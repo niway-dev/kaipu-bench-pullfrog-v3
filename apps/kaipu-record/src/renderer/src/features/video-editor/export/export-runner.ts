@@ -1,3 +1,4 @@
+import type { CursorLayerData } from "../cursor/cursor-model";
 import { useSyncExternalStore } from "react";
 import type { Translator } from "@kaipu/i18n";
 import type { LocalRecording } from "@shared/types/library-storage";
@@ -47,6 +48,7 @@ export interface StartExportArgs {
   slideAssets: SlideAssetStore;
   /** v2: the preview's camera path (useCameraPath). Sent whenever the plan has a zoom. */
   cameraPath: CameraPath | null;
+  cursor?: CursorLayerData | null;
   /**
    * The recording's webcam track (the sidecar's `webcam`), when it has one: with a webcam
    * layer in the scene, its file is fetched and composed (ADR 0038).
@@ -530,6 +532,7 @@ export async function startVideoExport(
       source: { width: args.videoWidth, height: args.videoHeight },
       target: runTarget,
       camera,
+      cursor: args.cursor ?? null,
       webcam,
     };
     runWorker.postMessage(startMessage, [

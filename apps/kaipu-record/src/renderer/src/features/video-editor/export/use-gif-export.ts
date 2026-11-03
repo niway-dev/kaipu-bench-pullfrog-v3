@@ -1,3 +1,4 @@
+import type { CursorLayerData } from "../cursor/cursor-model";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "@kaipu/i18n";
 import type { LocalRecording } from "@shared/types/library-storage";
@@ -22,6 +23,7 @@ export interface GifJobArgs {
   previewWidth: number;
   slideAssets: SlideAssetStore;
   cameraPath: CameraPath | null;
+  cursor?: CursorLayerData | null;
   /** The recording's webcam track, when it has one (ADR 0038), as for the MP4 export. */
   webcamTrack?: ExportWebcamTrack | null;
   /** Range in edited-timeline seconds. */
@@ -118,6 +120,7 @@ async function buildStartMessage(
     output: gifOutputSize(args.videoWidth, args.videoHeight, args.width),
     fps: args.fps,
     camera,
+    cursor: args.cursor ?? null,
     webcam: plan.webcam ? webcam : null,
   };
   const transfer: Transferable[] = [

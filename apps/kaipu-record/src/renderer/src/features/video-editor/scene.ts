@@ -1,3 +1,4 @@
+import { DEFAULT_CURSOR, type CursorSettings } from "./cursor/cursor-model";
 import type { MutedRange } from "./audio-edits";
 /**
  * Video-editor scene model. All overlay geometry is normalized 0–1 of the VIDEO frame
@@ -87,6 +88,7 @@ export type VideoOverlay = BoxOverlay | ArrowOverlay | TextOverlay;
 export type { MutedRange } from "./audio-edits";
 
 export interface VideoScene {
+  cursor?: CursorSettings;
   /** The main track in playback order; uncovered source footage is deleted footage. */
   items: TrackItem[];
   overlays: VideoOverlay[];
@@ -131,6 +133,7 @@ export function initialScene(
 ): VideoScene {
   return {
     items: [{ id: newId(), kind: "clip", sourceStart: 0, sourceEnd: durationSeconds }],
+    cursor: { ...DEFAULT_CURSOR },
     overlays: [],
     zoomSegments: [],
     redactions: [],

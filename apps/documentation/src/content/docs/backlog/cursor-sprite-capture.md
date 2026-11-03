@@ -5,14 +5,109 @@ description: "Future improvement for the video editor's auto-zoom: exclude the O
 
 # Cursor-free capture and a drawn cursor
 
-> **Status: in progress — experimental native recorder integration** (2026-11-03).
-> Default capture remains Chromium. An explicit `--experimental-native-recording` flag
-> selects cursor-free native video for eligible macOS whole-display takes; area,
-> watermark and webcam takes explicitly fall back before recording. The editor cursor
-> layer is still unimplemented: this is not completion of the editable-cursor feature.
-> Current evidence and limitations: [native capture execution](/backlog/cursor-free-capture-diagnostic/).
-> Design background:
-> [plan 12 — capture resolution and cursor sprite](/plans/video-editor-v2/12-capture-resolution-and-cursor-sprite/).
+> **Status: in progress — editable editor cursor slice implemented and locally validated** (2026-11-03).
+> Eligible cursor-free recordings now have a Cursor inspector and a shared preview/export
+> painter. Default recording remains Chromium; native capture is still experimental behind
+> `--experimental-native-recording`. Recorded pointer shapes and signed/TCC validation remain
+> open. This is not a claim that the entire native recording feature is complete.
+> Native capture evidence: [native capture execution](/backlog/cursor-free-capture-diagnostic/).
+> The sections after the implementation record below retain the original v2 design rationale.
+
+## Editable cursor implementation record (2026-11-03)
+
+The editor's right inspector has a **Cursor** entry. On recordings with explicit
+`capture.cursorPixels: "excluded"` and a nonempty validated cursor track it exposes:
+
+- Show cursor; Arrow, Dot or Spotlight presentation style.
+- Size (16–96 reference pixels at 1080 output height), independent of camera zoom.
+- Smoothing (0–100), a source-time exponential filter, precomputed once per settings/track.
+- None, Circle or Ripple click effects; click bounce. Both require `clicksAvailable`.
+- Hide after 1.5 seconds idle; recorded clicks reset the idle timer.
+
+Settings live in the scene/session, pass through undo/redo and debounced autosave, and
+survive reopening. Legacy sessions receive visible-arrow defaults. Missing, malformed,
+embedded or unknown-provenance cursor tracks never receive an overlay. Recorded hand,
+I-beam and resize shapes are **not captured**; the inspector states that limitation and
+has no misleading “match recorded pointer” control. Native new scenes default to a visible
+32-pixel arrow; the first position is clamped back to source zero when the hook starts
+milliseconds after the video. The real native lifecycle take was reopened and painted at zero.
+
+`cursor/cursor-model.ts` owns source-time sampling, smoothing, idle state, click phases,
+camera-crop coordinate projection and Canvas2D painting. Preview uses the existing video
+frame clock and writes to its canvas without per-frame React state. MP4 and GIF workers
+receive the same track/settings and use the same model/painter after crop, before the webcam.
+Fixed-canvas Fit/Fill projects the hotspot onto the final canvas and sizes the pointer from
+that canvas's height. Slides have no cursor; cuts and trims keep source timestamps; held
+recompositions use the same source camera timestamp as their crop.
+
+Privacy wins over cursor presentation: the whole cursor/effect layer is hidden during an
+active privacy span. Export also suppresses it when the decoded frame's source interval
+intersects a privacy span, including held private frames. This conservative boundary may
+hide the export pointer one decoded frame earlier than the preview. The painter reads no
+source pixels and cannot replace redacted pixels. “Hold to see original” hides the layer.
+
+Default embedded-cursor export fingerprints remain stable. Eligible editor exports carry
+a `cursor1` compositor revision so a pre-overlay file cannot be offered as an equivalent
+export, even with default cursor settings.
+
+### Observed evidence
+
+Artifacts are local and ignored under `.evidence/editable-cursor/`; no captures are committed.
+`apps/kaipu-record/scripts/editable-cursor-proof.cjs` creates its own profile/vault, launches
+cached Electron 39.8.10, exercises the actual editor and MP4 exporter, and closes only its
+owned process. Installed Kaipu PID 45006 remained running. The proof uses a generated slate
+and deterministic position/click fixture for reproducible pixel measurements; it optionally
+copies the prior actual native recording/sidecar to prove default cursor visibility there.
+It does not manufacture evidence of new native capture or OS cursor exclusion.
+
+| Criterion                                         | Observation                                                                                                                                                             | Evidence                                                                    |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Inspector changes reach persistence and reopen    | Size 64, smoothing 65, ripple and bounce survived actual autosave and reload; all three styles rendered                                                                 | `editor-arrow.png`, `editor-dot.png`, `editor-spotlight.png`, `result.json` |
+| Actual MP4 contains cursor after trim and 2× zoom | Source 1.1 s → edited timeline 0.6 s; 1920×1080 preview white-arrow bounds `[1346,544,1379,587]`, decoded export `[1346,544,1378,587]`; 689 vs 677 white pixels         | `preview-cursor.png`, `export-frame.png`, `export.mp4`, `result.json`       |
+| Privacy and embedded provenance                   | Cursor canvas fully transparent during private source span; embedded fixture resolves without a cursor canvas                                                           | `editor-privacy.png`, `editor-embedded.png`, `result.json`                  |
+| Actual native take opens visibly by default       | Prior native lifecycle output opened in the editor with Show cursor checked, Size 32 and nonempty cursor canvas                                                         | `editor-native-default.png`, `result.json`                                  |
+| Model/compositor boundaries                       | Deterministic seeking, off-display/truncated/empty track, click unavailability, idle boundary, migration, undo/redo, held/private frame and Fit/Fill projection covered | targeted suite below                                                        |
+
+From `apps/kaipu-record`:
+
+```sh
+MAIN_VITE_SERVER_URL=http://127.0.0.1:1 MAIN_VITE_WEB_URL=http://127.0.0.1:1 bun run build
+KAIPU_CURSOR_NATIVE_RESULT=/tmp/kaipu-native-recorder-proof/result.json node scripts/editable-cursor-proof.cjs
+bun run test -- src/renderer/src/features/video-editor src/renderer/src/features/editor/open-in-editor.test.ts src/shared/native-capture.test.ts
+```
+
+- Build and node/web types: exit 0 (`/tmp/cursor-build-final.log`, `/tmp/cursor-types-final.log`).
+- Isolated runtime proof: exit 0 (`/tmp/cursor-runtime-final.log`); decoded arrow measurement
+  enforces ≤2 pixels per bound and ≤5% white-mask area difference for lossy H.264.
+- Targeted editor/provenance suite: exit 0, **956 passed / 81 files** (`/tmp/cursor-editor-final.log`).
+- i18n suite: exit 0, **22 passed** (`/tmp/cursor-i18n.log`).
+- Full app suite: exit 1, **4614 passed / one skipped**, same four pre-existing library import
+  failures: “Electron failed to install correctly” (`/tmp/cursor-full-suite.log`). No dependency repair.
+- Root lint: exit 0, zero errors; existing warnings retained (`/tmp/cursor-lint.log`).
+
+### Review route and remaining gates
+
+1. `cursor/cursor-model.ts`: judge the source-time filter, idle semantics, on-display and
+   truncation boundaries, and deliberate whole-layer suppression during privacy spans.
+2. `export/compose-output-frame.ts`: judge post-crop/final-canvas placement and the more
+   conservative decoded-frame privacy boundary; command parity tests and real decoded
+   H.264 proof cover different parts of this contract.
+3. `pages/video-editor/video-editor-page.tsx` and `components/inspector/cursor-inspector.tsx`:
+   judge provenance gating, selection handoff, history gestures, persistence and worker inputs.
+4. `export/export-reuse.ts`: judge legacy compatibility versus cursor compositor revision.
+
+Remaining: actual pointer-shape capture/replay; cursor replay in the separate **Prepare a
+copy** workflow (this slice wires editor exports); moving native pointer pixel-exclusion
+and clock-error proof, long/4K60 capture stress, signed packaged helper/TCC/notarization.
+The GIF worker is wired and type-checked through the shared composer, but GIF remains
+product-disabled and was not runtime-exported here. Fit/Fill and held-frame behavior have
+unit proof; the decoded runtime frame proof covers the native-aspect MP4 case. Sonnet
+independent review is still planned by the parent; this implementation spawned no children,
+created no PR and pushed nothing.
+
+The durable project lesson is encoded in tests: exclusion provenance must gate every
+replacement cursor, source-time sampling must be seek-independent, and a default-pointer
+export needs its own compositor fingerprint. No shared skill or hub changes were needed.
 
 ## The gap
 

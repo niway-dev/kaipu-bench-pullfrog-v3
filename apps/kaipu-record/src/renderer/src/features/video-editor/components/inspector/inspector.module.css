@@ -155,3 +155,25 @@
   color: var(--text-primary);
   font-size: var(--font-size-sm);
 }
+
+.cursorToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.cursorEntry {
+  margin: var(--space-md) var(--space-lg) 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.cursorEntry[aria-pressed="true"] {
+  border-color: var(--accent-primary);
+}

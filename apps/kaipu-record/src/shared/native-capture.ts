@@ -30,7 +30,7 @@ export interface NativeCaptureReader {
   cancel(): Promise<void>;
 }
 
-/** Missing/unknown provenance is always ineligible for a future editable overlay. */
+/** Missing/unknown provenance is always ineligible for an editable overlay. */
 export type CursorPixelProvenance = "embedded" | "excluded";
 export function canOverlayRecordedCursor(
   capture: { cursorPixels?: CursorPixelProvenance } | null | undefined,
