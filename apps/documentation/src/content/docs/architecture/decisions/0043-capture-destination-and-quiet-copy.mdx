@@ -32,7 +32,10 @@ also raises it without keyboard focus: it can cover the app the user was working
   capture, the editor receives the bytes. Success must never be claimed for a failed copy.
 - Quiet capture leaves the main window hidden, even if it was visible before capture.
   Cancellation still restores a previously visible window. Choosing Edit or using the Dock
-  or tray explicitly reveals Kaipu.
+  or tray explicitly reveals Kaipu. macOS app-switcher activation also reveals it via
+  `did-become-active`; Electron’s `activate` covers Dock/relaunch, not Cmd+Tab.
+  Overlay activation is ignored while capture is in progress, and recording/countdown
+  activation leaves the recording surface undisturbed.
 - The destination is read when capture starts, alongside the existing clipboard policy.
   A preference change while the overlay is open applies to the next capture.
 

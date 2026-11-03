@@ -1,3 +1,4 @@
+import { registerAppActivation } from "./app-activation";
 import {
   app,
   shell,
@@ -1216,13 +1217,12 @@ app.whenReady().then(async () => {
     },
   });
 
-  app.on("activate", function () {
-    // Dock-icon click: bring the main window back (recreating it if it was
-    // closed). Keyed on the tracked mainWindow ref, NOT
-    // getAllWindows().length === 0 — the Capture Panel and control-bar windows
-    // persist hidden after their first use, so that count is never zero once
-    // either has been shown, which left the Dock icon doing nothing.
-    showMainWindow();
+  registerAppActivation({
+    app,
+    platform: process.platform,
+    captureInProgress: () => captureWindowHooks.isCapturing(),
+    recordingInProgress: () => (hub?.isActive() || hub?.isPending()) ?? false,
+    showMainWindow,
   });
 });
 

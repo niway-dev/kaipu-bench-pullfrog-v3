@@ -39,9 +39,12 @@ export interface CaptureWindowHooksDeps {
  *
  * A window that was hidden stays hidden on every path.
  */
-export function createCaptureWindowHooks(deps: CaptureWindowHooksDeps): CaptureWindowHooks {
+export function createCaptureWindowHooks(
+  deps: CaptureWindowHooksDeps,
+): CaptureWindowHooks & { isCapturing(): boolean } {
   /** Whether the main window was visible before the capture, to restore it after. */
   let wasVisible = false;
+  let capturing = false;
 
   const liveWindow = (): CaptureMainWindow | null => {
     const window = deps.mainWindow();
@@ -49,7 +52,9 @@ export function createCaptureWindowHooks(deps: CaptureWindowHooksDeps): CaptureW
   };
 
   return {
+    isCapturing: () => capturing,
     beforeCapture: () => {
+      capturing = true;
       const window = liveWindow();
       wasVisible = window?.isVisible() ?? false;
       // Failure: the last quiet capture's toast is always on top and would land in this shot.
@@ -61,6 +66,7 @@ export function createCaptureWindowHooks(deps: CaptureWindowHooksDeps): CaptureW
       deps.hideCameraBubble();
     },
     afterCapture: (ending: CaptureEnding) => {
+      capturing = false;
       if (wasVisible && ending === "cancelled") deps.showMainWindow();
       deps.restoreCameraBubble();
     },
