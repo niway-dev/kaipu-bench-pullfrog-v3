@@ -12,7 +12,6 @@ import {
 import {
   PREVIEW_WINDOW_PADDING,
   previewCardSize,
-  COPY_CONFIRMATION_SIZE,
   type PreviewCardSize,
 } from "@shared/capture-preview-layout";
 import type { KeptQuietCapture, QuietCapture } from "./last-quiet-capture";
@@ -171,9 +170,7 @@ export class CaptureToastWindow {
     this.payload = payload;
     this.bounds = toastBounds(
       this.workAreaOf(displayId),
-      payload.presentation === "copied"
-        ? COPY_CONFIRMATION_SIZE
-        : previewCardSize(payload.width, payload.height),
+      previewCardSize(payload.width, payload.height),
     );
     this.paused = payload.presentation !== "copied" && this.pointerInside;
     this.ensureWindow();
@@ -228,7 +225,6 @@ export class CaptureToastWindow {
   private act(action: CaptureToastAction): void {
     const payload = this.payload;
     if (!payload) return;
-    if (payload.presentation === "copied" && action !== "dismiss") return;
     switch (action) {
       case "dismiss":
         this.dismiss();

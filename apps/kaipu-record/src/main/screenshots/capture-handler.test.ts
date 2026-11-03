@@ -495,12 +495,12 @@ describe("createCaptureHandler", () => {
       expect(takeLastQuietCapture()).toBeNull();
     });
 
-    it("hands the toast hook a compact confirmation per successful Copy", async () => {
+    it("hands the toast hook an image confirmation per successful Copy", async () => {
       const { handler, onQuietCapture } = setup(shot("copy"));
       await handler({ mode: "frame" });
       expect(onQuietCapture).toHaveBeenCalledExactlyOnceWith({
         presentation: "copied",
-        thumbnail: "",
+        thumbnail: "data:image/png;base64,thumb",
         width: 3,
         height: 2,
         mode: "frame",

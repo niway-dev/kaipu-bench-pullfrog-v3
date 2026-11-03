@@ -198,7 +198,7 @@
     "screenshotAfterCaptureEditor": "Abrir el editor",
     "screenshotCopy": "Copiar capturas al portapapeles automáticamente",
     "screenshotCopyDescription": "Cada captura queda lista para pegar apenas la tomas.",
-    "screenshotQuietNote": "Cuando Copiar funciona, Kaipu solo muestra una confirmación breve y nunca abre la vista previa ni el editor.",
+    "screenshotQuietNote": "When a Copy succeeds, Kaipu briefly shows the screenshot with a Copied confirmation. Click Edit to open it.",
     "developer": "Developer",
     "accountMoved": "Tu cuenta se movió a Cloud",
     "accountMovedDetail": "La sesión, la capacidad y las subidas viven en la sección Cloud del menú lateral.",

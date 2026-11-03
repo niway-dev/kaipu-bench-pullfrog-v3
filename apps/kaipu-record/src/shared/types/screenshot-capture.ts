@@ -232,9 +232,9 @@ export interface OverlayState {
 
 /** Main → toast window. */
 export interface CaptureToastPayload {
-  /** Successful explicit Copy uses a brief confirmation with no image or actions. */
+  /** Successful explicit Copy keeps the image and actions with a brief confirmation timer. */
   presentation?: "copied";
-  /** Data URL, at most 160 px wide. */
+  /** Data URL, at most PREVIEW_THUMBNAIL_MAX_SIDE px on its longest side. */
   thumbnail: string;
   width: number;
   height: number;

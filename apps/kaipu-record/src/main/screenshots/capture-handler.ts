@@ -335,7 +335,7 @@ async function finish(
     const confirmation = shot.action === "copy" && copied && saved !== null;
     deps.onQuietCapture?.({
       ...(confirmation ? { presentation: "copied" as const } : {}),
-      thumbnail: confirmation ? "" : deps.thumbnail(png),
+      thumbnail: deps.thumbnail(png),
       width,
       height,
       mode: shot.mode,

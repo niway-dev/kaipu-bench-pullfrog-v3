@@ -302,16 +302,7 @@
   outline-offset: 2px;
 }
 
-.confirmation {
-  box-sizing: border-box;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.confirmation svg {
-  color: var(--toast-ok);
+/* A short Copy confirmation keeps Edit discoverable without waiting for hover. */
+.card[data-confirmation] .edit {
+  opacity: 1;
 }

@@ -25,8 +25,9 @@ also raises it without keyboard focus: it can cover the app the user was working
 - Capture saves to the Library, copies when automatic copy is enabled, and shows exactly one
   destination: the preview or the editor. Edit on the preview opens the saved capture and
   dismisses the preview.
-- A successful explicit Copy shows only a compact “Copied” confirmation, without an image,
-  metadata or actions. It expires after 1.8 seconds, including under the pointer.
+- A successful explicit Copy keeps the existing image-first card with its Copied pill and actions.
+  Edit is visible at rest and clicking the image opens the saved shot. It expires after
+  1.8 seconds, including under the pointer: a short confirmation without an extra surface.
 - Failed save or copy uses the existing recovery card; if neither operation retained the
   capture, the editor receives the bytes. Success must never be claimed for a failed copy.
 - Quiet capture leaves the main window hidden, even if it was visible before capture.
@@ -40,14 +41,14 @@ also raises it without keyboard focus: it can cover the app the user was working
 - **Always preview:** adds an unnecessary edit click for users who annotate every capture.
 - **Editor and preview together:** redundant actions and two competing surfaces.
 - **Independent visibility toggles:** allow contradictory combinations and recreate redundancy.
-- **Full preview after Copy:** interrupts a completed task whose next step is pasting elsewhere.
+- **Long-lived preview after Copy:** interrupts a completed task whose next step is pasting elsewhere.
 - **Restore the main window inactive:** avoids keyboard focus but still changes window stacking.
 
 ## Consequences
 
 A successful quiet capture no longer restores a previously visible main window. The user can
 reopen it from the Dock or tray. The existing toast window handles both presentations, with
-separate bounds and timers; no second window or notification system is introduced.
+shared image bounds and separate timers; no second window or notification system is introduced.
 
 ## Non-goals
 
