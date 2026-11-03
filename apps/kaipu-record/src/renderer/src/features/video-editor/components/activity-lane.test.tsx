@@ -35,6 +35,6 @@ describe("ActivityLane", () => {
     );
     const bars = [...container.querySelectorAll<HTMLElement>("span")];
     expect(bars).toHaveLength(2);
-    expect(bars.every((b) => b.style.height === "18px")).toBe(true);
+    expect(bars.every((b) => b.style.height === "16px")).toBe(true);
   });
 });
