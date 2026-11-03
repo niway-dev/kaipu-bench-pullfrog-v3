@@ -235,10 +235,16 @@ export function toolForShortcut(key: string, opts: { onSlide: boolean }): Editor
   return tool;
 }
 
-/** Target is a text field — don't hijack Space for play/pause while typing. */
+/** Target is a text field or a dropdown — don't hijack its keys (Space, letters that pick
+ *  an option) for play/pause or tool shortcuts. */
 function isEditingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    target.isContentEditable
+  );
 }
 
 function formatTime(seconds: number): string {
@@ -1290,6 +1296,7 @@ function VideoEditor({
       // action the user never asked for.
       if (e.key === "Escape" && !document.fullscreenElement) {
         clearSelection();
+        setCursorInspectorOpen(false);
         return;
       }
       // Annotation selection takes precedence over segment deletion when both exist —
@@ -1458,7 +1465,12 @@ function VideoEditor({
                     // and the inspector would keep showing the Zoom panel. It does not
                     // toggle playback: only the play button and Space do (NIW2-611), so a
                     // click meant to deselect never starts the video by surprise.
-                    onSelect={(id) => (id === null ? clearSelection() : selectKind("overlay", id))}
+                    onSelect={(id) => {
+                      if (id !== null) return selectKind("overlay", id);
+                      // Deselecting everything includes the drawn cursor.
+                      clearSelection();
+                      setCursorInspectorOpen(false);
+                    }}
                     tool={isPrivacyTool(videoTools.tool) ? "select" : videoTools.tool}
                     toolState={{
                       color: videoTools.color,

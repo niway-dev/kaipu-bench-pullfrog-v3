@@ -684,6 +684,23 @@ describe("VideoEditorPage — keydown gate behind open modals", () => {
   });
 });
 
+describe("VideoEditorPage — shortcuts leave dropdowns alone", () => {
+  it("does not toggle playback when Space is pressed in a select (e.g. the cursor style)", async () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    renderEditor();
+    await waitForEditorLoaded();
+    const select = document.createElement("select");
+    document.body.appendChild(select);
+
+    fireEvent.keyDown(select, { key: " " });
+    await act(async () => {});
+
+    expect(playSpy).not.toHaveBeenCalled();
+    select.remove();
+    playSpy.mockRestore();
+  });
+});
+
 describe("toolForShortcut — the keyboard agrees with the toolbar's disabled states", () => {
   it("maps each annotation shortcut to its tool", () => {
     expect(toolForShortcut("v", { onSlide: false })).toBe("select");
