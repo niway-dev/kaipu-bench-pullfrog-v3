@@ -46,7 +46,9 @@ export interface NativeVideoRequest {
   videoBitrate: number;
 }
 export interface NativeCaptureBridge {
-  capability(): Promise<{
+  /** `requested`: the renderer's `native-cursor-capture` flag. The main process also
+   *  honours `--experimental-native-recording` on its own command line. */
+  capability(requested?: boolean): Promise<{
     transportAvailable: boolean;
     recordingReady: false;
     reason: string;

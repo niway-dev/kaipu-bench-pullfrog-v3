@@ -1,6 +1,8 @@
 import { attachNativeEncodedVideo } from "./native-encoded-video";
 import { measureClockOffset } from "./clock-sync";
 import type { NativeCaptureBridge } from "@shared/native-capture";
+import { FLAG_DEFAULTS } from "@shared/analytics";
+import { isFlagEnabled } from "@renderer/features/analytics/analytics-client";
 import {
   MediaStreamAudioTrackSource,
   MediaStreamVideoTrackSource,
@@ -401,11 +403,14 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
   let nativePixels: "embedded" | "excluded" = "embedded";
   const bridge = typeof window !== "undefined" ? window.electronAPI?.nativeCapture : undefined;
   if (bridge) {
-    const capability = await bridge.capability().catch(() => ({
-      transportAvailable: false,
-      reason: "Native capability unavailable",
-      experimentalRequested: false,
-    }));
+    const flag = "native-cursor-capture";
+    const capability = await bridge
+      .capability(isFlagEnabled(flag, FLAG_DEFAULTS[flag]))
+      .catch(() => ({
+        transportAvailable: false,
+        reason: "Native capability unavailable",
+        experimentalRequested: false,
+      }));
     if (!capability.transportAvailable && capability.experimentalRequested)
       options.onNativeDecision?.(
         `Experimental native capture: using Chromium. ${capability.reason}`,

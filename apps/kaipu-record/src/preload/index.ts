@@ -90,7 +90,7 @@ async function scopedInvoke<T>(channel: string, ...args: unknown[]): Promise<T> 
 // Custom Kaipu bridge. Only methods with a live main-process handler are exposed.
 const kaipuApi: KaipuElectronAPI = {
   nativeCapture: {
-    capability: () => ipcRenderer.invoke(nativeChannels.capability),
+    capability: (requested) => ipcRenderer.invoke(nativeChannels.capability, requested === true),
     open: (request) => ipcRenderer.invoke(nativeChannels.open, request),
     next: () => ipcRenderer.invoke(nativeChannels.next),
     begin: (at) => ipcRenderer.invoke(nativeChannels.begin, at),

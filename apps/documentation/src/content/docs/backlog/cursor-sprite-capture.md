@@ -6,10 +6,12 @@ description: "Future improvement for the video editor's auto-zoom: exclude the O
 # Cursor-free capture and a drawn cursor
 
 > **Status: in progress — editable editor cursor slice implemented and locally validated** (2026-11-03).
-> Eligible cursor-free recordings now have a Cursor inspector and a shared preview/export
-> painter. Default recording remains Chromium; native capture is still experimental behind
-> `--experimental-native-recording`. Recorded pointer shapes and signed/TCC validation remain
-> open. This is not a claim that the entire native recording feature is complete.
+> Eligible cursor-free recordings now have a Cursor button in the tool rail and a shared
+> preview/export painter. Default recording remains Chromium; native capture is still
+> experimental behind the PostHog flag `native-cursor-capture` (off by default) or the
+> `--experimental-native-recording` switch (`bun run dev:native-capture`). Before the flag
+> can go away: area, watermark and webcam recordings must use native capture, and a signed
+> build must pass the screen-recording permission check. Recorded pointer shapes remain open. This is not a claim that the entire native recording feature is complete.
 > Native capture evidence: [native capture execution](/backlog/cursor-free-capture-diagnostic/).
 > The sections after the implementation record below retain the original v2 design rationale.
 

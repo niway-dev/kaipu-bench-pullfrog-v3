@@ -17,8 +17,12 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
     process.resourcesPath,
     app.isPackaged ? undefined : app.getAppPath(),
   );
+  // Set by the renderer's `native-cursor-capture` flag on each capability check, so a
+  // flag turned off stops the next take from opening the helper.
+  let requestedByFlag = false;
   const capability = async () => {
-    const experimentalRequested = process.argv.includes("--experimental-native-recording");
+    const experimentalRequested =
+      requestedByFlag || process.argv.includes("--experimental-native-recording");
     const reason =
       "Experimental whole-display capture; duplicated Chromium acquisition for audio/thumbnail; signing/TCC and motion unvalidated";
     if (process.platform !== "darwin" || !experimentalRequested)
@@ -56,11 +60,14 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
   for (const [method, channel] of Object.entries(channels)) {
     ipcMain.handle(
       channel,
-      async (event, request?: (NativeVideoRequest & { sourceId?: string }) | number) => {
+      async (event, request?: (NativeVideoRequest & { sourceId?: string }) | number | boolean) => {
         const contents = owner();
         if (!contents || event.sender !== contents || event.senderFrame !== contents.mainFrame)
           throw new Error("Unauthorized native capture caller");
-        if (method === "capability") return capability();
+        if (method === "capability") {
+          requestedByFlag = request === true;
+          return capability();
+        }
         if (method === "cancel") return cancel();
         if (method === "open") {
           if (reader || opening) throw new Error("Native capture already open");
@@ -74,7 +81,7 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
               openedGeneration !== generation
             )
               throw new Error("Native transport unavailable");
-            if (typeof request === "number") throw new Error("Invalid request");
+            if (typeof request !== "object") throw new Error("Invalid request");
             const { sourceId, ...videoRequest } = request;
             if (sourceId) {
               if (!sourceId.startsWith("screen:")) throw new Error("Native requires whole display");

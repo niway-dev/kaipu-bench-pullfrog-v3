@@ -89,4 +89,22 @@ describe("native IPC session ownership", () => {
     await expect(opening).rejects.toThrow("unavailable");
     expect(fake.spawn).not.toHaveBeenCalled();
   });
+  it("opens only when the flag or the command-line switch asks for it", async () => {
+    vi.spyOn(process, "argv", "get").mockReturnValue(["electron"]);
+    const capability = (requested?: boolean) =>
+      fake.handlers.get(channels.capability)!(
+        { sender: contents, senderFrame: contents.mainFrame },
+        requested,
+      );
+    expect(await capability()).toMatchObject({ transportAvailable: false });
+    await expect(call("open")).rejects.toThrow("unavailable");
+    expect(await capability(true)).toMatchObject({ transportAvailable: true });
+    await call("open");
+    expect(fake.spawn).toHaveBeenCalledOnce();
+    await call("cancel");
+    // The flag turned off before the next take: no helper.
+    expect(await capability(false)).toMatchObject({ transportAvailable: false });
+    await expect(call("open")).rejects.toThrow("unavailable");
+    expect(fake.spawn).toHaveBeenCalledOnce();
+  });
 });
