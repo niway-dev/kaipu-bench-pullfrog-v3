@@ -214,8 +214,8 @@ errors/end-of-stream and finalize/cancel safely, and handle helper lifecycle inc
 SIGINT/SIGTERM. Add signed helper packaging/TCC identity, sustained motion/load and
 audible audio/AV-sync measurements. Raw 4K RGBA must not be transported over IPC.
 Keep production capture unchanged until those contracts and cursor provenance for
-editable overlays are implemented and verified. Owner-machine Electron launches
-require asking first per the user's no-local-e2e memory; native probes do not waive it.
+editable overlays are implemented and verified. Do not launch Electron on the owner's
+machine without asking first; native probes do not change that.
 
 ## Live encoded transport slice (2026-11-03)
 
@@ -419,9 +419,7 @@ Observed validation for this integration (2026-11-03):
   the incomplete local Electron npm installation (`Electron failed to install correctly`).
   Runtime proof used a separate cached Electron extraction, without repairing dependencies.
 
-Local transient artifacts and exact command logs are indexed in
-`/tmp/kaipu-native-recorder-proof/EVIDENCE.md`. These are observed execution results, not
-an independent review approval. No children, pushes or PRs were used for this slice.
+These are observed execution results, not an independent review approval.
 The project-specific lessons are enforced by handshake, timestamp, eligibility and wire
 validation tests; no shared skill or knowledge-hub change is needed.
 

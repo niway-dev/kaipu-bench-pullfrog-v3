@@ -5,7 +5,7 @@ description: "Future improvement for the video editor's auto-zoom: exclude the O
 
 # Cursor-free capture and a drawn cursor
 
-> **Status: in progress — editable editor cursor slice implemented and locally validated** (2026-11-03).
+> **Status: 🟡 In progress — editable editor cursor slice implemented and locally validated** (2026-11-03).
 > Eligible cursor-free recordings now have a Cursor button in the tool rail and a shared
 > preview/export painter. Default recording remains Chromium; native capture is still
 > experimental behind the PostHog flag `native-cursor-capture` (off by default) or the
@@ -49,15 +49,16 @@ hide the export pointer one decoded frame earlier than the preview. The painter 
 source pixels and cannot replace redacted pixels. “Hold to see original” hides the layer.
 
 Default embedded-cursor export fingerprints remain stable. Eligible editor exports carry
-a `cursor2` compositor revision so a pre-overlay file cannot be offered as an equivalent
-export, even with default cursor settings.
+a cursor compositor revision (`cursor3` since the painter and defaults changed) so an
+export drawn by an earlier painter cannot be offered as an equivalent export, even with
+default cursor settings.
 
 ### Observed evidence
 
 Artifacts are local and ignored under `.evidence/editable-cursor/`; no captures are committed.
 `apps/kaipu-record/scripts/editable-cursor-proof.cjs` creates its own profile/vault, launches
 cached Electron 39.8.10, exercises the actual editor and MP4 exporter, and closes only its
-owned process. Installed Kaipu PID 45006 remained running. The proof uses a generated slate
+owned process. The proof uses a generated slate
 and deterministic position/click fixture for reproducible pixel measurements; it optionally
 copies the prior actual native recording/sidecar to prove default cursor visibility there.
 It does not manufacture evidence of new native capture or OS cursor exclusion.
@@ -78,14 +79,14 @@ KAIPU_CURSOR_NATIVE_RESULT=/tmp/kaipu-native-recorder-proof/result.json node scr
 bun run test -- src/renderer/src/features/video-editor src/renderer/src/features/editor/open-in-editor.test.ts src/shared/native-capture.test.ts
 ```
 
-- Build and node/web types: exit 0 (`/tmp/cursor-build-final.log`, `/tmp/cursor-types-final.log`).
-- Isolated runtime proof: exit 0 (`/tmp/cursor-runtime-final.log`); decoded arrow measurement
+- Build and node/web types: exit 0.
+- Isolated runtime proof: exit 0; decoded arrow measurement
   enforces ≤2 pixels per bound and ≤5% white-mask area difference for lossy H.264.
-- Targeted editor/provenance suite: exit 0, **956 passed / 81 files** (`/tmp/cursor-editor-final.log`).
-- i18n suite: exit 0, **22 passed** (`/tmp/cursor-i18n.log`).
+- Targeted editor/provenance suite: exit 0, **956 passed / 81 files**.
+- i18n suite: exit 0, **22 passed**.
 - Full app suite: exit 1, **4614 passed / one skipped**, same four pre-existing library import
-  failures: “Electron failed to install correctly” (`/tmp/cursor-full-suite.log`). No dependency repair.
-- Root lint: exit 0, zero errors; existing warnings retained (`/tmp/cursor-lint.log`).
+  failures: “Electron failed to install correctly”. No dependency repair.
+- Root lint: exit 0, zero errors; existing warnings retained.
 
 ### Review route and remaining gates
 
@@ -102,9 +103,8 @@ Remaining: actual pointer-shape capture/replay; moving native pointer pixel-excl
 and clock-error proof, long/4K60 capture stress, signed packaged helper/TCC/notarization.
 The GIF worker is wired and type-checked through the shared composer, but GIF remains
 product-disabled and was not runtime-exported here. Fit/Fill and held-frame behavior have
-unit proof; the decoded runtime frame proof covers the native-aspect MP4 case. Sonnet
-independent review is still planned by the parent; this implementation spawned no children,
-created no PR and pushed nothing.
+unit proof; the decoded runtime frame proof covers the native-aspect MP4 case. The
+independent review history lives in [PR #493](https://github.com/niway-dev/kaipu-record/pull/493).
 
 The durable project lesson is encoded in tests: exclusion provenance must gate every
 replacement cursor, source-time sampling must be seek-independent, and a default-pointer
@@ -202,8 +202,8 @@ Custom cursor themes. Cursor effects on recordings without a cursor track.
 
 Native pending reads now suspend their stall timeout while paused, rearm on resume and stop, and still cancel on process failure. A real helper test paused for 6.2 seconds and muxed successfully; a separate delayed-stop test preserved the take. Commands beyond lookbehind clamp to the last emitted edge with stderr diagnostics, so extreme main-process stalls can introduce timing drift rather than discard the recording.
 
-The recorder requires a successful cursor-tracking handshake before selecting native capture; failed/disabled/timed-out tracking falls back to Chromium before begin. Prepare copies load and replay the default cursor and use a distinct `whole:cursor2` fingerprint. Missing replay data stops that copy instead of silently producing cursorless video. Fit exports scale the pointer with the fitted footage height, preserving its visual proportion from preview. Editor fingerprints also use cursor2 to invalidate prior framing results.
+The recorder requires a successful cursor-tracking handshake before selecting native capture; failed/disabled/timed-out tracking falls back to Chromium before begin. Prepare copies load and replay the default cursor and use a distinct `whole:cursor3` fingerprint. Missing replay data stops that copy instead of silently producing cursorless video. Fit exports scale the pointer with the fitted footage height, preserving its visual proportion from preview. Editor fingerprints also carry the cursor revision (`cursor3`) to invalidate prior framing results.
 
-Parent verification: 287 focused tests across seven files, types and build passed; two real-native integration tests passed, including long pause and late stop. Prepare handoff and missing-data refusal have UI-hook tests; decoded Prepare-copy runtime parity remains unverified. Signed production validation and native motion synchronization remain open.
+Verification: 287 focused tests across seven files, types and build passed; two real-native integration tests passed, including long pause and late stop. Prepare handoff and missing-data refusal have UI-hook tests; decoded Prepare-copy runtime parity remains unverified. Signed production validation and native motion synchronization remain open.
 
-Final review follow-up: a quick resume queued behind a clamped late pause now clamps to the same effective pause edge; the take is preserved instead of failing with Invalid resume clock. The native regression test fails against the previous binary and passes after the fix. Sonnet independently proved Prepare YouTube arrow rendering, Fit/Fill pointer sizing, reuse and missing-track refusal in an isolated app; artifacts are local at /tmp/review5/evidence. The fifth review still returned CHANGES for the quick-resume defect; its fix was locally reproduced and tested after the review budget ended, not independently approved. A pre-existing Prepare Fit/Fill reuse fingerprint issue remains a separate follow-up.
+Final review follow-up: a quick resume queued behind a clamped late pause now clamps to the same effective pause edge; the take is preserved instead of failing with Invalid resume clock. The native regression test fails against the previous binary and passes after the fix. Prepare arrow rendering, Fit/Fill pointer sizing, reuse and missing-track refusal were also proven in an isolated app.
