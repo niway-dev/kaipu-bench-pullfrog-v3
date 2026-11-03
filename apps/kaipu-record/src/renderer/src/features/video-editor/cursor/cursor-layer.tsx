@@ -132,6 +132,7 @@ export function hitsCursor(c: CursorFrame, x: number, y: number, pad: number): b
     dy = y - c.y;
   if (c.style === "arrow")
     return dx >= -pad && dx <= c.size * 0.65 + pad && dy >= -pad && dy <= c.size + pad;
-  const radius = c.size * (c.style === "spotlight" ? 1.25 : 0.22);
-  return Math.hypot(dx, dy) <= radius + pad;
+  // The spotlight's glow is wide (1.25 × size); only its centre selects, like the dot,
+  // so clicks across the glow still play/pause and deselect.
+  return Math.hypot(dx, dy) <= c.size * 0.22 + pad;
 }

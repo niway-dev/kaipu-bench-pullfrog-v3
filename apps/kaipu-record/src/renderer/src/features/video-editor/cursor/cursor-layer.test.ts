@@ -16,6 +16,8 @@ describe("clicking the drawn pointer", () => {
     const dot = { ...arrow, style: "dot" as const };
     expect(hitsCursor(dot, 100 + 40 * 0.22 + 3, 100, 4)).toBe(true);
     expect(hitsCursor(dot, 100 + 40 * 0.22 + 5, 100, 4)).toBe(false);
-    expect(hitsCursor({ ...arrow, style: "spotlight" }, 145, 100, 4)).toBe(true);
+    const spotlight = { ...arrow, style: "spotlight" as const };
+    expect(hitsCursor(spotlight, 100 + 40 * 0.22 + 3, 100, 4)).toBe(true);
+    expect(hitsCursor(spotlight, 145, 100, 4)).toBe(false); // inside the glow, off-centre
   });
 });
