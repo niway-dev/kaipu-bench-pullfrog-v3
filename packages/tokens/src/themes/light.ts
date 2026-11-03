@@ -9,6 +9,25 @@ import type { TokenSet } from "../types";
  * Every text/surface pair is WCAG-AA-guarded by contrast.test.ts.
  */
 export const light: TokenSet = {
+  // Kaipu Black vocabulary (NIW2-613). The light look is not redesigned here:
+  // these mirror the existing light surfaces under the new names.
+  "bg-canvas": "#fafafa",
+  "bg-panel": "#f4f4f5",
+  "bg-raised": "#ffffff",
+  "bg-hover": "#f4f4f5",
+  "bg-active": "#e4e4e7",
+  line: "rgba(9, 9, 11, 0.08)",
+  "line-strong": "rgba(9, 9, 11, 0.14)",
+  text: "#18181b",
+  "text-2": "#52525b",
+  "text-3": "#62626b",
+  "text-4": "#71717a",
+  accent: "#f6055c",
+  "accent-soft": "rgba(246, 5, 92, 0.1)",
+  "accent-ring": "rgba(246, 5, 92, 0.4)",
+  "shadow-popover": "0 24px 60px -18px rgba(9, 9, 11, 0.25)",
+
+  // Legacy names.
   "bg-app": "#fafafa",
   "bg-sidebar": "#f4f4f5",
   "bg-card": "#ffffff",

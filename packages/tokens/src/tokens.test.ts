@@ -2,12 +2,22 @@ import { describe, expect, it } from "vitest";
 import { BASE_TOKEN_NAMES, THEME_TOKEN_NAMES, base, dark, light } from "./index";
 
 describe("token sources", () => {
-  it("dark carries the exact values from the desktop's base.css", () => {
-    // Spot-check the brand-critical values verbatim (source of truth migration).
+  it("dark carries the Kaipu Black values (NIW2-613)", () => {
     expect(dark["accent-primary"]).toBe("#f6055c");
-    expect(dark["bg-app"]).toBe("#0f0f11");
-    expect(dark["text-primary"]).toBe("#e5e5e7");
+    expect(dark["bg-canvas"]).toBe("#060607");
+    expect(dark["bg-panel"]).toBe("#0b0b0d");
+    expect(dark["bg-raised"]).toBe("#0e0e10");
+    expect(dark["text"]).toBe("#f3f3f5");
     expect(dark["glow-accent"]).toBe("0 10px 26px -8px rgba(246, 5, 92, 0.75)");
+  });
+
+  it("legacy names alias the new ones so consumers migrate part by part", () => {
+    expect(dark["bg-app"]).toBe(dark["bg-canvas"]);
+    expect(dark["bg-sidebar"]).toBe(dark["bg-panel"]);
+    expect(dark["bg-card"]).toBe(dark["bg-raised"]);
+    expect(dark["border"]).toBe(dark["line"]);
+    expect(dark["text-primary"]).toBe(dark["text"]);
+    expect(dark["text-muted"]).toBe(dark["text-3"]);
   });
 
   it("base carries the theme-invariant values verbatim", () => {
