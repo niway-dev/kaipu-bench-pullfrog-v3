@@ -97,7 +97,12 @@ test("kaipu black: pages and sidebar modes at 1440x900", async () => {
     await page.getByRole("button", { name: "Edit video" }).click();
     await page.waitForFunction(() => location.hash.startsWith("#/editor/video/"));
     await page.waitForSelector("video");
+    // Entering the editor grows the window to its preset a moment later; size it after that,
+    // or the preset lands on top of the 1180 and the shot is of a 1440 window.
+    await page.waitForFunction(() => window.innerWidth >= 1440);
+    await page.waitForTimeout(1000);
     await sizeWindow(app, page, [1180, 760]);
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1180);
     await expect(nav).toHaveAttribute("data-mode", "stacked");
     await shot("09-editor-1180", [1180, 760]);
     await sizeWindow(app, page);
