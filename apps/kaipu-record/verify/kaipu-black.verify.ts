@@ -15,18 +15,22 @@ const WIDTH = 1440;
 const HEIGHT = 900;
 
 /** The window presets resize on navigation, so the size is set again before every shot. */
-async function sizeWindow(app: ElectronApplication, page: Page): Promise<void> {
+async function sizeWindow(
+  app: ElectronApplication,
+  page: Page,
+  [width, height]: [number, number] = [WIDTH, HEIGHT],
+): Promise<void> {
   const handle = await app.browserWindow(page);
-  await handle.evaluate((w, [width, height]) => w.setSize(width, height), [WIDTH, HEIGHT]);
-  await page.waitForFunction(([width]) => window.innerWidth === width, [WIDTH]);
+  await handle.evaluate((w, [wd, ht]) => w.setSize(wd, ht), [width, height]);
+  await page.waitForFunction((wd) => window.innerWidth === wd, width);
 }
 
 test("kaipu black: pages and sidebar modes at 1440x900", async () => {
   await rm(OUT_DIR, { recursive: true, force: true });
   await mkdir(OUT_DIR, { recursive: true });
   const { app, page, teardown } = await launchApp({ recordVideoDir: OUT_DIR });
-  const shot = async (name: string): Promise<void> => {
-    await sizeWindow(app, page);
+  const shot = async (name: string, size?: [number, number]): Promise<void> => {
+    await sizeWindow(app, page, size);
     // Let fonts, thumbnails and the width transition settle.
     await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`) });
@@ -82,8 +86,22 @@ test("kaipu black: pages and sidebar modes at 1440x900", async () => {
     await page.keyboard.press("Meta+Backslash");
     await expect(nav).toHaveAttribute("data-mode", "collapsed");
     await page.getByRole("link", { name: "Library" }).focus();
-    await expect(page.getByRole("tooltip")).toHaveText("Library");
+    await expect(page.locator("[data-rail-tooltip]")).toHaveText("Library");
     await shot("08-sidebar-collapsed");
+
+    // Back to the saved rows, then the editor at its minimum window: the rail draws stacked
+    // there (below 1316px) and the saved setting stays expanded-row.
+    await page.keyboard.press("Meta+Backslash");
+    await expect(nav).toHaveAttribute("data-mode", "expanded-row");
+    await go(`#/library/${RECORDING_ASSET_ID}`);
+    await page.getByRole("button", { name: "Edit video" }).click();
+    await page.waitForFunction(() => location.hash.startsWith("#/editor/video/"));
+    await page.waitForSelector("video");
+    await sizeWindow(app, page, [1180, 760]);
+    await expect(nav).toHaveAttribute("data-mode", "stacked");
+    await shot("09-editor-1180", [1180, 760]);
+    await sizeWindow(app, page);
+    await expect(nav).toHaveAttribute("data-mode", "expanded-row");
   } finally {
     try {
       await teardown();
