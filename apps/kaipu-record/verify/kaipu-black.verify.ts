@@ -107,6 +107,15 @@ test("kaipu black: pages and sidebar modes at 1440x900", async () => {
     await shot("09-editor-1180", [1180, 760]);
     await sizeWindow(app, page);
     await expect(nav).toHaveAttribute("data-mode", "expanded-row");
+
+    // A sidebar page in the main window's own size keeps the rows: its floor is 1036px.
+    await go("#/");
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+    await page.waitForTimeout(1000);
+    await sizeWindow(app, page, [1040, 720]);
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1040);
+    await expect(nav).toHaveAttribute("data-mode", "expanded-row");
+    await shot("10-record-1040", [1040, 720]);
   } finally {
     try {
       await teardown();
