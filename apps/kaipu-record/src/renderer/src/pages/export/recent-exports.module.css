@@ -2,18 +2,18 @@
 .panel {
   flex-shrink: 0;
   padding: 12px 24px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-app);
+  border-top: 1px solid var(--line);
+  background: var(--bg-panel);
 }
 
 .label {
   margin: 0 0 10px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--font-weight-normal);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 .empty {
@@ -38,9 +38,9 @@
   align-items: center;
   gap: 11px;
   padding: 9px 11px;
-  border-radius: 9px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
   color: var(--text-primary);
   font-family: inherit;
   text-align: left;

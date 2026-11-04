@@ -4,23 +4,19 @@
  */
 
 /* Two rows: the workspace and the timeline. The top bar that used to be the first
-   row now sits in the right-hand column (NIW2-611), so the preview gets its height. */
+   row moved out (NIW2-611; its actions are in the title bar since NIW2-619), so the
+   preview gets its height. */
 .page {
   display: grid;
   grid-template-rows: 1fr auto;
   height: 100%;
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  flex-shrink: 0;
+/* Wraps the "ORIGINAL UNTOUCHED" badge so the title bar can hide it (data-collapse);
+   the Badge itself takes no attributes. Not an inline style: that would beat the
+   title bar's display: none. */
+.badgeSlot {
+  display: contents;
 }
 
 /* "ORIGINAL UNTOUCHED" — a reminder, not a control (v2 PR 10 polish, W12). */
@@ -40,14 +36,6 @@
   cursor: pointer;
 }
 
-.title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-}
-
 .stage {
   position: relative;
   /* Two rows: video region takes all available space, transport bar is always visible.
@@ -55,14 +43,23 @@
   display: grid;
   grid-template-rows: 1fr auto;
   overflow: hidden;
-  background: var(--bg-app);
+  background: var(--bg-canvas);
 }
 
 /* Video region: centers PreviewStage in whatever height the stage's 1fr row leaves.
    min-height: 0 prevents the grid row from growing beyond its allocated fraction. */
+/* Kaipu Black ambient glow (NIW2-616): behind the footage only, layered over the canvas
+   token so the light theme keeps its own base. Never on panels. */
 .videoRegion {
+  background:
+    radial-gradient(60% 50% at 50% 40%, rgba(246, 5, 92, 0.06), transparent 70%), var(--bg-canvas);
   display: grid;
-  place-items: center;
+  /* Kaipu Black (NIW2-619): the picture sits on the left, 12 px from every edge, and
+     stays vertically centred. The container query units below resolve against the
+     content box, so the padding is already taken off the picture's caps. */
+  align-items: center;
+  justify-items: start;
+  padding: 12px;
   min-height: 0;
   overflow: hidden;
   /* Makes this the box that .content's container query units measure. Safe as a size
@@ -90,8 +87,8 @@
   /* Short on purpose (NIW2-611): the bar will take more tools, so it stays one
      compact row of 28 px controls. */
   padding: 4px var(--space-md);
-  border-top: 1px solid var(--border);
-  background: var(--bg-card);
+  border-top: 1px solid var(--line);
+  background: var(--bg-panel);
   flex-shrink: 0;
 }
 
@@ -116,7 +113,7 @@
   height: 28px;
   background: var(--accent-primary);
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: #fff;
   cursor: pointer;
   transition: background var(--transition);
@@ -139,7 +136,7 @@
   height: 28px;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -162,7 +159,7 @@
   height: 28px;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -187,9 +184,9 @@
      ≈196 px with PR 6's five rows, ≈238 px once PR 8 adds the 38 px Privacy lane. */
   min-height: 160px;
   flex-shrink: 0;
-  background: var(--bg-card);
+  background: var(--bg-panel);
   /* Flat (NIW2-611): a rule above, not a card; the page runs edge to edge. */
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 /* v2: the stage and the 288 px properties column share the middle row. */
@@ -203,17 +200,18 @@
   min-width: 0;
 }
 
-/* Right-hand column (NIW2-611): the toolbar on top, the inspector filling the rest.
+/* Right-hand column: the inspector (the actions moved to the title bar, NIW2-619).
    The width is set here, not left to the content: a flex item's auto width is its
-   max-content width, so a long tool hint or save state (Spanish especially) would
-   widen the column, and shrink the video, every time the tool or autosave changed. */
+   max-content width, so a long hint (Spanish especially) would widen the column, and
+   shrink the video, every time the tool or the selection changed. */
 .side {
   display: flex;
   flex-direction: column;
   width: 288px;
   min-height: 0;
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--line);
+  background: var(--bg-panel);
 }
 
 /* "4 zooms detected" · "2 private regions" (UI spec § 5). */

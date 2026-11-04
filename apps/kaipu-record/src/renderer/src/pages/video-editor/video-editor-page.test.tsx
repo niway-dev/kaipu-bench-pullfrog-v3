@@ -5,6 +5,7 @@ import type { LocalRecording } from "@shared/types/library-storage";
 import { dismissToast, getToasts } from "@renderer/ui/toast-store";
 import { SESSION_BEFORE_WEBCAM } from "@renderer/features/video-editor/session-before-webcam.fixture";
 import { WEBCAM_DEFAULTS } from "@renderer/features/video-editor/webcam/webcam-model";
+import { setHeaderActionsElement } from "@renderer/features/workspaces/header-slot";
 import {
   toolForShortcut,
   VideoEditorLoader,
@@ -112,8 +113,19 @@ const SOURCE: VideoEditorSource = {
 };
 
 // Main holds the item under its current id before the editor loads anything (NIW2-560).
+// The title bar's actions slot stands in for the shell's (NIW2-619): the editor renders
+// undo, split, Export… into it, so without one those buttons would not exist here.
+let headerActions: HTMLElement;
 beforeEach(() => {
   window.electronAPI.acquireEditorSession = async () => SOURCE.id;
+  headerActions = document.createElement("div");
+  headerActions.dataset.testid = "header-actions";
+  document.body.appendChild(headerActions);
+  setHeaderActionsElement(headerActions);
+});
+afterEach(() => {
+  setHeaderActionsElement(null);
+  headerActions.remove();
 });
 
 function renderEditor(source: VideoEditorSource = SOURCE) {
@@ -295,6 +307,53 @@ describe("VideoEditorLoader — an identity two files claim (NIW2-560)", () => {
     expect(screen.queryByText(/no longer in your library/i)).toBeNull();
     expect(loadSession).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /back to library/i })).toBeInTheDocument();
+  });
+});
+
+describe("VideoEditorPage — actions in the title bar (NIW2-619)", () => {
+  it("renders undo, redo, split, delete, the status and Export into the title bar, not the side column", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    const inspector = document.querySelector('[data-testid="editor-inspector"]')!;
+    const side = inspector.parentElement!;
+    for (const name of ["Undo", "Redo", "Add image", "Split here", "Delete segment", "Export"]) {
+      const button = screen.getByRole("button", { name });
+      expect(headerActions.contains(button)).toBe(true);
+      expect(side.contains(button)).toBe(false);
+    }
+    const badge = within(headerActions).getByText("ORIGINAL UNTOUCHED", { exact: false });
+    // The badge is the first thing a crowded title bar hides; Export stays, last.
+    expect(badge.closest("[data-collapse]")).toHaveAttribute("data-collapse", "badge");
+    const buttons = within(headerActions).getAllByRole("button");
+    expect(buttons[buttons.length - 1]).toHaveAccessibleName("Export");
+  });
+});
+
+describe("VideoEditorPage — playback is the play button and Space only (NIW2-619)", () => {
+  it("Space starts playback", async () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    renderEditor();
+    await waitForEditorLoaded();
+
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: " " });
+      expect(playSpy).toHaveBeenCalled();
+    });
+    playSpy.mockRestore();
+  });
+
+  it("a click on the picture does not start playback, and no 'click to play' text is shown", async () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    renderEditor();
+    await waitForEditorLoaded();
+
+    fireEvent.click(document.querySelector("video")!);
+    await act(async () => {});
+
+    expect(playSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText(/click .*to play/i)).toBeNull();
+    playSpy.mockRestore();
   });
 });
 
@@ -701,6 +760,51 @@ describe("VideoEditorPage — shortcuts leave dropdowns alone", () => {
   });
 });
 
+describe("VideoEditorPage — a tool flyout keeps its keys to itself", () => {
+  beforeEach(() => {
+    stubDecodedVideoSize(1280, 720);
+  });
+
+  afterEach(() => {
+    stubDecodedVideoSize(0, 0);
+  });
+
+  async function openAudioFlyoutWithZoomSelected(): Promise<HTMLElement> {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom" }));
+    await screen.findByRole("heading", { name: "Zoom 1" });
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+    return screen.getByRole("menu", { name: "Audio" });
+  }
+
+  it("Escape closes the flyout and leaves the selected zoom selected", async () => {
+    const menu = await openAudioFlyoutWithZoomSelected();
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Zoom 1" })).toBeInTheDocument();
+  });
+
+  it("Space picks the focused option and does not toggle playback", async () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    try {
+      await openAudioFlyoutWithZoomSelected();
+      playSpy.mockClear();
+      fireEvent.keyDown(document.activeElement!, { key: " " });
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(playSpy).not.toHaveBeenCalled();
+    } finally {
+      playSpy.mockRestore();
+    }
+  });
+
+  it("a shortcut letter typed in the flyout does not arm a tool underneath", async () => {
+    const menu = await openAudioFlyoutWithZoomSelected();
+    fireEvent.keyDown(menu, { key: "r" });
+    expect(screen.getByRole("button", { name: "Box" }).className).not.toMatch(/toolActive/);
+  });
+});
+
 describe("toolForShortcut — the keyboard agrees with the toolbar's disabled states", () => {
   it("maps each annotation shortcut to its tool", () => {
     expect(toolForShortcut("v", { onSlide: false })).toBe("select");
@@ -757,6 +861,45 @@ describe("VideoEditorPage — tool shortcuts end to end", () => {
     });
   });
 
+  it.each([
+    ["a", "Arrow", "annotate"],
+    ["t", "Text", "annotate"],
+    ["b", "Blur", "privacy"],
+    ["c", "Cover", "privacy"],
+  ])("%s goes straight to %s, shown on the %s button", async (key, name, group) => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    await pressUntil(key, () => {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("data-tool-group", group);
+      expect(button.className).toMatch(/toolActive/);
+    });
+  });
+
+  it("Shift+R cycles Annotate to its next variant; Shift+B on Select arms the next after Blur", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    await pressUntil("r", () => {
+      expect(screen.getByRole("button", { name: "Box" }).className).toMatch(/toolActive/);
+    });
+    fireEvent.keyDown(window, { key: "R", shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Arrow" }).className).toMatch(/toolActive/);
+    });
+    fireEvent.keyDown(window, { key: "R", shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Text" }).className).toMatch(/toolActive/);
+    });
+
+    // From another group's tool, Shift+B starts from Blur and lands on Cover.
+    fireEvent.keyDown(window, { key: "B", shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Cover" }).className).toMatch(/toolActive/);
+    });
+  });
+
   it("V hands the tool back to select after R armed Box", async () => {
     renderEditor();
     await waitForEditorLoaded();
@@ -799,6 +942,17 @@ describe("VideoEditorPage — inspector column priority (annotation follow-ups)"
     // The footer this harness waits on and the inspector column land on different
     // renders, so the inspector's heading is a `findBy`, not a `getBy`.
     expect(await screen.findByRole("heading", { name: "Detection" })).toBeInTheDocument();
+  });
+
+  it("with nothing selected the inspector opens on 'Click a segment on the timeline to edit it.'", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    const empty = await screen.findByText("Click a segment on the timeline to edit it.");
+    const inspector = document.querySelector('[data-testid="editor-inspector"]')!;
+    // The hint row above the inspector is gone: the text lives in the inspector, once.
+    expect(inspector.contains(empty)).toBe(true);
+    expect(screen.getAllByText("Click a segment on the timeline to edit it.")).toHaveLength(1);
   });
 
   it("arming the Box tool (R) shows the annotation defaults panel in the inspector, with no floating popover duplicating its controls", async () => {
@@ -927,7 +1081,7 @@ describe("VideoEditorPage — webcam track", () => {
     renderEditor(WITH_WEBCAM);
     const footer = await waitForEditorLoaded();
     expect(footer.querySelector('[data-testid="webcam-lane"]')).not.toBeNull();
-    expect(screen.getByText("WEBCAM")).toBeInTheDocument();
+    expect(screen.getByText("Webcam")).toBeInTheDocument();
     const cam = screen.getByTestId("webcam-video") as HTMLVideoElement;
     expect(cam.getAttribute("src")).toBe("kaipu-media://webcam/rec-1");
     expect(cam.muted).toBe(true);

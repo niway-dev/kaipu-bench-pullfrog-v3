@@ -9,7 +9,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: var(--space-md);
+  gap: 0;
 }
 
 /* ── Toolbar ─────────────────────────────────────── */
@@ -25,11 +25,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  padding: 0 0 var(--space-sm);
   flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .actions {
@@ -62,7 +60,7 @@
   height: 34px;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -83,7 +81,7 @@
 .divider {
   width: 1px;
   height: 24px;
-  background: var(--border);
+  background: var(--line);
   margin: 0 var(--space-xs);
 }
 
@@ -101,7 +99,7 @@
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg, 0 8px 24px -8px rgba(0, 0, 0, 0.55));
+  box-shadow: var(--shadow-popover);
 }
 
 .zoomBtn {
@@ -163,7 +161,7 @@
   gap: var(--space-sm);
   height: 34px;
   padding: 0 var(--space-lg);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
@@ -225,7 +223,7 @@
   background: var(--bg-modal);
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  box-shadow: 0 14px 36px -10px rgba(0, 0, 0, 0.65);
+  box-shadow: var(--shadow-popover);
   animation: toastIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -275,9 +273,7 @@
   flex: 1;
   display: flex;
   min-height: 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: var(--bg-canvas);
   overflow: hidden;
 }
 
@@ -302,7 +298,7 @@
   overflow: auto;
   min-width: 0;
   min-height: 0;
-  background: var(--bg-app);
+  background: var(--bg-canvas);
 }
 
 /* Once zoomed in, anchor the shot to the top-left so it lines up with the frame's

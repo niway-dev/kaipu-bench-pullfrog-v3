@@ -1,15 +1,16 @@
 /*
- * Audio lane. Same geometry as the zoom lane so the two read as one timeline,
- * but a neutral grey rather than the accent: a muted stretch is an absence, and
+ * Audio lane. Same corners and surface as the zoom lane so the two read as one
+ * timeline, but a neutral grey rather than the accent: a muted stretch is an absence, and
  * painting it in the brand colour would make silence look like the loudest
  * thing on the track.
  */
 
 .lane {
   position: relative;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
+  /* Kaipu Black (NIW2-619): 29 px, the spec's value (the zoom lane is 26 px). */
+  height: 29px;
+  border-radius: 3px;
+  background: var(--bg-raised);
 }
 
 .empty,
@@ -29,7 +30,7 @@
 /* The whole-video state fills the lane, so it reads as a property of the track
    rather than as one more range sitting on it. */
 .allMuted {
-  border-radius: var(--radius-md);
+  border-radius: 3px;
   background: color-mix(in srgb, var(--text-muted) 14%, transparent);
   color: var(--text-secondary);
 }
@@ -45,7 +46,7 @@
   overflow: hidden;
   padding: 0 4px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 45%, transparent);
-  border-radius: var(--radius-sm);
+  border-radius: 3px;
   background: repeating-linear-gradient(
     135deg,
     color-mix(in srgb, var(--text-muted) 22%, transparent) 0 5px,

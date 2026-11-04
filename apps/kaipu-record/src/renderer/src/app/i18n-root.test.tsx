@@ -41,6 +41,7 @@ const SETTINGS: AppSettings = {
     duckSystemAudioWhileTalking: false,
   },
   microphone: null,
+  sidebarMode: "stacked",
 };
 
 describe("I18nRoot theme application", () => {

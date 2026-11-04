@@ -18,23 +18,25 @@
   /* Label column (UI spec § 6) + the lanes column. Every lane lives in column 2, so all
      lanes share one horizontal extent. The width is declared ONCE, here: the grid
      template and .playheadLayer's offset both read it and must never drift apart. */
-  --lane-label-w: 62px;
+  --lane-label-w: 80px;
   grid-template-columns: var(--lane-label-w) 1fr;
   align-items: center;
   column-gap: var(--space-sm);
-  row-gap: var(--space-xs);
+  /* 3 px between lanes (Kaipu Black, NIW2-619). */
+  row-gap: 3px;
   flex: 1;
   min-height: 0;
 }
 
 .laneLabel {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 /* One grid cell per extra lane (see LaneRow). min-width: 0 stops a wide lane from
@@ -45,7 +47,7 @@
 
 /* Covers the lanes column across every row; the playhead's left % is relative to it,
    i.e. to the lanes' width, exactly like each lane's own blocks. --lane-label-w is
-   inherited from .timelineBody, so the 62 px lives in exactly one place. */
+   inherited from .timelineBody, so the 80 px lives in exactly one place. */
 .playheadLayer {
   position: absolute;
   top: 0;
@@ -83,10 +85,10 @@
 
 .track {
   position: relative;
-  /* Filmstrip row: fixed 44 px (UI spec § 6.1) now that the strip stacks more lanes. */
-  height: 44px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-input);
+  /* Filmstrip row: fixed 46 px (Kaipu Black, NIW2-619). */
+  height: 46px;
+  border-radius: 3px;
+  background: var(--bg-raised);
   cursor: pointer;
 }
 
@@ -96,7 +98,7 @@
   height: 100%;
   display: flex;
   overflow: hidden;
-  border-radius: var(--radius-md);
+  border-radius: 3px;
   border: 1px solid transparent;
   padding: 0;
   background: var(--bg-card-hover);

@@ -3,10 +3,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 16px 16px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
 }
 
 .head {
@@ -81,9 +79,9 @@
   align-items: center;
   gap: 6px;
   padding: 12px 6px 10px;
-  border-radius: 11px;
-  border: 1px solid var(--border);
-  background: var(--bg-input);
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
   color: var(--text-primary);
   font: inherit;
   text-align: center;

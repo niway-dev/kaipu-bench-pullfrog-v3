@@ -53,7 +53,7 @@ describe("MicSettingsContent", () => {
     expect(screen.getByRole("radiogroup", { name: "Input" })).toBeInTheDocument();
     const selected = screen.getByRole("radio", { name: /MacBook Pro Microphone/ });
     expect(selected).toHaveAttribute("aria-checked", "true");
-    expect(selected).toHaveTextContent("BUILT-IN");
+    expect(selected).toHaveTextContent("Built-in");
     expect(screen.getByRole("radio", { name: /Blue Yeti/ })).toHaveTextContent("USB");
     expect(screen.getByRole("radio", { name: /AirPods/ })).toHaveTextContent("BLUETOOTH");
     expect(screen.getAllByRole("img", { name: "Input level meter" })).toHaveLength(1);

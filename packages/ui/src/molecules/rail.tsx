@@ -1,19 +1,27 @@
 import * as stylex from "@stylexjs/stylex";
 import { tokens } from "@kaipu/tokens/kaipu.stylex";
-import { Fragment } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { Fragment, useEffect, useState } from "react";
+import type { CSSProperties, FocusEvent, MouseEvent, ReactNode } from "react";
 import type { StyleXStyles } from "@stylexjs/stylex";
 
 /**
- * The labeled navigation rail: a brand mark up top, icon + mono-label items
- * whose active state is a soft accent pill with an indicator bar on the rail's
- * edge, and an optional account item pinned to the footer.
+ * The navigation rail: icon + label items whose active state is a soft accent
+ * fill with an indicator bar on the rail's edge, and an optional account item
+ * pinned to the footer. It has no mode toggle: a caller that offers one draws it
+ * in its own chrome (the desktop's title bar).
+ *
+ * Two modes (NIW2-626), chosen by the caller:
+ * - `stacked` ("expanded" in the app's words): the label under the icon, 64px
+ *   wide, labels 11px/500. The default, so a caller that never picks a mode
+ *   (the landing's mockup) keeps it.
+ * - `collapsed`: icons only, 56px wide. Each label stays the link's accessible
+ *   name, and a tooltip shows it on hover and on keyboard focus.
  *
  * The rail knows nothing about routing. Each item is handed to `renderLink`,
- * together with the className, style, title and children it must render, and
- * the caller returns whatever element fits its surface: the desktop returns a
- * router `NavLink`, a surface with no router returns a plain `<span>`. The
- * active flag is part of the item, computed by the caller, so the rail never
+ * together with the className, style, title, handlers and children it must
+ * render, and the caller returns whatever element fits its surface: the desktop
+ * returns a router `Link`, a surface with no router returns a plain `<span>`.
+ * The active flag is part of the item, computed by the caller, so the rail never
  * has to ask a router anything.
  *
  * It lives in `molecules/` because its items are composed from caller-supplied
@@ -22,7 +30,6 @@ import type { StyleXStyles } from "@stylexjs/stylex";
 const styles = stylex.create({
   rail: {
     boxSizing: "border-box",
-    width: "72px",
     height: "100%",
     display: "flex",
     flexDirection: "column",
@@ -34,9 +41,17 @@ const styles = stylex.create({
     borderRightStyle: "solid",
     borderRightColor: tokens.border,
   },
+  // Only for a change the user made: the first paint must land at its width, not grow to it.
+  railAnimated: {
+    transitionProperty: "width",
+    transitionDuration: "150ms",
+    transitionTimingFunction: "ease",
+  },
+  railStacked: { width: "64px" },
+  railCollapsed: { width: "56px" },
   brand: {
     flexShrink: 0,
-    // Taller than a nav item: the mark needs air around it at 40px, and the
+    // Taller than a nav item: the mark needs air around it, and the
     // extra row height is what stops it reading as just another item.
     height: "64px",
     display: "flex",
@@ -50,6 +65,7 @@ const styles = stylex.create({
     flexBasis: "0%",
     minHeight: 0,
     overflowY: "auto",
+    overflowX: "hidden",
     paddingBlock: tokens.spaceSm,
     paddingInline: 0,
     display: "flex",
@@ -59,50 +75,85 @@ const styles = stylex.create({
     width: "100%",
   },
   item: {
+    boxSizing: "border-box",
     position: "relative",
     display: "flex",
-    flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
-    gap: "5px",
-    width: "56px",
-    paddingBlock: "9px",
-    paddingInline: 0,
-    borderRadius: "11px",
-    backgroundColor: { default: "transparent", ":hover": tokens.bgCardHover },
-    color: { default: tokens.textMuted, ":hover": tokens.textSecondary },
+    flexShrink: 0,
+    backgroundColor: { default: "transparent", ":hover": tokens.bgHover },
+    color: { default: tokens.text3, ":hover": tokens.text2 },
     textDecoration: "none",
     cursor: "pointer",
+    outline: { default: "none", ":focus-visible": `2px solid ${tokens.accentRing}` },
+    outlineOffset: "-2px",
     transitionProperty: "background-color, color",
     transitionDuration: "150ms",
     transitionTimingFunction: "ease",
   },
+  itemStacked: {
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: "5px",
+    // 60px in the 64px rail: the widest labels ("Screenshot", "Shortcuts") fit at 11px.
+    width: "60px",
+    paddingBlock: "9px",
+    paddingInline: 0,
+    borderRadius: "11px",
+  },
+  itemCollapsed: {
+    justifyContent: "center",
+    width: "40px",
+    height: "40px",
+    borderRadius: "10px",
+  },
   // Listed after `item`, so it replaces the hover colours as well: an active
-  // item does not change on hover.
+  // item does not change on hover. The label goes white (the readable state);
+  // the icon and the bar carry the accent.
   itemActive: {
-    backgroundColor: "rgba(246, 5, 92, 0.12)",
-    color: tokens.accentPrimary,
+    backgroundColor: tokens.accentSoft,
+    color: tokens.text,
   },
+  icon: {
+    display: "flex",
+    flexShrink: 0,
+  },
+  iconActive: { color: tokens.accent },
   label: {
-    fontFamily: tokens.fontMono,
-    fontSize: "9px",
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    fontFamily: tokens.fontFamily,
+    fontWeight: tokens.fontWeightMedium,
+    letterSpacing: 0,
   },
-  // The indicator bar on the rail's left edge, visible only while active.
+  // "Screenshot" is a hair wider than the 60px item at 11px: no ellipsis, and the label may
+  // use the 2px either side of the item, still inside the 64px rail.
+  labelStacked: {
+    maxWidth: "none",
+    overflow: "visible",
+    textOverflow: "clip",
+    fontSize: tokens.fontSizeXs,
+    lineHeight: "13px",
+    letterSpacing: "-0.01em",
+  },
+  // The indicator bar on the rail's left edge, visible only while active. Each
+  // mode insets its items differently, so each moves the bar back to the edge;
+  // any further out and the rail's overflow clips it.
   bar: {
     position: "absolute",
-    left: "-8px",
     top: "50%",
     transform: "translateY(-50%) scaleY(0)",
-    width: "3px",
+    width: "2px",
     height: "26px",
-    borderRadius: "0 3px 3px 0",
-    backgroundColor: tokens.accentPrimary,
+    borderRadius: "0 2px 2px 0",
+    backgroundColor: tokens.accent,
     transitionProperty: "transform",
     transitionDuration: "150ms",
     transitionTimingFunction: "ease",
   },
+  barStacked: { left: "-2px" },
+  barInset: { left: "-8px", height: "20px" },
   barActive: {
     transform: "translateY(-50%) scaleY(1)",
   },
@@ -127,6 +178,7 @@ const styles = stylex.create({
     lineHeight: "12px",
     textAlign: "center",
   },
+  badgeCollapsed: { top: "1px", right: "1px" },
   srOnly: {
     position: "absolute",
     width: "1px",
@@ -136,6 +188,7 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   footer: {
+    boxSizing: "border-box",
     flexShrink: 0,
     paddingTop: tokens.spaceSm,
     paddingBottom: tokens.spaceMd,
@@ -166,12 +219,37 @@ const styles = stylex.create({
     transitionDuration: "150ms",
     transitionTimingFunction: "ease",
   },
+  // Fixed, so the rail's own overflow cannot clip it.
+  tooltip: {
+    position: "fixed",
+    zIndex: 1000,
+    transform: "translateY(-50%)",
+    paddingBlock: "4px",
+    paddingInline: "8px",
+    borderRadius: "6px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: tokens.lineStrong,
+    backgroundColor: tokens.bgActive,
+    boxShadow: tokens.shadowPopover,
+    color: tokens.text,
+    fontFamily: tokens.fontFamily,
+    fontSize: tokens.fontSizeSm,
+    fontWeight: tokens.fontWeightMedium,
+    lineHeight: tokens.lineHeightLabel,
+    whiteSpace: "nowrap",
+    pointerEvents: "none",
+  },
 });
+
+/** How the rail lays its items out. See the component's notes. */
+export type RailMode = "stacked" | "collapsed";
+export const RAIL_MODES: readonly RailMode[] = ["stacked", "collapsed"];
 
 export interface RailItem {
   /** Stable key for the item. */
   id: string;
-  /** Already translated; also used as the link's title. */
+  /** Already translated; the link's accessible name, title and collapsed tooltip. */
   label: string;
   /** Sized by the caller. */
   icon: ReactNode;
@@ -190,9 +268,15 @@ const BADGE_MAX = 9;
 export interface RailLinkProps {
   className?: string;
   style?: CSSProperties;
-  title: string;
+  /** Absent in `collapsed` mode, where the rail's own tooltip stands in for it. */
+  title?: string;
   "aria-label"?: string;
   "aria-current"?: "page";
+  /** Set in `collapsed` mode: they show and hide the tooltip. */
+  onMouseEnter?: (event: MouseEvent<HTMLElement>) => void;
+  onMouseLeave?: (event: MouseEvent<HTMLElement>) => void;
+  onFocus?: (event: FocusEvent<HTMLElement>) => void;
+  onBlur?: (event: FocusEvent<HTMLElement>) => void;
   children: ReactNode;
 }
 
@@ -211,8 +295,18 @@ export interface RailProps<T extends RailItem = RailItem> {
   renderLink: (item: T, props: RailLinkProps) => ReactNode;
   /** An item pinned to the footer, drawn as a round avatar. */
   account?: T;
+  /** Defaults to `stacked`. */
+  mode?: RailMode;
+  /** Animate width changes. Off by default, so the first paint never animates. */
+  animate?: boolean;
   /** Consumer overrides, as StyleX styles rather than a className. */
   style?: StyleXStyles;
+}
+
+interface Tip {
+  text: string;
+  top: number;
+  left: number;
 }
 
 export function Rail<T extends RailItem = RailItem>({
@@ -221,10 +315,35 @@ export function Rail<T extends RailItem = RailItem>({
   items,
   renderLink,
   account,
+  mode = "stacked",
+  animate = false,
   style,
 }: RailProps<T>) {
+  const collapsed = mode === "collapsed";
+  const [tip, setTip] = useState<Tip | null>(null);
+  // A tooltip belongs to the collapsed rail; switching mode with one open must not strand it.
+  useEffect(() => setTip(null), [mode]);
+
+  const tipHandlers = (text: string) => {
+    if (!collapsed) return {};
+    const show = (event: { currentTarget: HTMLElement }) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setTip({ text, top: rect.top + rect.height / 2, left: rect.right + 8 });
+    };
+    const hide = () => setTip(null);
+    return { onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide };
+  };
+
   return (
-    <nav {...stylex.props(styles.rail, style)}>
+    <nav
+      data-mode={mode}
+      {...stylex.props(
+        styles.rail,
+        collapsed ? styles.railCollapsed : styles.railStacked,
+        animate && styles.railAnimated,
+        style,
+      )}
+    >
       {brand != null && (
         <div title={brandTitle} {...stylex.props(styles.brand)}>
           {brand}
@@ -235,6 +354,7 @@ export function Rail<T extends RailItem = RailItem>({
         {items.map((item) => {
           const { className, style: inline } = stylex.props(
             styles.item,
+            collapsed ? styles.itemCollapsed : styles.itemStacked,
             item.active && styles.itemActive,
           );
           return (
@@ -242,19 +362,39 @@ export function Rail<T extends RailItem = RailItem>({
               {renderLink(item, {
                 className,
                 style: inline,
-                title: item.label,
+                ...(collapsed ? {} : { title: item.label }),
                 "aria-current": item.active ? "page" : undefined,
+                ...tipHandlers(item.label),
                 children: (
                   <>
                     <span
                       aria-hidden
-                      {...stylex.props(styles.bar, item.active && styles.barActive)}
+                      {...stylex.props(
+                        styles.bar,
+                        collapsed ? styles.barInset : styles.barStacked,
+                        item.active && styles.barActive,
+                      )}
                     />
-                    {item.icon}
-                    <span {...stylex.props(styles.label)}>{item.label}</span>
+                    <span
+                      aria-hidden
+                      {...stylex.props(styles.icon, item.active && styles.iconActive)}
+                    >
+                      {item.icon}
+                    </span>
+                    <span
+                      {...stylex.props(
+                        collapsed ? styles.srOnly : styles.label,
+                        !collapsed && styles.labelStacked,
+                      )}
+                    >
+                      {item.label}
+                    </span>
                     {item.badge ? (
                       <>
-                        <span aria-hidden {...stylex.props(styles.badge)}>
+                        <span
+                          aria-hidden
+                          {...stylex.props(styles.badge, collapsed && styles.badgeCollapsed)}
+                        >
                           {item.badge > BADGE_MAX ? `${BADGE_MAX}+` : item.badge}
                         </span>
                         {item.badgeLabel ? (
@@ -274,12 +414,26 @@ export function Rail<T extends RailItem = RailItem>({
         <div {...stylex.props(styles.footer)}>
           {renderLink(account, {
             ...stylex.props(styles.avatar),
-            title: account.label,
+            ...(collapsed ? {} : { title: account.label }),
             "aria-label": account.label,
             "aria-current": account.active ? "page" : undefined,
+            ...tipHandlers(account.label),
             children: account.icon,
           })}
         </div>
+      ) : null}
+
+      {tip ? (
+        // Visual only: it repeats the item's accessible name, so a
+        // tooltip role or aria-describedby would make a screen reader say it twice.
+        <span
+          aria-hidden="true"
+          data-rail-tooltip=""
+          className={stylex.props(styles.tooltip).className}
+          style={{ top: tip.top, left: tip.left }}
+        >
+          {tip.text}
+        </span>
       ) : null}
     </nav>
   );

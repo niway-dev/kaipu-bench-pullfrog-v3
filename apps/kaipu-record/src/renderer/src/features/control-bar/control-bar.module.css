@@ -110,7 +110,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
-  color: var(--text-secondary, #a1a1aa);
+  color: var(--text-secondary);
 }
 
 /* Pause/resume — a squarer button with the icon centred and roomy padding. */

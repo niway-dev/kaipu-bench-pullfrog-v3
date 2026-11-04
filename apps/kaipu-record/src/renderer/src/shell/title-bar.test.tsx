@@ -1,7 +1,13 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OnboardingContext } from "@renderer/features/onboarding/onboarding-context";
+import { HeaderActions, HeaderEnd } from "@renderer/features/workspaces/header-slot";
 import { TitleBar } from "./title-bar";
+import {
+  __resetSidebarModeSnapshotForTests,
+  registerRail,
+  rememberSidebarMode,
+} from "./sidebar-mode-snapshot";
 
 const workspaces = vi.hoisted(() => ({ present: true }));
 vi.mock("@renderer/features/workspaces/workspaces-context", () => ({
@@ -17,6 +23,7 @@ function setPlatform(platform: string): void {
 
 afterEach(() => {
   cleanup();
+  __resetSidebarModeSnapshotForTests();
   workspaces.present = true;
   setPlatform("darwin");
 });
@@ -55,5 +62,92 @@ describe("TitleBar", () => {
       </OnboardingContext.Provider>,
     );
     expect(screen.queryByRole("button", { name: "switcher" })).toBeNull();
+  });
+
+  // NIW2-619: the editor's actions sit in the bar's right side, left of the item chip.
+  it("renders a page's actions on the right, before its item chip", () => {
+    render(
+      <>
+        <TitleBar />
+        <HeaderEnd>
+          <span>chip</span>
+        </HeaderEnd>
+        <HeaderActions>
+          <button type="button">Export</button>
+        </HeaderActions>
+      </>,
+    );
+    const bar = screen.getByRole("banner");
+    const exportButton = screen.getByRole("button", { name: "Export" });
+    const chip = screen.getByText("chip");
+    expect(bar.contains(exportButton)).toBe(true);
+    expect(
+      exportButton.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("removes the actions with the page that rendered them", () => {
+    const view = render(
+      <>
+        <TitleBar />
+        <HeaderActions>
+          <button type="button">Export</button>
+        </HeaderActions>
+      </>,
+    );
+    act(() => view.rerender(<TitleBar />));
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+  });
+});
+
+describe("TitleBar sidebar toggle (NIW2-626)", () => {
+  const toggle = () => screen.getByRole("button", { name: /(Collapse|Expand) sidebar/ });
+
+  function withRail(mode: "stacked" | "collapsed") {
+    rememberSidebarMode(mode);
+    const updateSettings = vi.fn(async () => ({}));
+    Object.defineProperty(window, "electronAPI", {
+      value: { platform: "darwin", updateSettings },
+      configurable: true,
+    });
+    const unregister = registerRail();
+    return { updateSettings, unregister };
+  }
+
+  it("sits right after the logo, before the name", () => {
+    withRail("stacked");
+    const { container } = render(<TitleBar />);
+    const bar = container.querySelector("header")!;
+    const order = [...bar.querySelectorAll("svg, button, span")].map((el) =>
+      el.matches("button") ? "toggle" : el.textContent === "Kaipu Record" ? "name" : null,
+    );
+    const toggleAt = order.indexOf("toggle");
+    expect(toggleAt).toBeGreaterThanOrEqual(0);
+    expect(toggleAt).toBeLessThan(order.indexOf("name"));
+    expect(bar.firstElementChild?.nextElementSibling).toContainElement(toggle());
+  });
+
+  it("is clickable inside the draggable bar and never collapses with a crowded bar", () => {
+    withRail("stacked");
+    render(<TitleBar />);
+    expect(toggle().closest('[class*="interactive"]')).not.toBeNull();
+    expect(toggle().closest("[data-collapse]")).toBeNull();
+  });
+
+  it("names what it does, shows the shortcut, and switches and saves the mode", () => {
+    const { updateSettings } = withRail("stacked");
+    render(<TitleBar />);
+    expect(toggle()).toHaveAccessibleName("Collapse sidebar");
+    expect(toggle()).toHaveAttribute("title", expect.stringContaining("⌘\\"));
+    fireEvent.click(toggle());
+    expect(toggle()).toHaveAccessibleName("Expand sidebar");
+    expect(updateSettings).toHaveBeenCalledWith({ sidebarMode: "collapsed" });
+  });
+
+  it("is absent where no rail is drawn (sign-in, error screen, onboarding)", () => {
+    const { unregister } = withRail("stacked");
+    unregister();
+    render(<TitleBar />);
+    expect(screen.queryByRole("button", { name: /sidebar/i })).toBeNull();
   });
 });

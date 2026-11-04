@@ -63,7 +63,7 @@
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   background: var(--bg-modal);
-  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85);
+  box-shadow: var(--shadow-popover);
   color: var(--text-primary);
   text-align: left;
   cursor: default;
@@ -109,11 +109,12 @@
   padding: 2px 9px 6px;
 }
 .sectionLabel {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 .lock {
   display: inline-flex;
@@ -230,7 +231,7 @@
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   background: var(--bg-modal);
-  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.7);
+  box-shadow: var(--shadow-popover);
   color: var(--text-primary);
   font-size: var(--font-size-sm);
 }

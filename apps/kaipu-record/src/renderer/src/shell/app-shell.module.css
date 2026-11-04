@@ -4,7 +4,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: var(--bg-app);
+  background: var(--bg-canvas);
   overflow: hidden;
 }
 
@@ -26,7 +26,7 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--space-xl);
-  background: var(--bg-app);
+  background: var(--bg-canvas);
 }
 
 /* See isFullBleedPath: the page draws its own rules and owns its scrolling. */
@@ -39,8 +39,8 @@
   position: relative;
   flex-shrink: 0;
   height: 28px;
-  background: var(--bg-sidebar);
-  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  border-top: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: center;

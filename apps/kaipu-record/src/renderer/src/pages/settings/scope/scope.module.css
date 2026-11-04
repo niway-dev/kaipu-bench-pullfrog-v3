@@ -31,11 +31,12 @@
 }
 
 .selectorLabel {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 .selectorTrigger {
@@ -71,15 +72,16 @@
 }
 
 .tag {
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   padding: 1px 5px;
   border-radius: 4px;
   border: 1px solid var(--border);
-  color: var(--text-muted);
   white-space: nowrap;
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-muted);
 }
 
 .tag[data-scope="workspace"] {
@@ -98,10 +100,11 @@
 .source {
   display: block;
   margin-top: 3px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
   color: var(--text-muted);
 }
 
@@ -121,7 +124,7 @@
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   border: 1px solid var(--border-light);
   background: transparent;
   color: var(--text-secondary);
@@ -147,10 +150,11 @@
 }
 
 .appWide {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
   color: var(--text-muted);
 }
 

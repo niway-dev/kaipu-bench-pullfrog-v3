@@ -105,6 +105,11 @@ describe("WorkspaceSwitcher with one workspace (spec decision 19)", () => {
     const bar = await screen.findByRole("button", { name: "Workspace: Default workspace" });
     expect(bar).toHaveTextContent("Default workspace");
     expect(bar).toHaveTextContent("This Mac");
+    // A crowded title bar hides the location first (title-bar.module.css).
+    expect(screen.getByText("This Mac").closest("[data-collapse]")).toHaveAttribute(
+      "data-collapse",
+      "location",
+    );
   });
 
   it("the menu shows the current workspace and New / Manage, with nothing to switch to", async () => {

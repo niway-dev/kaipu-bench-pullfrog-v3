@@ -1,42 +1,33 @@
 /*
  * Video-editor chrome, in two pieces.
  *
- * `.toolbar` is the card at the top of the right-hand column: the history and
- * clip actions, the status chips, Export and the active tool's hint. `.rail` is
- * the vertical tool column to the right of the preview — the drawing tools moved there because a horizontal strip
- * of them spent the full width of the window on eight icons, and width is what
- * the timeline needs.
+ * `.toolbar` is the row of editor actions the page puts in the title bar: the
+ * history and clip actions, the status chips and Export. `.rail` is the vertical
+ * tool column to the right of the preview — a horizontal strip of tools spent the
+ * full width of the window on a few icons, and width is what the timeline needs.
  *
  * Tokens still mirror the screenshot editor's top bar
  * (screenshot-editor-page.module.css: .toolbar/.actions/.iconBtn/.divider) so
  * both editors read as the same product.
  */
 
-/* The vertical tool column. Scrolls rather than squeezing: a tool that shrinks
-   below its hit target is worse than one the user has to scroll to. */
-/* The rail is as tall as the preview. Twelve tools fit a ~400 px preview; on a shorter
-   window it still scrolls with the wheel, but never shows scrollbars — a vertical
-   bar inside a 50 px column also forced a horizontal one (the "phantom scroll"). */
+/* The tool column right of the preview: 44 px wide (Kaipu Black, NIW2-619), five
+   tools plus the webcam and cursor buttons a recording may add. It scrolls with the
+   wheel rather than squeezing a tool below its hit target, and never shows a
+   scrollbar — a vertical bar in a column this narrow also forced a horizontal one. */
 .rail {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 6px;
+  width: 44px;
+  padding: 6px 0;
   overflow: hidden auto;
   scrollbar-width: none;
-  background: var(--bg-card);
+  background: var(--bg-panel);
   /* Flat (NIW2-611): a rule on its left, not a card. */
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--line);
   flex-shrink: 0;
-}
-
-/* Inside the rail the groups stack, so their own border would draw a box around
-   two icons; the separator between groups does that job instead. */
-.railGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .rail::-webkit-scrollbar {
@@ -44,8 +35,93 @@
 }
 
 .rail .tool {
+  position: relative;
   flex-shrink: 0;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+}
+
+/* A group with variants: a small corner mark, bottom right, says the button holds more
+   than the tool it shows. A static glyph: it ignores the pointer and never animates. */
+.rail .tool[data-variants]::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  border-style: solid;
+  border-width: 0 0 5px 5px;
+  border-color: transparent transparent currentColor transparent;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* The flyout: every option of a group, to the left of the rail. Portalled to the body
+   and placed with fixed coordinates, because the rail clips its overflow. */
+.flyout {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 190px;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-popover);
+}
+
+.flyoutItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flyoutItem:hover,
+.flyoutItem:focus-visible {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.flyoutCurrent {
+  color: var(--accent-primary);
+}
+
+.flyoutItem.flyoutCurrent:hover,
+.flyoutItem.flyoutCurrent:focus-visible {
+  color: var(--accent-primary);
+}
+
+.flyoutLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.flyoutKey {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  opacity: 0.8;
+}
+
+.flyoutCheck {
+  flex-shrink: 0;
+  visibility: hidden;
+}
+
+.flyoutCheck[data-shown="true"] {
+  visibility: visible;
 }
 
 .railSeparator {
@@ -53,33 +129,16 @@
   width: 22px;
   height: 1px;
   margin: 1px 0;
-  background: var(--border);
+  background: var(--line);
 }
 
-/* The top of the right-hand column (NIW2-611), as wide as the inspector below it,
-   separated from it by a rule: the actions on one line, then the status chips, Export, and the hint. */
+/* The editor's actions in the title bar's right side (Kaipu Black, NIW2-619): undo,
+   redo, image, split, delete, the status chips and Export on one row. */
 .toolbar {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-/* Annotation tool group (select/box/arrow/text) — same tokens as the screenshot
-   editor's AnnotationToolbar (annotation-toolbar.module.css) so both editors read
-   as the same product. .toolbar's justify-content: space-between keeps this on the
-   left and .actions on the right without needing an explicit flex-grow here. */
-.toolGroup {
-  display: flex;
-  gap: 3px;
-  padding: 3px;
-  background: var(--bg-modal);
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  min-width: 0;
 }
 
 .tool {
@@ -89,7 +148,7 @@
   width: 36px;
   height: 34px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -98,27 +157,38 @@
     color var(--transition);
 }
 
-.tool:hover {
+/* Hover and press fill the WHOLE button, flat: no scale, no ripple, nothing that
+   starts at the corner mark. */
+.tool:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-primary);
+}
+
+.tool:active:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
   color: var(--text-primary);
 }
 
 .toolActive,
-.toolActive:hover {
+.toolActive:hover:not(:disabled),
+.toolActive:active:not(:disabled) {
   background: var(--accent-primary);
   color: #fff;
 }
 
+/* The first thing to give way in a narrow title bar: clipped, never wrapped. */
 .actions {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
 }
 
-/* The original-untouched pill and the autosave state. Wraps rather than overflow
-   the column when both are showing. */
+/* The original-untouched pill and the autosave state, on the title bar's one line. */
 .status {
   display: flex;
-  flex-wrap: wrap;
+  white-space: nowrap;
   align-items: center;
   gap: var(--space-xs) var(--space-sm);
   min-width: 0;
@@ -128,11 +198,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -153,7 +223,7 @@
 .divider {
   width: 1px;
   height: 24px;
-  background: var(--border);
+  background: var(--line);
   margin: 0 var(--space-xs);
 }
 
@@ -165,16 +235,19 @@
 
 /* Primary export CTA — filled accent button (vs. the ghost .iconBtn group), so it
    reads as the toolbar's main action rather than another utility icon. */
+/* Always last and always whole: it never shrinks, the icon group gives way instead. */
 .exportBtn {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 34px;
+  height: 28px;
   padding: 0 var(--space-md);
-  background: var(--accent-primary);
+  background: var(--accent);
+  box-shadow: 0 6px 16px -8px rgba(246, 5, 92, 0.7);
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: #fff;
   font-family: var(--font-family);
   font-size: var(--font-size-base);
@@ -192,13 +265,4 @@
 .exportBtn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-/* Contextual hint (UI spec § 3.2): muted, under Export. It wraps: the column is
-   narrow, and a cut-off instruction is worse than a second line. */
-.hint {
-  min-width: 0;
-  font-size: var(--font-size-xs);
-  line-height: 1.4;
-  color: var(--text-muted);
 }

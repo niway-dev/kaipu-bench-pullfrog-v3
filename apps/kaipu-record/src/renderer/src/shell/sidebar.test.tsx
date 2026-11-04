@@ -1,7 +1,8 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ROUTES } from "@shared/routes";
+import type { AppSettings } from "@shared/types";
 import {
   __resetReadyCopiesForTests,
   getReadyCopies,
@@ -9,6 +10,8 @@ import {
   noteReadyCardsShown,
 } from "@renderer/features/video-editor/export/ready-copies";
 import { Sidebar } from "./sidebar";
+import { TitleBar } from "./title-bar";
+import { __resetSidebarModeSnapshotForTests, rememberSidebarMode } from "./sidebar-mode-snapshot";
 
 /** The runner's status, set by a test as if an export were encoding. */
 const runnerStatus = vi.hoisted(() => {
@@ -40,6 +43,26 @@ vi.mock("@renderer/features/video-editor/export/export-runner", async (importOri
   };
 });
 
+/** The window's chrome as the app draws it: the title bar (which holds the toggle) and the rail. */
+function renderWithTitleBarAt(path: string) {
+  const router = createMemoryRouter(
+    [
+      {
+        path: "*",
+        element: (
+          <>
+            <TitleBar workspace={false} />
+            <Sidebar />
+          </>
+        ),
+      },
+    ],
+    { initialEntries: [path] },
+  );
+  render(<RouterProvider router={router} />);
+  return router;
+}
+
 function renderAt(path: string) {
   const router = createMemoryRouter(
     [
@@ -49,6 +72,8 @@ function renderAt(path: string) {
       { path: ROUTES.libraryDetail, element: <Sidebar /> },
       { path: ROUTES.exportNew, element: <Sidebar /> },
       { path: ROUTES.export, element: <Sidebar /> },
+      // Every other page renders the same shell sidebar.
+      { path: "*", element: <Sidebar /> },
     ],
     { initialEntries: [path] },
   );
@@ -56,63 +81,110 @@ function renderAt(path: string) {
   return router;
 }
 
-const exportLink = (): HTMLElement => screen.getByRole("link", { name: /^Export/ });
+const libraryLink = (): HTMLElement => screen.getByRole("link", { name: /^Library/ });
+
+// The renderer root reads the settings before the first paint (I18nRoot) and leaves the mode
+// here; every test starts as a window whose settings said expanded (stacked).
+beforeEach(() => rememberSidebarMode("stacked"));
 
 afterEach(() => {
+  __resetSidebarModeSnapshotForTests();
   __resetReadyCopiesForTests();
   runnerStatus.set("idle");
 });
 
-describe("Sidebar Export entry and badge", () => {
-  it("sits right under Editor", () => {
+describe("Sidebar items", () => {
+  it("has no Export item; the other pages keep theirs", () => {
     renderAt("/");
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(labels.indexOf("Export")).toBe(labels.indexOf("Editor") + 1);
+    expect(labels).not.toContain("Export");
+    expect(labels.slice(0, 7)).toEqual([
+      "Record",
+      "Screenshot",
+      "Editor",
+      "Library",
+      "Shortcuts",
+      "Settings",
+      "Cloud",
+    ]);
   });
 
-  it("is active on Export with and without a video", () => {
+  it("lights the Library on a recording's Export page, and nothing on the bare picker", () => {
     renderAt("/export/asset-1");
-    expect(exportLink()).toHaveAttribute("aria-current", "page");
+    expect(libraryLink()).toHaveAttribute("aria-current", "page");
     cleanup();
     renderAt(ROUTES.exportNew);
-    expect(exportLink()).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getAllByRole("link").filter((l) => l.getAttribute("aria-current") === "page"),
+    ).toEqual([]);
+  });
+});
+
+describe("Sidebar active item", () => {
+  // The rail computes `active` itself now (no NavLink), so every route must
+  // light exactly the one item it belongs to.
+  it.each([
+    ["/", "Record"],
+    ["/screenshots", "Screenshot"],
+    ["/editor", "Editor"],
+    ["/editor/video/asset-1", "Editor"],
+    ["/editor/image/asset-1", "Editor"],
+    ["/library", "Library"],
+    ["/library/asset-1", "Library"],
+    ["/shortcuts", "Shortcuts"],
+    ["/settings", "Settings"],
+  ])("%s lights only %s", (path, label) => {
+    renderAt(path);
+    const current = screen
+      .getAllByRole("link")
+      .filter((l) => l.getAttribute("aria-current") === "page")
+      .map((l) => l.textContent);
+    expect(current).toEqual([label]);
   });
 
+  it("/cloud lights Cloud and the account avatar, which opens the same page", () => {
+    renderAt("/cloud");
+    const current = screen
+      .getAllByRole("link")
+      .filter((l) => l.getAttribute("aria-current") === "page");
+    expect(current.map((l) => l.textContent)).toEqual(["Cloud", ""]);
+  });
+});
+
+describe("Sidebar Library badge (copies being made or ready)", () => {
   it("counts an export that is encoding, on top of the finished copies", () => {
     renderAt("/");
     act(() => runnerStatus.set("exporting"));
-    expect(exportLink()).toHaveAccessibleName(/1 copy in progress or ready/);
-    expect(exportLink()).toHaveTextContent("1");
+    expect(libraryLink()).toHaveAccessibleName(/1 copy in progress or ready/);
+    expect(libraryLink()).toHaveTextContent("1");
     act(() => noteFinishedCopy("copy-1"));
-    expect(exportLink()).toHaveTextContent("2");
+    expect(libraryLink()).toHaveTextContent("2");
   });
 
-  it("counts copies that finished out of sight, and clears when Export opens", async () => {
+  it("counts copies that finished out of sight, and clears when the Library opens", async () => {
     const router = renderAt("/");
-    expect(exportLink()).toHaveTextContent(/^Export$/);
+    expect(libraryLink()).toHaveTextContent(/^Library$/);
     act(() => noteFinishedCopy("copy-1"));
-    expect(exportLink()).toHaveAccessibleName(/1 copy in progress or ready/);
-    expect(exportLink()).toHaveTextContent("1");
-    // The Library no longer carries it.
-    expect(screen.getByRole("link", { name: /^Library/ })).toHaveTextContent(/^Library$/);
+    expect(libraryLink()).toHaveAccessibleName(/1 copy in progress or ready/);
+    expect(libraryLink()).toHaveTextContent("1");
 
-    await act(() => router.navigate(ROUTES.exportNew));
-    expect(exportLink()).toHaveTextContent(/^Export$/);
+    await act(() => router.navigate(ROUTES.library));
+    expect(libraryLink()).toHaveTextContent(/^Library$/);
     // Still pointed at in the Library until the copy itself is opened.
     expect(getReadyCopies().copies).toEqual([{ assetId: "copy-1", announced: true, card: true }]);
   });
 
-  it("opening the Library clears it too, since the Library points at the copies", async () => {
+  it("opening Export clears it too, since Export points at the copies", async () => {
     const router = renderAt("/");
     act(() => noteFinishedCopy("copy-1"));
-    await act(() => router.navigate(ROUTES.library));
-    expect(exportLink()).toHaveTextContent(/^Export$/);
+    await act(() => router.navigate(ROUTES.exportNew));
+    expect(libraryLink()).toHaveTextContent(/^Library$/);
   });
 
-  it("a copy that finishes while Export is open never badges", () => {
-    renderAt(ROUTES.exportNew);
+  it("a copy that finishes while the Library is open never badges", () => {
+    renderAt(ROUTES.library);
     act(() => noteFinishedCopy("copy-1"));
-    expect(exportLink()).toHaveTextContent(/^Export$/);
+    expect(libraryLink()).toHaveTextContent(/^Library$/);
   });
 
   it("leaving the Library retires its Ready to upload cards, not the copies", async () => {
@@ -138,8 +210,181 @@ describe("Sidebar Export entry and badge", () => {
     const router = renderAt("/");
     act(() => noteFinishedCopy("copy-1"));
     act(() => noteFinishedCopy("copy-2"));
-    expect(exportLink()).toHaveAccessibleName(/2 copies in progress or ready/);
+    expect(libraryLink()).toHaveAccessibleName(/2 copies in progress or ready/);
     await act(() => router.navigate("/library/copy-1"));
     expect(getReadyCopies().copies.map((c) => c.assetId)).toEqual(["copy-2"]);
+  });
+});
+
+describe("Sidebar modes (NIW2-626)", () => {
+  const nav = (): HTMLElement => screen.getByRole("navigation");
+
+  /** The settings the main process holds, as if persisted across a restart. */
+  function persisted(sidebarMode: AppSettings["sidebarMode"]) {
+    const original = window.electronAPI.getSettings;
+    let stored: Partial<AppSettings> = { sidebarMode };
+    vi.spyOn(window.electronAPI, "getSettings").mockImplementation(async () => ({
+      ...(await original()),
+      ...stored,
+    }));
+    const update = vi.fn(async (patch: Partial<AppSettings>) => {
+      stored = { ...stored, ...patch };
+      return { ...(await original()), ...stored };
+    });
+    vi.spyOn(window.electronAPI, "updateSettings").mockImplementation(update);
+    return update;
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("opens expanded, the label under each icon, before anything was chosen", () => {
+    renderAt("/");
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+  });
+
+  it("opens in the mode stored in the settings (it survives a restart)", async () => {
+    persisted("collapsed");
+    renderAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "collapsed"));
+    // Icons only, yet every item keeps its name.
+    expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
+  });
+
+  it("draws no toggle of its own: it lives in the title bar", () => {
+    renderAt("/");
+    expect(screen.queryByRole("button", { name: /sidebar/i })).toBeNull();
+  });
+
+  it("the title bar's toggle switches the rail expanded ↔ collapsed, names what it does, and saves each", async () => {
+    const update = persisted("stacked");
+    renderWithTitleBarAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(nav()).toHaveAttribute("data-mode", "collapsed");
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+    expect(update.mock.calls.map(([patch]) => patch)).toEqual([
+      { sidebarMode: "collapsed" },
+      { sidebarMode: "stacked" },
+    ]);
+  });
+
+  it("Cmd+\\ switches the mode on macOS and saves it", async () => {
+    const update = persisted("stacked");
+    renderAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
+    fireEvent.keyDown(window, { key: "\\", code: "Backslash", metaKey: true });
+    expect(nav()).toHaveAttribute("data-mode", "collapsed");
+    expect(update).toHaveBeenCalledWith({ sidebarMode: "collapsed" });
+  });
+
+  it("ignores Ctrl+\\ on macOS, a bare \\ and Cmd+Shift+\\", async () => {
+    const update = persisted("stacked");
+    renderAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
+    fireEvent.keyDown(window, { key: "\\", code: "Backslash", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "\\", code: "Backslash" });
+    fireEvent.keyDown(window, { key: "|", code: "Backslash", metaKey: true, shiftKey: true });
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("shows the shortcut in the toggle's title", async () => {
+    persisted("stacked");
+    renderWithTitleBarAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toHaveAttribute(
+      "title",
+      expect.stringContaining("⌘\\"),
+    );
+  });
+});
+
+describe("Sidebar shortcut leaves other handlers alone (NIW2-626 review)", () => {
+  const nav = (): HTMLElement => screen.getByRole("navigation");
+  const press = (target: Element | Window, init: KeyboardEventInit = {}) =>
+    fireEvent.keyDown(target, { key: "\\", code: "Backslash", metaKey: true, ...init });
+
+  afterEach(() => {
+    document.body.querySelectorAll("[data-extra]").forEach((el) => el.remove());
+  });
+
+  function extra<T extends HTMLElement>(html: string): T {
+    const host = document.createElement("div");
+    host.setAttribute("data-extra", "");
+    host.innerHTML = html;
+    document.body.append(host);
+    return host.querySelector("[data-target]") as T;
+  }
+
+  it("does nothing when another handler already took the key", () => {
+    renderAt("/");
+    const event = new KeyboardEvent("keydown", {
+      key: "\\",
+      code: "Backslash",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    event.preventDefault();
+    act(() => {
+      window.dispatchEvent(event);
+    });
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+  });
+
+  it.each([
+    ["an input", `<input data-target />`],
+    ["a textarea", `<textarea data-target></textarea>`],
+    ["a select", `<select data-target><option>a</option></select>`],
+    ["a contenteditable", `<div data-target contenteditable="true"></div>`],
+  ])("does nothing while typing in %s", (_, html) => {
+    renderAt("/");
+    press(extra(html));
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+  });
+
+  it("does nothing while a modal dialog is open, wherever focus is", () => {
+    renderAt("/");
+    extra(`<div role="dialog" aria-modal="true"><button data-target>ok</button></div>`);
+    press(window);
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+  });
+
+  it("still works from a plain button outside any dialog", () => {
+    renderAt("/");
+    press(extra(`<button data-target>x</button>`));
+    expect(nav()).toHaveAttribute("data-mode", "collapsed");
+  });
+});
+
+describe("Sidebar first paint (NIW2-626 review)", () => {
+  it("with a saved collapsed mode known at startup, the very first render is collapsed", () => {
+    rememberSidebarMode("collapsed");
+    renderAt("/");
+    expect(screen.getByRole("navigation")).toHaveAttribute("data-mode", "collapsed");
+  });
+
+  it("with the mode not known yet, draws no rail until the settings say which, never the default first", async () => {
+    __resetSidebarModeSnapshotForTests();
+    const original = window.electronAPI.getSettings;
+    vi.spyOn(window.electronAPI, "getSettings").mockImplementation(async () => ({
+      ...(await original()),
+      sidebarMode: "collapsed",
+    }));
+    const seen: (string | null)[] = [];
+    const observer = new MutationObserver(() => {
+      seen.push(document.querySelector("nav[data-mode]")?.getAttribute("data-mode") ?? null);
+    });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true });
+    renderAt("/");
+    seen.push(document.querySelector("nav[data-mode]")?.getAttribute("data-mode") ?? null);
+    await waitFor(() =>
+      expect(screen.getByRole("navigation")).toHaveAttribute("data-mode", "collapsed"),
+    );
+    observer.disconnect();
+    vi.restoreAllMocks();
+    expect(seen).not.toContain("stacked");
+    expect(seen[0]).toBeNull();
   });
 });

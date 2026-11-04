@@ -23,6 +23,16 @@ export const base: BaseTokens = {
   "font-weight-normal": "400",
   "font-weight-medium": "500",
   "font-weight-semibold": "600",
+  // The reading scale (NIW2-626), paired with the sizes above:
+  // body 14/21 (font-size-md), controls and navigation 13/18 500 (font-size-base),
+  // section labels 12/16 500 in sentence case with no tracking (font-size-sm),
+  // technical mono values 12/16 with at most 0.02em, page headings 20/26 600 (font-size-xl).
+  "line-height-body": "21px",
+  "line-height-control": "18px",
+  "line-height-label": "16px",
+  "line-height-heading": "26px",
+  "letter-spacing-mono": "0.02em",
+  "letter-spacing-heading": "-0.01em",
   "sidebar-width": "56px",
   "titlebar-height": "38px",
   transition: "150ms ease",

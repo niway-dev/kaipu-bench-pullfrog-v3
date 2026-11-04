@@ -13,10 +13,13 @@ const hover = "#17171a";
 const active = "#202024";
 const line = "rgba(255, 255, 255, 0.08)"; // the only separator
 const lineStrong = "rgba(255, 255, 255, 0.14)"; // input and secondary-button borders
-const text1 = "#f3f3f5";
-const text2 = "#c8c8d0";
-const text3 = "#8a8a92";
-const text4 = "#62626a"; // section and track labels only: below AA on purpose
+// The text ladder (NIW2-626): pure white glared on the deeper black, and the old
+// text-3/text-4 were too dim to read at small sizes. Every level clears WCAG AA on
+// every surface (contrast.test.ts); text-4 is the floor, 6.26:1 on bg-raised.
+const text1 = "#e8e8ed"; // primary text
+const text2 = "#c8c8d0"; // secondary text
+const text3 = "#a1a1aa"; // supporting text, inactive navigation
+const text4 = "#92929c"; // small labels that still mean something: sections, tracks
 const accent = "#f6055c";
 const accentSoft = "rgba(246, 5, 92, 0.14)";
 const accentRing = "rgba(246, 5, 92, 0.5)";

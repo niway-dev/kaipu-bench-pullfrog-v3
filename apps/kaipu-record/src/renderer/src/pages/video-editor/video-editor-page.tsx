@@ -33,6 +33,7 @@ import {
   ModalTitle,
 } from "@kaipu/ui";
 import * as stylex from "@stylexjs/stylex";
+import { tokens } from "@kaipu/tokens/kaipu.stylex";
 import { Badge, Button } from "@kaipu/ui";
 import {
   boundaryIndexAt,
@@ -79,7 +80,10 @@ import {
   webcamInspectorTarget,
   webcamOutlined,
 } from "@renderer/features/video-editor/webcam/webcam-selection";
-import { EditorInspector } from "@renderer/features/video-editor/components/inspector/editor-inspector";
+import {
+  EditorInspector,
+  InspectorEmptyState,
+} from "@renderer/features/video-editor/components/inspector/editor-inspector";
 import { DetectionPanel } from "@renderer/features/video-editor/components/inspector/detection-panel";
 import { ZoomInspector } from "@renderer/features/video-editor/components/inspector/zoom-inspector";
 import {
@@ -137,6 +141,8 @@ import { VideoAnnotationLayer } from "@renderer/features/video-editor/annotation
 import {
   EditorToolbar,
   EditorToolRail,
+  nextToolInGroup,
+  TOOL_GROUPS,
 } from "@renderer/features/video-editor/components/editor-toolbar";
 import { ExportDialog } from "@renderer/features/video-editor/components/export-dialog";
 import { PreviewStage } from "@renderer/features/video-editor/components/preview-stage";
@@ -145,6 +151,7 @@ import { showToast } from "@renderer/ui/toast-store";
 import { isAmbiguousIdentityError } from "@renderer/features/library/rename-outcome";
 import { registerSwitchFlush } from "@renderer/features/workspaces/prepare-switch";
 import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
+import { HeaderActions } from "@renderer/features/workspaces/header-slot";
 import styles from "./video-editor-page.module.css";
 
 /** The "original" pill's own shape, moved out of video-editor-page.module.css:
@@ -152,7 +159,13 @@ import styles from "./video-editor-page.module.css";
 const sxEditor = stylex.create({
   originalPill: {
     flexShrink: 0,
-    letterSpacing: "0.04em",
+    // Kaipu Black badge (NIW2-616): mono caps, accent text on the soft accent fill.
+    backgroundColor: tokens.accentSoft,
+    color: tokens.accent,
+    fontFamily: tokens.fontMono,
+    fontSize: "9.5px",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
   },
 });
 import { useMuteEditing } from "@renderer/features/video-editor/use-mute-editing";
@@ -233,6 +246,15 @@ export function toolForShortcut(key: string, opts: { onSlide: boolean }): Editor
   if (!tool) return null;
   if (PRIVACY_SHORTCUT_TOOLS.has(tool) && opts.onSlide) return null;
   return tool;
+}
+
+/** Both tools belong to one rail group (Annotate, Privacy). */
+function sameGroup(a: EditorTool, b: EditorTool): boolean {
+  return Object.values(TOOL_GROUPS).some(
+    (variants) =>
+      (variants as readonly EditorTool[]).includes(a) &&
+      (variants as readonly EditorTool[]).includes(b),
+  );
 }
 
 /** Target is a text field or a dropdown — don't hijack its keys (Space, letters that pick
@@ -1279,7 +1301,13 @@ function VideoEditor({
       // drawing mode. Matches EditorToolbar's own tooltips (V R A T / Z / B C).
       const key = e.key.toLowerCase();
       if (!isMod && TOOL_SHORTCUT_KEYS.has(key)) {
-        const next = toolForShortcut(key, { onSlide });
+        // Shift+<variant letter> cycles that variant's group (Photoshop's Shift+key):
+        // from the tool in use when it belongs to the group, else from the pressed one.
+        const pressed = toolForShortcut(key, { onSlide });
+        const next =
+          pressed && e.shiftKey
+            ? nextToolInGroup(sameGroup(videoTools.tool, pressed) ? videoTools.tool : pressed)
+            : pressed;
         // Through handleToolChange, not videoTools.setTool: the toolbar path clears
         // the selection before arming a privacy tool, and the keyboard must match —
         // otherwise B with a zoom selected leaves the RegionDrawer stacked over the
@@ -1549,8 +1577,8 @@ function VideoEditor({
             </div>
           </div>
         </main>
-        {/* NIW2-611: the video takes the left edge; the tools and the actions moved to
-            the right so the picture gets the width and the height the top bar used. */}
+        {/* NIW2-611: the video takes the left edge and the tools sit on its right, so the
+            picture gets the width and the height the top bar used. */}
         <EditorToolRail
           onAddMute={handleAddMute}
           onToggleMuteAll={mutes.toggleAll}
@@ -1567,7 +1595,9 @@ function VideoEditor({
           }
           cursorSelected={cursorInspectorOpen && cursorData !== null}
         />
-        <div className={styles.side}>
+        {/* The editor's actions live in the title bar's right side (Kaipu Black,
+            NIW2-619), mounted and unmounted with this page. */}
+        <HeaderActions>
           <EditorToolbar
             canUndo={controller.canUndo}
             canRedo={controller.canRedo}
@@ -1578,21 +1608,24 @@ function VideoEditor({
             onDeleteSelected={handleDeleteSelected}
             deleteDisabled={deleteDisabled}
             onAddImage={handleAddImage}
-            tool={videoTools.tool}
             onExport={handleExport}
             exportDisabled={gifExport.status === "exporting" || scene.items.length === 0}
           >
             {/* Not interactive — a reminder, not a control (plans/video-editor-v2/08 § PR 10
                 polish, W12's "ORIGINAL UNTOUCHED" pill). The original recording on disk and
                 its library thumbnail are untouched by every edit in this page. */}
-            <Badge variant="neutral" style={sxEditor.originalPill}>
-              <Shield size={12} strokeWidth={2} /> {t("originalUntouched")}
-            </Badge>
+            {/* data-collapse: the first thing a crowded title bar hides (title-bar.module.css). */}
+            <span data-collapse="badge" className={styles.badgeSlot}>
+              <Badge variant="neutral" style={sxEditor.originalPill}>
+                <Shield size={12} strokeWidth={2} /> {t("originalUntouched")}
+              </Badge>
+            </span>
             {autosave.state !== "idle" && (
               <button
                 type="button"
                 className={styles.saveState}
                 data-state={autosave.state}
+                data-collapse="save"
                 onClick={autosave.state === "failed" ? () => void autosave.retry() : undefined}
                 disabled={autosave.state !== "failed"}
                 aria-live="polite"
@@ -1603,6 +1636,8 @@ function VideoEditor({
               </button>
             )}
           </EditorToolbar>
+        </HeaderActions>
+        <div className={styles.side}>
           <EditorInspector>
             {cursorInspectorOpen && cursorData ? (
               <CursorInspector
@@ -1681,16 +1716,23 @@ function VideoEditor({
                 onRemove={handleDeleteOverlay}
                 onRemoved={() => setSelectedOverlayId(null)}
               />
-            ) : videoTools.tool === "box" ||
-              videoTools.tool === "arrow" ||
-              videoTools.tool === "text" ? (
-              <AnnotationDefaultsPanel tools={videoTools} />
             ) : (
-              <DetectionPanel
-                zooms={zooms}
-                sensitivity={scene.zoomSensitivity}
-                clicksAvailable={cursorTrack?.clicksAvailable ?? false}
-              />
+              // Nothing selected: the empty state, then the drawing defaults while a
+              // drawing tool is armed, or the Detection panel.
+              <>
+                <InspectorEmptyState tool={videoTools.tool} />
+                {videoTools.tool === "box" ||
+                videoTools.tool === "arrow" ||
+                videoTools.tool === "text" ? (
+                  <AnnotationDefaultsPanel tools={videoTools} />
+                ) : (
+                  <DetectionPanel
+                    zooms={zooms}
+                    sensitivity={scene.zoomSensitivity}
+                    clicksAvailable={cursorTrack?.clicksAvailable ?? false}
+                  />
+                )}
+              </>
             )}
           </EditorInspector>
         </div>

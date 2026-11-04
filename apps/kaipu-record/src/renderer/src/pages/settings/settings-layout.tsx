@@ -67,7 +67,6 @@ function SettingsLayoutBody(): React.JSX.Element {
   return (
     <div className={styles.layout}>
       <nav className={styles.nav} aria-label={t("title")}>
-        <h1 className={styles.navTitle}>{t("title")}</h1>
         <ScopeSelector />
         <ul className={styles.navList}>
           {NAV.map(({ to, labelKey, Icon, perWorkspace }) => (

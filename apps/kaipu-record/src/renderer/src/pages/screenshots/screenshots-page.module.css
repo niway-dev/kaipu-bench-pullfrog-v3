@@ -11,28 +11,13 @@
 
 /* ── Header ─────────────────────────────────── */
 
-.overline {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-  letter-spacing: 0.14em;
-  color: var(--text-muted);
-}
-
 .title {
-  margin: 0;
+  margin: 0 0 var(--space-sm);
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
+  line-height: var(--line-height-heading);
+  letter-spacing: var(--letter-spacing-heading);
   color: var(--text-primary);
-}
-
-.subtitle {
-  margin: 0 0 var(--space-md);
-  font-size: var(--font-size-md);
-  line-height: 1.55;
-  color: var(--text-secondary);
-  max-width: 560px;
 }
 
 /* The mode picker hero (capture-mode-buttons) sits between the header and Recent. */

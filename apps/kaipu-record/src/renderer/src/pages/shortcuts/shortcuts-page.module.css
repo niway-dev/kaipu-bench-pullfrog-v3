@@ -25,9 +25,10 @@
 
 .pageTitle {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
+  line-height: var(--line-height-heading);
+  letter-spacing: var(--letter-spacing-heading);
   color: var(--text-primary);
 }
 
@@ -58,9 +59,10 @@
 .sectionTitle {
   margin: 0;
   padding: 0 var(--space-xs);
+  font-family: var(--font-family);
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }

@@ -89,6 +89,11 @@
   background: var(--border-light);
 }
 
+/* The divider sits inside, so hiding the location (data-collapse) takes it along. */
+.barLocation .barDivider {
+  margin-right: 5px;
+}
+
 .barLocation {
   display: inline-flex;
   align-items: center;
@@ -179,7 +184,7 @@
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   background: var(--bg-modal);
-  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85);
+  box-shadow: var(--shadow-popover);
   color: var(--text-primary);
 }
 
@@ -231,11 +236,12 @@
 }
 
 .statLabel {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 .statValue {
@@ -286,11 +292,12 @@
 
 .sectionLabel {
   padding: 6px 9px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 .lock {

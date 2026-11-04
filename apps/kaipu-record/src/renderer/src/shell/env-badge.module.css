@@ -4,12 +4,12 @@
   align-items: center;
   padding: 1px 6px;
   border-radius: var(--radius-sm);
-  background: rgba(234, 179, 8, 0.15);
-  color: var(--accent-yellow);
+  background: var(--accent-soft);
+  color: var(--accent);
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
 }

@@ -8,7 +8,16 @@
   flex-shrink: 0;
   min-height: 0;
   overflow-y: auto;
-  /* Under the toolbar in the right-hand column (NIW2-611); that column draws the
-     rule on the left, so the inspector draws none. */
-  background: var(--bg-card);
+  /* The right-hand column draws the rule on the left, so the inspector draws none. */
+  background: var(--bg-panel);
+}
+
+/* See InspectorEmptyState: the line above the panel when nothing is selected. */
+.empty {
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  color: var(--text-secondary);
 }

@@ -7,7 +7,23 @@ describe("token sources", () => {
     expect(dark["bg-canvas"]).toBe("#060607");
     expect(dark["bg-panel"]).toBe("#0b0b0d");
     expect(dark["bg-raised"]).toBe("#0e0e10");
-    expect(dark["text"]).toBe("#f3f3f5");
+    expect(dark["glow-accent"]).toBe("0 10px 26px -8px rgba(246, 5, 92, 0.75)");
+  });
+
+  it("dark text ladder reads on black (NIW2-626)", () => {
+    expect(dark["text"]).toBe("#e8e8ed");
+    expect(dark["text-2"]).toBe("#c8c8d0");
+    expect(dark["text-3"]).toBe("#a1a1aa");
+    expect(dark["text-4"]).toBe("#92929c");
+  });
+
+  it("base carries the reading type scale (NIW2-626)", () => {
+    expect(base["line-height-body"]).toBe("21px");
+    expect(base["line-height-control"]).toBe("18px");
+    expect(base["line-height-label"]).toBe("16px");
+    expect(base["line-height-heading"]).toBe("26px");
+    expect(base["letter-spacing-mono"]).toBe("0.02em");
+    expect(base["letter-spacing-heading"]).toBe("-0.01em");
     expect(dark["glow-accent"]).toBe("0 10px 26px -8px rgba(246, 5, 92, 0.75)");
   });
 

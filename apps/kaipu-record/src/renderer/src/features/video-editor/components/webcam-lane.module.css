@@ -2,8 +2,8 @@
 .lane {
   position: relative;
   height: 44px;
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
+  border-radius: 3px;
+  background: var(--bg-raised);
 }
 
 /* The webcam's frames, under the segments. Dimmed so a segment's label and stripes stay
@@ -12,7 +12,7 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  border-radius: var(--radius-md);
+  border-radius: 3px;
   opacity: 0.7;
   pointer-events: none;
 }
@@ -45,7 +45,7 @@
   padding: 0 4px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--accent-primary) 35%, transparent);
-  border-radius: var(--radius-sm);
+  border-radius: 3px;
   background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
   color: var(--text-primary);
   cursor: pointer;

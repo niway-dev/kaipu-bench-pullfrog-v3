@@ -1,5 +1,4 @@
 import React from "react";
-import { Card } from "@kaipu/ui";
 import type { OverridableKey } from "@shared/settings-scope";
 import { ScopeLine, ScopeNotice, ScopedTitle, SectionBanner } from "./scope/scope-controls";
 import styles from "./settings-page.module.css";
@@ -26,9 +25,9 @@ export function SettingsPanel({
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
-        <h2 className={styles.pageTitle}>
+        <h1 className={styles.pageTitle}>
           {scope ? <ScopedTitle scope={scope}>{title}</ScopedTitle> : title}
-        </h2>
+        </h1>
         <p className={styles.pageSubtitle}>{subtitle}</p>
         {scope === "workspace" && <ScopeLine />}
       </div>
@@ -51,7 +50,7 @@ export function Section({
   return (
     <div className={styles.section}>
       <h3 className={styles.sectionTitle}>{title}</h3>
-      <Card>{children}</Card>
+      <div className={styles.sectionBody}>{children}</div>
     </div>
   );
 }

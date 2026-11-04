@@ -1,7 +1,6 @@
 import React from "react";
 import { useTranslations } from "@kaipu/i18n";
 import type { UploadMode } from "@shared/types";
-import { Card } from "@kaipu/ui";
 import { AccountPanel } from "@renderer/features/auth/account-panel";
 import { useAuthStatus } from "@renderer/features/auth/use-auth-status";
 import { CapacityCard } from "./capacity-card";
@@ -88,7 +87,7 @@ export function StorageCloudSettings({
 
       <div className={styles.block}>
         <h3 className={styles.blockTitle}>{t("accountAndCapacity")}</h3>
-        <Card>
+        <div className={styles.sectionBody}>
           {loading ? (
             <div className={styles.capacity} aria-busy="true">
               <span className={styles.srOnly}>{t("loading")}</span>
@@ -111,7 +110,7 @@ export function StorageCloudSettings({
           ) : (
             <AccountPanel statusOverride={sim.account === "real" ? undefined : status} />
           )}
-        </Card>
+        </div>
       </div>
     </section>
   );

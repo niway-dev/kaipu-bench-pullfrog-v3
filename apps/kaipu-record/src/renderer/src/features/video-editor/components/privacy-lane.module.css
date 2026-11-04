@@ -1,8 +1,9 @@
 .lane {
   position: relative;
-  height: 30px;
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
+  /* Kaipu Black (NIW2-619): 20 px. */
+  height: 20px;
+  border-radius: 3px;
+  background: var(--bg-raised);
 }
 
 .block,
@@ -16,7 +17,7 @@
   gap: 3px;
   padding: 0 5px;
   overflow: hidden;
-  border-radius: var(--radius-sm);
+  border-radius: 3px;
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.06em;

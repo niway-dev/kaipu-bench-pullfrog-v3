@@ -17,7 +17,7 @@ import type { StyleXStyles } from "@stylexjs/stylex";
  * ui/button.module.css: styles move systems, pixels stay.
  */
 
-type ButtonVariant = "primary" | "danger" | "ghost" | "outline";
+type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "outline";
 type ButtonSize = "sm" | "default" | "lg";
 
 const base = stylex.create({
@@ -57,9 +57,16 @@ const sizes = stylex.create({
 
 const variants = stylex.create({
   primary: {
-    backgroundColor: tokens.accentPrimary,
+    backgroundColor: tokens.accent,
     color: "#fff",
-    boxShadow: tokens.glowAccent,
+    boxShadow: "0 6px 16px -8px rgba(246, 5, 92, 0.7)",
+  },
+  // Kaipu Black secondary: a quiet hairline button. Colour appears only on hover or a
+  // deliberate override, so it never competes with the one primary action.
+  secondary: {
+    backgroundColor: "transparent",
+    borderColor: tokens.lineStrong,
+    color: tokens.text2,
   },
   danger: {
     backgroundColor: tokens.accentRed,
@@ -91,7 +98,11 @@ const variants = stylex.create({
  */
 const hovers = stylex.create({
   primary: {
-    backgroundColor: { default: tokens.accentPrimary, ":hover": tokens.accentPrimaryHover },
+    backgroundColor: { default: tokens.accent, ":hover": tokens.accentPrimaryHover },
+  },
+  secondary: {
+    backgroundColor: { default: "transparent", ":hover": tokens.bgHover },
+    color: { default: tokens.text2, ":hover": tokens.text },
   },
   danger: { backgroundColor: { default: tokens.accentRed, ":hover": tokens.accentRedHover } },
   ghost: { backgroundColor: { default: "transparent", ":hover": tokens.accentPrimarySoft } },

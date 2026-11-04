@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import * as stylex from "@stylexjs/stylex";
+import { tokens } from "@kaipu/tokens/kaipu.stylex";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -65,6 +67,23 @@ const EDITING_LABEL_KEYS: Record<EditingState, LibraryMessageKey> = {
   "exported-only": "editingExportedOnly",
   "missing-dependencies": "editingMissingDependencies",
 };
+
+/* Delete is quiet until the pointer or keyboard is on it (Kaipu Black, NIW2-616). */
+const sx = stylex.create({
+  delete: {
+    borderColor: {
+      default: tokens.lineStrong,
+      ":hover": tokens.accentRed,
+      ":focus-visible": tokens.accentRed,
+    },
+    color: {
+      default: tokens.text2,
+      ":hover": tokens.accentRed,
+      ":focus-visible": tokens.accentRed,
+    },
+    backgroundColor: { default: "transparent", ":hover": "transparent" },
+  },
+});
 
 /** Maps a blocked `removeLocalCopy` result to its toast copy. `hash-unknown` and
  *  `not-found` are edge cases outside this action's guarded conditions (see
@@ -475,11 +494,11 @@ export function LibraryDetailPage(): React.JSX.Element {
         )}
         {isScreenshot && localId && (
           <>
-            <Button variant="outline" size="sm" onClick={editScreenshot}>
+            <Button variant="secondary" size="sm" onClick={editScreenshot}>
               <Pencil size={15} strokeWidth={1.8} />
               {t("edit")}
             </Button>
-            <Button variant="outline" size="sm" onClick={copyScreenshot}>
+            <Button variant="secondary" size="sm" onClick={copyScreenshot}>
               {copied ? (
                 <Check size={15} strokeWidth={1.8} />
               ) : (
@@ -491,7 +510,7 @@ export function LibraryDetailPage(): React.JSX.Element {
         )}
         {!isScreenshot && !isGif && localId && (
           <Button
-            variant="outline"
+            variant="primary"
             size="sm"
             onClick={editVideo}
             disabled={!canEditVideo}
@@ -502,7 +521,7 @@ export function LibraryDetailPage(): React.JSX.Element {
           </Button>
         )}
         {localId && (
-          <Button variant="outline" size="sm" onClick={() => reveal(localId)}>
+          <Button variant="secondary" size="sm" onClick={() => reveal(localId)}>
             <FolderOpen size={15} strokeWidth={1.8} />
             {t("reveal")}
           </Button>
@@ -513,7 +532,12 @@ export function LibraryDetailPage(): React.JSX.Element {
           </Button>
         )}
         {localId && (
-          <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(true)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            style={sx.delete}
+            onClick={() => setConfirmingDelete(true)}
+          >
             <Trash2 size={15} strokeWidth={1.8} />
             {t("delete")}
           </Button>

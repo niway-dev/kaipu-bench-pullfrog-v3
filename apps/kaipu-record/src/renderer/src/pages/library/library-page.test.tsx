@@ -95,6 +95,14 @@ afterEach(() => {
 const card = (title: string): HTMLElement =>
   screen.getByText(title, { selector: "p" }).closest("[role='button']")!;
 
+describe("LibraryPage header (NIW2-626)", () => {
+  it("names the page once, with no generic subtitle under it", () => {
+    renderLibrary();
+    expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeInTheDocument();
+    expect(screen.queryByText("Manage your recordings and perform actions.")).toBeNull();
+  });
+});
+
 describe("LibraryPage: no import door", () => {
   it("has no drop strip and no Prepare or Import buttons: Export is where videos come in", () => {
     renderLibrary();

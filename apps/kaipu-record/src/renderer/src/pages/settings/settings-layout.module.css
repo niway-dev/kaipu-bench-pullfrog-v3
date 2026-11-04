@@ -1,6 +1,9 @@
+/* Edge to edge, like Export: the nav is a panel flush with the header and the rail, so the
+   layout cancels the shell's content padding and each part carries its own (NIW2-615). */
 .layout {
   display: flex;
-  height: 100%;
+  margin: calc(-1 * var(--space-xl));
+  height: calc(100% + 2 * var(--space-xl));
   min-height: 0;
 }
 
@@ -11,20 +14,9 @@
   flex-direction: column;
   gap: var(--space-sm);
   padding: var(--space-lg) var(--space-sm);
-  border-right: 1px solid var(--border);
-  background: var(--bg-app);
+  border-right: 1px solid var(--line);
+  background: var(--bg-panel);
   overflow-y: auto;
-}
-
-.navTitle {
-  margin: 0;
-  padding: 0 var(--space-sm);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-muted);
 }
 
 .navList {
@@ -41,7 +33,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding: 8px var(--space-sm);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   font-size: var(--font-size-base);
   color: var(--text-secondary);
   text-decoration: none;
@@ -70,7 +62,7 @@
 .navNote {
   margin: var(--space-sm) 0 0;
   padding: var(--space-sm) var(--space-sm) 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
   font-size: var(--font-size-sm);
   color: var(--text-muted);
 }

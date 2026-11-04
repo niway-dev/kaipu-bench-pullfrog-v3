@@ -44,7 +44,14 @@ export {
   type PopoverItemProps,
   type PopoverProps,
 } from "./molecules/popover";
-export { Rail, type RailItem, type RailLinkProps, type RailProps } from "./molecules/rail";
+export {
+  RAIL_MODES,
+  Rail,
+  type RailItem,
+  type RailLinkProps,
+  type RailMode,
+  type RailProps,
+} from "./molecules/rail";
 export {
   SourcePicker,
   type SourcePickerProps,

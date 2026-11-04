@@ -95,11 +95,15 @@ export function WorkspaceSwitcher(): React.JSX.Element | null {
       >
         <WorkspaceTile workspace={active} size={20} dim={off} />
         <span className={styles.barName}>{active.name}</span>
-        <span className={styles.barDivider} aria-hidden />
         {off ? (
-          <span className={styles.barOff}>{t("notConnectedState")}</span>
+          <>
+            <span className={styles.barDivider} aria-hidden />
+            <span className={styles.barOff}>{t("notConnectedState")}</span>
+          </>
         ) : (
-          <span className={styles.barLocation}>
+          // data-collapse: a crowded title bar hides "This Mac" (title-bar.module.css).
+          <span className={styles.barLocation} data-collapse="location">
+            <span className={styles.barDivider} aria-hidden />
             {active.volume ? <HardDrive size={12} /> : <Laptop size={12} />}
             {locationOf(active)}
           </span>
