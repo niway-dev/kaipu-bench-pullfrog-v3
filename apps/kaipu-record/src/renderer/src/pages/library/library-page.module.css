@@ -75,9 +75,9 @@
   gap: 7px;
   height: 34px;
   padding: 0 14px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
   color: var(--text-secondary);
   font-family: var(--font-family);
   font-size: var(--font-size-sm);
@@ -116,8 +116,7 @@
   /* Constant padding (not added when stuck) so the bar never changes height
      and the collection does not jump as it sticks. */
   padding: var(--space-lg) var(--space-xl) var(--space-sm);
-  background: var(--bg-app);
-  transition: box-shadow var(--transition);
+  background: var(--bg-canvas);
 }
 
 .stickyBar > .toolbar {
@@ -126,9 +125,7 @@
 
 .stickyBar[data-stuck="true"] {
   /* Inset line, not a border: a border would add 1px and nudge the cards. */
-  box-shadow:
-    inset 0 -1px 0 var(--border),
-    0 10px 20px -16px rgba(0, 0, 0, 0.8);
+  box-shadow: inset 0 -1px 0 var(--line);
 }
 
 .toolbar {
@@ -142,9 +139,9 @@
   display: flex;
   gap: 2px;
   padding: 3px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
 }
 
 .viewToggleButton {
@@ -221,7 +218,7 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -370,9 +367,8 @@
 }
 
 .listContainer {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  border-block: 1px solid var(--line);
   overflow: hidden;
 }
 

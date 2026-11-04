@@ -26,7 +26,7 @@
   flex-direction: column;
   background: var(--bg-card);
   border-left: 1px solid var(--border);
-  box-shadow: -24px 0 48px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-popover);
   animation: slideIn 200ms ease-out;
 }
 
@@ -134,7 +134,7 @@
   overflow: hidden;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background: #101013;
+  background: var(--bg-raised);
   color: var(--text-muted);
 }
 

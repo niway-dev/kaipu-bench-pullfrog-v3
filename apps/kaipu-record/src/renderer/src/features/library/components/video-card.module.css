@@ -31,7 +31,7 @@
 .poster {
   position: relative;
   aspect-ratio: 16 / 10;
-  background-color: #101013;
+  background-color: var(--bg-raised);
   background-image: repeating-linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.03) 0 12px,

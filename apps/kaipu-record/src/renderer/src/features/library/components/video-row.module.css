@@ -8,11 +8,11 @@
 }
 
 .divided {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 
 .row:hover {
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
 }
 
 /* ── Poster ───────────────────────────── */
@@ -24,7 +24,7 @@
   flex-shrink: 0;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background-color: #101013;
+  background-color: var(--bg-raised);
   background-image: repeating-linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.03) 0 12px,
@@ -123,7 +123,7 @@
 }
 
 .action:hover {
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 

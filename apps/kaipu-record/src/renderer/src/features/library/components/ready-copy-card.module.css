@@ -9,7 +9,6 @@
   border-radius: var(--radius-lg);
   border: 1px solid rgba(246, 5, 92, 0.5);
   background: var(--bg-card);
-  box-shadow: 0 0 0 3px rgba(246, 5, 92, 0.1);
   animation: arrive 260ms ease;
 }
 
@@ -34,7 +33,7 @@
   padding: 0;
   border: 0;
   border-radius: var(--radius-md);
-  background: #101013;
+  background: var(--bg-raised);
   cursor: pointer;
 }
 
