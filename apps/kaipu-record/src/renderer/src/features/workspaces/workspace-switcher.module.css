@@ -179,7 +179,7 @@
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   background: var(--bg-modal);
-  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85);
+  box-shadow: var(--shadow-popover);
   color: var(--text-primary);
 }
 
