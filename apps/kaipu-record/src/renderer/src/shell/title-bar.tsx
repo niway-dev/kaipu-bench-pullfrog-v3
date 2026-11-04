@@ -1,7 +1,10 @@
 import React, { useContext } from "react";
 import { KaipuLogo } from "@kaipu/brand";
 import { WorkspaceSwitcher } from "@renderer/features/workspaces/workspace-switcher";
-import { setHeaderEndElement } from "@renderer/features/workspaces/header-slot";
+import {
+  setHeaderActionsElement,
+  setHeaderEndElement,
+} from "@renderer/features/workspaces/header-slot";
 import { useOptionalWorkspaces } from "@renderer/features/workspaces/workspaces-context";
 import { hostPlatform } from "@renderer/features/shortcuts/host-platform";
 import { OnboardingContext } from "@renderer/features/onboarding/onboarding-context";
@@ -11,8 +14,9 @@ import styles from "./title-bar.module.css";
  * The main window's title bar (NIW2-621), drawn by us in the space main frees with
  * `titleBarStyle` (see main/window-chrome.ts):
  *
- * - macOS: traffic lights · logo · "Kaipu Record" · workspace switcher
- * - Windows / Linux: logo · "Kaipu Record" · workspace switcher · native caption buttons
+ * - macOS: traffic lights · logo · "Kaipu Record" · workspace switcher … page actions · item chip
+ * - Windows / Linux: logo · "Kaipu Record" · workspace switcher … page actions · item chip ·
+ *   native caption buttons
  *
  * The OS draws its controls over this bar, so the bar only leaves their side empty: a fixed
  * inset for the traffic lights, `env(titlebar-area-*)` for the Windows overlay. The bar drags
@@ -38,7 +42,12 @@ export function TitleBar({ workspace = true }: { workspace?: boolean }): React.J
           <div className={styles.interactive}>
             <WorkspaceSwitcher />
           </div>
-          {/* A page that belongs to an item puts its "IN · Work ▾" chip here (header-slot). */}
+          {/* A page's own actions, right-aligned (the video editor's, NIW2-619), then the
+              "IN · Work ▾" chip of a page that belongs to an item (header-slot). */}
+          <div
+            className={`${styles.actions} ${styles.interactive}`}
+            ref={setHeaderActionsElement}
+          />
           <div className={`${styles.end} ${styles.interactive}`} ref={setHeaderEndElement} />
         </>
       )}

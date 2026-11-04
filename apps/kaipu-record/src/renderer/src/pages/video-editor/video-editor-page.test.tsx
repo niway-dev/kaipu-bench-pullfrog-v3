@@ -5,6 +5,7 @@ import type { LocalRecording } from "@shared/types/library-storage";
 import { dismissToast, getToasts } from "@renderer/ui/toast-store";
 import { SESSION_BEFORE_WEBCAM } from "@renderer/features/video-editor/session-before-webcam.fixture";
 import { WEBCAM_DEFAULTS } from "@renderer/features/video-editor/webcam/webcam-model";
+import { setHeaderActionsElement } from "@renderer/features/workspaces/header-slot";
 import {
   toolForShortcut,
   VideoEditorLoader,
@@ -112,8 +113,19 @@ const SOURCE: VideoEditorSource = {
 };
 
 // Main holds the item under its current id before the editor loads anything (NIW2-560).
+// The title bar's actions slot stands in for the shell's (NIW2-619): the editor renders
+// undo, split, Export… into it, so without one those buttons would not exist here.
+let headerActions: HTMLElement;
 beforeEach(() => {
   window.electronAPI.acquireEditorSession = async () => SOURCE.id;
+  headerActions = document.createElement("div");
+  headerActions.dataset.testid = "header-actions";
+  document.body.appendChild(headerActions);
+  setHeaderActionsElement(headerActions);
+});
+afterEach(() => {
+  setHeaderActionsElement(null);
+  headerActions.remove();
 });
 
 function renderEditor(source: VideoEditorSource = SOURCE) {
@@ -295,6 +307,24 @@ describe("VideoEditorLoader — an identity two files claim (NIW2-560)", () => {
     expect(screen.queryByText(/no longer in your library/i)).toBeNull();
     expect(loadSession).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /back to library/i })).toBeInTheDocument();
+  });
+});
+
+describe("VideoEditorPage — actions in the title bar (NIW2-619)", () => {
+  it("renders undo, redo, split, delete, the status and Export into the title bar, not the side column", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    const inspector = document.querySelector('[data-testid="editor-inspector"]')!;
+    const side = inspector.parentElement!;
+    for (const name of ["Undo", "Redo", "Add image", "Split here", "Delete segment", "Export"]) {
+      const button = screen.getByRole("button", { name });
+      expect(headerActions.contains(button)).toBe(true);
+      expect(side.contains(button)).toBe(false);
+    }
+    expect(
+      within(headerActions).getByText("ORIGINAL UNTOUCHED", { exact: false }),
+    ).toBeInTheDocument();
   });
 });
 

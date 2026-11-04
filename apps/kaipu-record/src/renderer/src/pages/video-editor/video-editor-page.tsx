@@ -149,6 +149,7 @@ import { showToast } from "@renderer/ui/toast-store";
 import { isAmbiguousIdentityError } from "@renderer/features/library/rename-outcome";
 import { registerSwitchFlush } from "@renderer/features/workspaces/prepare-switch";
 import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
+import { HeaderActions } from "@renderer/features/workspaces/header-slot";
 import styles from "./video-editor-page.module.css";
 
 /** The "original" pill's own shape, moved out of video-editor-page.module.css:
@@ -1559,8 +1560,8 @@ function VideoEditor({
             </div>
           </div>
         </main>
-        {/* NIW2-611: the video takes the left edge; the tools and the actions moved to
-            the right so the picture gets the width and the height the top bar used. */}
+        {/* NIW2-611: the video takes the left edge and the tools sit on its right, so the
+            picture gets the width and the height the top bar used. */}
         <EditorToolRail
           onAddMute={handleAddMute}
           onToggleMuteAll={mutes.toggleAll}
@@ -1577,7 +1578,9 @@ function VideoEditor({
           }
           cursorSelected={cursorInspectorOpen && cursorData !== null}
         />
-        <div className={styles.side}>
+        {/* The editor's actions live in the title bar's right side (Kaipu Black,
+            NIW2-619), mounted and unmounted with this page. */}
+        <HeaderActions>
           <EditorToolbar
             canUndo={controller.canUndo}
             canRedo={controller.canRedo}
@@ -1612,6 +1615,8 @@ function VideoEditor({
               </button>
             )}
           </EditorToolbar>
+        </HeaderActions>
+        <div className={styles.side}>
           <EditorInspector>
             {cursorInspectorOpen && cursorData ? (
               <CursorInspector

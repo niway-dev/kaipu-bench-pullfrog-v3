@@ -1,6 +1,7 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OnboardingContext } from "@renderer/features/onboarding/onboarding-context";
+import { HeaderActions, HeaderEnd } from "@renderer/features/workspaces/header-slot";
 import { TitleBar } from "./title-bar";
 
 const workspaces = vi.hoisted(() => ({ present: true }));
@@ -55,5 +56,40 @@ describe("TitleBar", () => {
       </OnboardingContext.Provider>,
     );
     expect(screen.queryByRole("button", { name: "switcher" })).toBeNull();
+  });
+
+  // NIW2-619: the editor's actions sit in the bar's right side, left of the item chip.
+  it("renders a page's actions on the right, before its item chip", () => {
+    render(
+      <>
+        <TitleBar />
+        <HeaderEnd>
+          <span>chip</span>
+        </HeaderEnd>
+        <HeaderActions>
+          <button type="button">Export</button>
+        </HeaderActions>
+      </>,
+    );
+    const bar = screen.getByRole("banner");
+    const exportButton = screen.getByRole("button", { name: "Export" });
+    const chip = screen.getByText("chip");
+    expect(bar.contains(exportButton)).toBe(true);
+    expect(
+      exportButton.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("removes the actions with the page that rendered them", () => {
+    const view = render(
+      <>
+        <TitleBar />
+        <HeaderActions>
+          <button type="button">Export</button>
+        </HeaderActions>
+      </>,
+    );
+    act(() => view.rerender(<TitleBar />));
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
   });
 });

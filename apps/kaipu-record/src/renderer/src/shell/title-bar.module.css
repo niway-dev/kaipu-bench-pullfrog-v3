@@ -50,11 +50,18 @@
   -webkit-app-region: no-drag;
 }
 
+.actions,
 .end {
   margin-left: auto;
 }
 
+/* With actions showing they take the free space; the chip follows them. */
+.actions:not(:empty) + .end {
+  margin-left: 0;
+}
+
 /* An empty slot must not punch a no-drag hole into the bar. */
+.actions:empty,
 .end:empty {
   display: none;
 }
