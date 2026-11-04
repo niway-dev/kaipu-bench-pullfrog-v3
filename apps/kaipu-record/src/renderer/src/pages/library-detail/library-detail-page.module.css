@@ -121,12 +121,13 @@
 }
 
 .lineageLabel {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
   margin-right: 8px;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 .lineageLink {

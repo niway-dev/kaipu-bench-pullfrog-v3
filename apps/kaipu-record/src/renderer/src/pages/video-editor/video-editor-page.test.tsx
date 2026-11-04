@@ -1081,7 +1081,7 @@ describe("VideoEditorPage — webcam track", () => {
     renderEditor(WITH_WEBCAM);
     const footer = await waitForEditorLoaded();
     expect(footer.querySelector('[data-testid="webcam-lane"]')).not.toBeNull();
-    expect(screen.getByText("WEBCAM")).toBeInTheDocument();
+    expect(screen.getByText("Webcam")).toBeInTheDocument();
     const cam = screen.getByTestId("webcam-video") as HTMLVideoElement;
     expect(cam.getAttribute("src")).toBe("kaipu-media://webcam/rec-1");
     expect(cam.muted).toBe(true);

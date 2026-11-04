@@ -17,12 +17,12 @@
 .label {
   flex: 1;
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--font-weight-normal);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 .legend {

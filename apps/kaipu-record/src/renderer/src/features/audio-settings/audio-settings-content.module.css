@@ -89,12 +89,13 @@
 }
 
 .label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: var(--text-muted);
   margin-top: 4px;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 .hint {

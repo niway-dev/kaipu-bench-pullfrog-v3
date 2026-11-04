@@ -236,11 +236,12 @@
 }
 
 .statLabel {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 .statValue {
@@ -291,11 +292,12 @@
 
 .sectionLabel {
   padding: 6px 9px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-label);
+  letter-spacing: 0;
+  color: var(--text-4);
 }
 
 .lock {
