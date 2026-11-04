@@ -12,6 +12,9 @@ name: Agent review
 # Opus 5.5 instead of the Sonnet 5.5 default: about twice the per-token price for a deeper review.
 # The default caps still bound each run ($0.75 per batch, $3 per review), and all automatic runs
 # on one pull request share $6 (`auto_budget_usd`, v1.5.0).
+# When the Anthropic API refuses the call (no credit, a rejected key, a persistent rate limit), the
+# pull request gets a "Not reviewed" notice and the check passes (`on_provider_unavailable: warn`,
+# the default since v1.6.0); set it to `fail` to block merging instead.
 on:
   # `synchronize`: every push to a ready pull request gets an incremental review of what changed
   # since the last reviewed commit (ADR 0028, amendment of 2026-11-01).
@@ -20,7 +23,7 @@ on:
 permissions: { contents: read, pull-requests: write, issues: read }
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.5.0
+    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.6.0
     with:
       operator: csdev19
       model: claude-opus-5-5
