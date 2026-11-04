@@ -9,10 +9,10 @@ import type { StyleXStyles } from "@stylexjs/stylex";
  * fill with an indicator bar on the rail's edge, an optional account item and
  * an optional mode toggle pinned to the footer.
  *
- * Three modes (NIW2-626), chosen by the caller:
- * - `expanded-row`: icon and label on one row, ~200px wide, labels 13px/500.
- * - `stacked`: the label under the icon, 64px wide, labels 11px/500. The
- *   default, so a caller that never picks a mode (the landing's mockup) keeps it.
+ * Two modes (NIW2-626), chosen by the caller:
+ * - `stacked` ("expanded" in the app's words): the label under the icon, 64px
+ *   wide, labels 11px/500. The default, so a caller that never picks a mode
+ *   (the landing's mockup) keeps it.
  * - `collapsed`: icons only, 56px wide. Each label stays the link's accessible
  *   name, and a tooltip shows it on hover and on keyboard focus.
  *
@@ -46,7 +46,6 @@ const styles = stylex.create({
     transitionDuration: "150ms",
     transitionTimingFunction: "ease",
   },
-  railExpanded: { width: "200px" },
   railStacked: { width: "64px" },
   railCollapsed: { width: "56px" },
   brand: {
@@ -74,7 +73,6 @@ const styles = stylex.create({
     alignItems: "center",
     width: "100%",
   },
-  sectionsRow: { gap: "2px" },
   item: {
     boxSizing: "border-box",
     position: "relative",
@@ -100,15 +98,6 @@ const styles = stylex.create({
     paddingBlock: "9px",
     paddingInline: 0,
     borderRadius: "11px",
-  },
-  itemExpanded: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    gap: "10px",
-    width: "calc(100% - 16px)",
-    height: "32px",
-    paddingInline: "10px",
-    borderRadius: "7px",
   },
   itemCollapsed: {
     justifyContent: "center",
@@ -146,11 +135,6 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeXs,
     lineHeight: "13px",
     letterSpacing: "-0.01em",
-  },
-  labelExpanded: {
-    flexGrow: 1,
-    fontSize: tokens.fontSizeBase,
-    lineHeight: tokens.lineHeightControl,
   },
   // The indicator bar on the rail's left edge, visible only while active. Each
   // mode insets its items differently, so each moves the bar back to the edge;
@@ -193,12 +177,6 @@ const styles = stylex.create({
     lineHeight: "12px",
     textAlign: "center",
   },
-  // On a row the count sits at the row's end, like a list's trailing count.
-  badgeRow: {
-    position: "static",
-    flexShrink: 0,
-    borderColor: "transparent",
-  },
   badgeCollapsed: { top: "1px", right: "1px" },
   srOnly: {
     position: "absolute",
@@ -222,11 +200,6 @@ const styles = stylex.create({
     alignItems: "center",
     gap: tokens.spaceSm,
     width: "100%",
-  },
-  footerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingInline: "12px",
   },
   avatar: {
     width: "30px",
@@ -286,8 +259,8 @@ const styles = stylex.create({
 });
 
 /** How the rail lays its items out. See the component's notes. */
-export type RailMode = "expanded-row" | "stacked" | "collapsed";
-export const RAIL_MODES: readonly RailMode[] = ["expanded-row", "stacked", "collapsed"];
+export type RailMode = "stacked" | "collapsed";
+export const RAIL_MODES: readonly RailMode[] = ["stacked", "collapsed"];
 
 export interface RailItem {
   /** Stable key for the item. */
@@ -376,7 +349,6 @@ export function Rail<T extends RailItem = RailItem>({
   style,
 }: RailProps<T>) {
   const collapsed = mode === "collapsed";
-  const row = mode === "expanded-row";
   const [tip, setTip] = useState<Tip | null>(null);
   // A tooltip belongs to the collapsed rail; switching mode with one open must not strand it.
   useEffect(() => setTip(null), [mode]);
@@ -402,7 +374,7 @@ export function Rail<T extends RailItem = RailItem>({
       data-mode={mode}
       {...stylex.props(
         styles.rail,
-        row ? styles.railExpanded : collapsed ? styles.railCollapsed : styles.railStacked,
+        collapsed ? styles.railCollapsed : styles.railStacked,
         animate && styles.railAnimated,
         style,
       )}
@@ -413,11 +385,11 @@ export function Rail<T extends RailItem = RailItem>({
         </div>
       )}
 
-      <div {...stylex.props(styles.sections, row && styles.sectionsRow)}>
+      <div {...stylex.props(styles.sections)}>
         {items.map((item) => {
           const { className, style: inline } = stylex.props(
             styles.item,
-            row ? styles.itemExpanded : collapsed ? styles.itemCollapsed : styles.itemStacked,
+            collapsed ? styles.itemCollapsed : styles.itemStacked,
             item.active && styles.itemActive,
           );
           return (
@@ -434,7 +406,7 @@ export function Rail<T extends RailItem = RailItem>({
                       aria-hidden
                       {...stylex.props(
                         styles.bar,
-                        mode === "stacked" ? styles.barStacked : styles.barInset,
+                        collapsed ? styles.barInset : styles.barStacked,
                         item.active && styles.barActive,
                       )}
                     />
@@ -447,8 +419,7 @@ export function Rail<T extends RailItem = RailItem>({
                     <span
                       {...stylex.props(
                         collapsed ? styles.srOnly : styles.label,
-                        row && styles.labelExpanded,
-                        mode === "stacked" && styles.labelStacked,
+                        !collapsed && styles.labelStacked,
                       )}
                     >
                       {item.label}
@@ -457,11 +428,7 @@ export function Rail<T extends RailItem = RailItem>({
                       <>
                         <span
                           aria-hidden
-                          {...stylex.props(
-                            styles.badge,
-                            row && styles.badgeRow,
-                            collapsed && styles.badgeCollapsed,
-                          )}
+                          {...stylex.props(styles.badge, collapsed && styles.badgeCollapsed)}
                         >
                           {item.badge > BADGE_MAX ? `${BADGE_MAX}+` : item.badge}
                         </span>
@@ -479,7 +446,7 @@ export function Rail<T extends RailItem = RailItem>({
       </div>
 
       {account || modeToggle ? (
-        <div {...stylex.props(styles.footer, row && styles.footerRow)}>
+        <div {...stylex.props(styles.footer)}>
           {account
             ? renderLink(account, {
                 ...stylex.props(styles.avatar),

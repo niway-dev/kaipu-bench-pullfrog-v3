@@ -6,7 +6,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
  * no tooltip role and hidden from assistive tech, which already reads the name once.
  */
 const tip = (): HTMLElement | null => document.querySelector("[data-rail-tooltip]");
-import { Rail, type RailItem, type RailLinkProps } from "./rail";
+import { RAIL_MODES, Rail, type RailItem, type RailLinkProps } from "./rail";
 
 interface LinkItem extends RailItem {
   to: string;
@@ -140,15 +140,16 @@ describe("Rail", () => {
       expect(container.querySelector("nav")).toHaveAttribute("data-mode", "stacked");
     });
 
-    it.each(["expanded-row", "stacked"] as const)(
-      "%s shows every label as text and names each link by it",
-      (mode) => {
-        const { container } = render(<Rail mode={mode} items={items} renderLink={link} />);
-        expect(container.querySelector("nav")).toHaveAttribute("data-mode", mode);
-        expect(screen.getByRole("link", { name: "Library" })).toHaveTextContent("Library");
-        expect(tip()).toBeNull();
-      },
-    );
+    it("stacked shows every label as text and names each link by it", () => {
+      const { container } = render(<Rail mode="stacked" items={items} renderLink={link} />);
+      expect(container.querySelector("nav")).toHaveAttribute("data-mode", "stacked");
+      expect(screen.getByRole("link", { name: "Library" })).toHaveTextContent("Library");
+      expect(tip()).toBeNull();
+    });
+
+    it("has exactly two modes, stacked and collapsed (the owner's call, NIW2-626)", () => {
+      expect(RAIL_MODES).toEqual(["stacked", "collapsed"]);
+    });
 
     it("collapsed keeps each link's accessible name with the label hidden", () => {
       const { container } = render(<Rail mode="collapsed" items={items} renderLink={link} />);
@@ -188,18 +189,18 @@ describe("Rail", () => {
       let toggled = 0;
       render(
         <Rail
-          mode="expanded-row"
+          mode="stacked"
           items={items}
           renderLink={link}
           modeToggle={{
-            label: "Sidebar: expanded. Switch to stacked",
+            label: "Collapse sidebar",
             hint: "⌘\\",
             icon: <i />,
             onToggle: () => toggled++,
           }}
         />,
       );
-      const toggle = screen.getByRole("button", { name: "Sidebar: expanded. Switch to stacked" });
+      const toggle = screen.getByRole("button", { name: "Collapse sidebar" });
       fireEvent.click(toggle);
       expect(toggled).toBe(1);
     });
