@@ -1,0 +1,129 @@
+---
+title: "ADR 0045: UI catalog images live in a separate repository"
+description: "The UI state catalog's screenshots and generated README are published to the private repository niway-dev/kaipu-ui-catalog, one commit per run named after the monorepo version, date and SHA, overwriting the same paths. An explicit exception to the hub rule that captures stay git-ignored: the catalog is a product artifact, not PR evidence."
+---
+
+# ADR 0045: UI catalog images live in a separate repository
+
+## Status
+
+Proposed — design PR pending review, revised in round 2 (2026-11-04: private repository, real
+version in every image). [NIW2-625](https://linear.app/niway/issue/NIW2-625/ui-state-catalog-on-demand-screenshots-of-every-desktop-screen-and).
+Spec: [UI state catalog — design](/specs/2026-11-04-ui-state-catalog-design/). Companions:
+[0044](/architecture/decisions/0044-the-ui-state-catalog-runs-the-real-app-on-the-mac-mini/)
+and [0046](/architecture/decisions/0046-a-typed-ui-map-declares-every-screen-area-and-state/).
+Creating the repository is an implementation step that needs the owner.
+
+## Context
+
+A catalog run produces roughly 140 full-window PNGs plus one crop per area (on the order of
+300 files, 20–30 MB at the mini's display scale), and the owner wants to keep every run so two
+of them can be compared: what did the Library look like at 0.16.0 versus 0.17.0. The question
+is where those bytes go.
+
+The general-knowledge hub's verification rule says: "Captures go to a git-ignored
+`.evidence/<branch-or-topic>/` and are never committed"
+([verification/README.md](https://github.com/csdev19/general-knowledge/blob/main/verification/README.md)).
+That rule is about **PR evidence**: a picture that proves one claim on one PR, attached with
+`gh pr edit --attach`, and worthless once the PR is merged. The catalog is a different thing: a
+**product artifact** whose value is its history, consulted when planning UI work months later.
+Nothing in the hub covers that case; the rule has to be either extended or excepted.
+
+What the industry does, read on 2026-11-04:
+
+- Playwright's `toHaveScreenshot` commits baselines next to the tests, in the code repository.
+- Argos stores screenshots in its cloud and diffs them in CI
+  ([compare](https://argos-ci.com/compare/playwright),
+  [Playwright visual regression in CI](https://argos-ci.com/blog/playwright-visual-regression-testing-ci));
+  Lost Pixel is reportedly sunsetting ([alternatives](https://argos-ci.com/blog/lost-pixel-alternatives)).
+- Screenshots committed to the code repository grew one account's clone by about 5 GB over
+  100 commits ([bloating your git repo](https://dev.to/omachala/your-screenshot-automation-is-bloating-your-git-repo-3lgc)).
+- swift-snapshot-testing users discussed a separate snapshot repository for the same reason
+  ([discussion #504](https://github.com/pointfreeco/swift-snapshot-testing/discussions/504)).
+
+The monorepo is public, cloned by CI on every release-candidate run and by the owner into a
+new worktree per ticket; 20 MB per run would be felt by both within a few months.
+
+## Decision
+
+1. **The catalog is published to its own private repository, `niway-dev/kaipu-ui-catalog`.**
+   Layout: `README.md` (generated index), `manifest.json` (run metadata),
+   `screens/<screen>/<state>.png` (full window) and `areas/<screen>/<area>/<state>.png` (the
+   crop of one declared area, ADR 0046). Private by the owner's decision (round 2); the
+   neutral-fixture rule still applies because private is not a secret.
+2. **Each run overwrites the same paths and makes exactly one commit**, message
+   `catalog: kaipu-record <version> <YYYY-MM-DD> @ <short sha>`, so GitHub's image diff between
+   two commits shows the change in each state, and a missing or new file is a screen or area
+   that appeared or disappeared. The README header repeats version, date and SHA.
+3. **Images show the real version.** The shell's status bar prints the app's real version
+   (`V0.16.0`, bottom right) and the catalog keeps it: the owner wants every image to say which
+   tagged version it was made from. The consequence, accepted in round 2, is that every
+   full-window image of the shell diffs on every release; the area crops do not include the
+   status bar, so the per-area history stays clean.
+4. **Publishing is a separate, explicit step, run from the owner's machine.** The run on the
+   Mac mini writes `.evidence/ui-catalog/<sha>/` there; `bun run ui-catalog:remote` copies it to
+   the same git-ignored path on the owner's machine; `bun run ui-catalog:publish` clones the
+   catalog repository into a temporary directory, replaces `screens/`, `areas/`, `manifest.json`
+   and `README.md`, commits, and pushes only with `--push`. It never runs `git` inside the
+   monorepo and refuses a remote whose owner is not `niway-dev`.
+5. **History may be reset.** When the repository grows past what a clone should cost, the owner
+   can squash or re-create `main`; the monorepo's history is untouched because nothing links
+   into the catalog by commit. The catalog links to the monorepo (by SHA in each commit), not the
+   other way round.
+6. **This is an explicit exception to the hub rule.** PR evidence stays git-ignored and
+   uncommitted everywhere, including in this repository; the catalog is committed because it is
+   a product artifact with a history, in a repository that holds nothing else. The hub page gets
+   one line naming this exception and pointing here (follow-up PR in `general-knowledge`).
+
+## Alternatives rejected
+
+- **Commit the images into the monorepo** (`apps/kaipu-record/ui-catalog/screens/`). One
+  repository, images beside the catalog that produced them. Rejected: ~20 MB per recount in a
+  public repository every clone and CI checkout pays for; the 5 GB / 100 commits data point is
+  this exact pattern.
+- **An orphan branch in the monorepo** (`ui-catalog` with its own root). Keeps one remote.
+  Rejected: a default `git clone` fetches every branch, so the bytes are paid anyway; worktrees
+  and CI checkouts of `main` would still carry the objects.
+- **Argos or another cloud snapshot service.** Diffs, a UI, retention policies. Rejected: an
+  external account and a CI integration for an occasional manual run with no assertions; the
+  product is built for regression gating, which this is not.
+- **Local only** (`.evidence/`, never pushed). Zero infrastructure. Rejected: no history, no
+  diff between releases, and the images die with the machine; the owner works across two Macs.
+- **Git LFS in the monorepo.** Keeps the images out of regular objects. Rejected: LFS bandwidth
+  quotas on GitHub, every clone still needs the LFS client, and the complexity lands in the
+  repository every contributor touches.
+- **GitHub Release assets or a wiki.** Free storage attached to a tag. Rejected: no image diff
+  between two releases, and assets are not browsable as a map.
+
+## Consequences
+
+- A second repository to create, name in `~/GITHUB_ACCOUNTS.md`, and keep the `niway-dev` SSH
+  alias for. Its clone is cheap because it holds only the latest state in the tree and the
+  history is disposable.
+- The catalog's README is the index of the product's UI at a point in time; the monorepo links
+  to the repository, never to a specific image, so a history reset breaks no link.
+- The repository is private, and the fixtures are still neutral (no workspace, person, path,
+  product or ticket names): a private repository is shared with reviewers and tools, and the
+  publish step runs the deny-list scan before committing regardless of visibility.
+- Two machines take part: the mini produces, the owner's laptop publishes. The manifest's SHA is
+  checked against the clone being published from, so a stale copy cannot be pushed as a newer
+  run.
+- The hub rule is now "never committed, except a product's UI catalog in its own repository".
+  Until the hub PR lands, this ADR is the only place that says so.
+
+## Non-goals
+
+- Versioning the images by release tag inside the catalog repository (one path per state is the
+  whole point; history is the versioning).
+- Serving the catalog as a site, or embedding its images into the documentation site.
+- Storing PR evidence, `verify/` scenario artifacts, videos, or `.evidence/` content of any
+  other kind there. The catalog holds still PNGs only.
+
+## What would reopen this
+
+- The catalog repository's clone cost becomes a problem the owner would rather solve with a
+  service than with a history reset.
+- The images need to be consumed by a tool (a design assistant, the docs site) that needs
+  stable per-release URLs, which a reset-able history cannot promise.
+- The hub adopts a general pattern for published captures that differs from this one; then this
+  ADR follows the hub.

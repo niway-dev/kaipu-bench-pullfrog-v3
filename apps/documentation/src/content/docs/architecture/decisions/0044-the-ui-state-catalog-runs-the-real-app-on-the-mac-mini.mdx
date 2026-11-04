@@ -1,0 +1,158 @@
+---
+title: "ADR 0044: The UI state catalog runs the real app on the Mac mini"
+description: "The catalog of every desktop screen and UI state is shot from the real built Electron app, driven by Playwright's Electron support on the designated runner (the Mac mini), never on the owner's laptop. The browser harness with a fake preload bridge is rejected as the driver because its pictures are not a real observation; it stays a labelled fallback for quick layout checks."
+---
+
+# ADR 0044: The UI state catalog runs the real app on the Mac mini
+
+## Status
+
+Proposed — design PR pending review, revised in round 2 (2026-11-04). [NIW2-625](https://linear.app/niway/issue/NIW2-625/ui-state-catalog-on-demand-screenshots-of-every-desktop-screen-and).
+Spec: [UI state catalog — design](/specs/2026-11-04-ui-state-catalog-design/). Builds on
+[0006](/architecture/decisions/0006-desktop-e2e-in-the-candidate-tier/) and
+[0027](/architecture/decisions/0027-verify-release-candidates-only/) (where Electron runs in
+CI), and on [0022](/architecture/decisions/0022-screenshot-capture-native-where-the-os-has-it/)
+(what the renderer does not draw). Companions:
+[0045](/architecture/decisions/0045-ui-catalog-images-live-in-a-separate-repository/) (storage)
+and [0046](/architecture/decisions/0046-a-typed-ui-map-declares-every-screen-area-and-state/)
+(what is catalogued).
+
+Round 1 of this ADR chose the browser harness. The owner rejected that on 2026-11-04 while
+reviewing a stacked PR whose change was invisible in harness pictures: "necesitamos una
+observación real". This revision replaces the driver; the ADR number stays because nothing of
+round 1 was merged.
+
+## Context
+
+The owner wants a map of what the desktop app really looks like: one screenshot per screen,
+per area and per UI state, regenerated on demand and once per release, because the design mocks
+drift and the UI changes weekly. The owner analyses the images with image recognition, so every
+image must be a real observation of the shipped app, not a rendering of the same code under a
+different runtime with a fake bridge. The question is what drives the app to each state.
+
+Four facts constrain the answer:
+
+- **Electron never runs on the owner's laptop.** A killed Electron leaves a macOS dialog and a
+  hung main process has already cost a day (`uiohook` deadlock, 2026-10-28). The desktop
+  Playwright suite runs only in the release-candidate tier in Actions (ADR 0006, ADR 0027).
+- **The real app already runs unattended on the Mac mini.** `ssh macmini` reaches a machine with
+  the owner logged in at the console, so windows open in the GUI session. The repository is at
+  `~/Documents/Workspace/Agent/kaipu-record`; `electron-vite build` produces `out/`, and the
+  `verify/` scenarios (`launch`, `library`, `export`) drive that build through Playwright's
+  `_electron.launch` using `e2e/helpers/launch.ts`, which seeds an isolated `--user-data-dir`
+  and vault per launch. Screenshots and videos come back with `scp`. The `verify` skill and the
+  owner's "real-app evidence" rule already name this machine as the place where pictures of the
+  real app are taken.
+- **The renderer is one HTML entry with eight render targets**, and every floating window is
+  its own `BrowserWindow`: the tray panel (`?mode=capture`) and the shade are prewarmed hidden;
+  the control bar, the "Your video is ready" card and the capture toast are created on events.
+  Playwright reaches all of them: `electronApp.windows()` lists the open ones,
+  `waitForEvent("window")` catches a new one, and `electronApp.evaluate(({ BrowserWindow }) => …)`
+  can show a hidden one without focus, as `capture-panel-height.e2e.ts` does today.
+- **A browser harness exists and is fast**, `.evidence/harness/` (git-ignored): the renderer
+  built by Vite for system Chrome with a fake `window.electronAPI`. It produced pictures for
+  NIW2-606, NIW2-619 and the Kaipu Black stack, and on 2026-11-04 it failed to show a real
+  change, which is when the owner ruled its output is not an observation.
+
+What no driver can show: native macOS UI. The screenshot selector is the system `screencapture`
+binary (ADR 0022), permission prompts are TCC dialogs, folder and file pickers and the tray menu
+are native, and the traffic lights are drawn by macOS over a hidden title bar. Those flows must
+still be named in the catalog.
+
+## Decision
+
+1. **The driver is the real built app, launched by Playwright's Electron support on the
+   designated runner.** `bun run ui-catalog` launches `out/main/index.js` through
+   `e2e/helpers/launch.ts` (`launchApp`), extended to accept a prepared profile (userData,
+   settings, vault, env). The tool lives in `apps/kaipu-record/ui-catalog/`, next to `e2e/` and
+   `verify/`, and reuses their helpers; it adds no second launcher.
+2. **The runner is the Mac mini, and the command refuses to run anywhere else.** A committed
+   allow-list, `ui-catalog/runners.json`, names the runner's hostname (filled in during
+   implementation); on any other host the command prints the `ssh macmini` recipe and exits with
+   code 2. There is no override flag: the owner rule is "never on the laptop", and a flag would
+   be the first thing a tired person reaches for. The owner's machine runs only the wrapper
+   `bun run ui-catalog:remote`, which `ssh`es the build and the run and copies the output back.
+3. **A state is a profile plus steps against the real app.** A profile is what the app reads
+   at launch: `settings.json`, `preferences.json` (vault path), an optional session file, the
+   env (`KAIPU_DISABLE_SCREEN_CAPTURE`, `KAIPU_FLAG_OVERRIDES`), and a seeded vault. Steps are
+   data (navigate, click, press, hover, `evaluate` of a named preload call, `show` of a hidden
+   window) so the README can say how each state is reached. One launch serves every state of a
+   profile; a profile change is a relaunch, never an in-process reset.
+4. **Floating windows are shot as their own windows.** The catalog finds each by its URL query
+   (`?mode=capture`, `?window=control-bar|camera-bubble|capture-overlay|capture-toast|recording-ready|recording-shade`),
+   shows a prewarmed one with `showInactive()` through `electronApp.evaluate`, and triggers a
+   created-on-event one through the real preload call that creates it (for example
+   `window.electronAPI.showRecordingReady(payload)` from the main page). Each is shot at the
+   size main gave it.
+5. **Real capture states are shot for real when the runner allows it.** The recording profile
+   launches without `KAIPU_DISABLE_SCREEN_CAPTURE`, starts a real take of the runner's own
+   display, and shoots the control bar, the shade and the Record page while recording. This
+   needs Screen Recording granted to the Electron binary on the mini, which is an assumption to
+   verify in the first implementation step; until it holds, those states are declared
+   `notCapturable` with that reason, never faked.
+6. **Every image is a screenshot of a `BrowserWindow`'s web contents** (`page.screenshot`),
+   plus one crop per declared area (`locator.screenshot()` on `[data-ui-area]`, ADR 0046).
+   Window chrome and anything macOS composites over the window (traffic lights, other windows,
+   the Dock) are not in the image. Native UI is declared `notCapturable` and listed in the README.
+7. **The browser harness is not a catalog driver.** It stays what the `verify` skill says it is:
+   a labelled fallback for a quick layout check of a renderer component, never the source of an
+   image in the catalog or of a "before/after" proof.
+
+## Alternatives rejected
+
+- **The browser harness as the driver** (round 1 of this ADR: the renderer built for system
+  Chrome with a fake preload bridge, promoted into the repository). Fast, no permissions, no
+  Electron. Rejected by the owner on 2026-11-04: a fake bridge is a second implementation of
+  main, so the picture shows what the fake feeds the renderer, not what the app does; a change
+  that depended on main's behaviour was invisible in it. The harness also cannot show window
+  sizes main decides, the prewarmed windows, or a real take. It remains the labelled fallback
+  the `verify` skill describes.
+- **A per-state cold launch.** The simplest isolation. Rejected: the E2E suite spends 210 s of
+  a 234 s run launching; ~140 states would take an hour. Profiles amortise the launch; a state
+  that must not inherit anything declares its own profile.
+- **A macOS runner in GitHub Actions.** Reproducible and unattended. Rejected: no logged-in GUI
+  session, so no TCC grants for screen, camera or microphone; the owner wants nothing in CI for
+  this (local only); and a hosted runner renders with different fonts and scale than the owner's
+  machines, so every image would diff against the mini's.
+- **Storybook (or Ladle) with one story per state.** Mature tooling. Rejected: every state would
+  be written twice, once as a story with mocked props and once as the real page, and the two
+  drift; the catalog exists to show the real page.
+- **Auto-discovery: crawl every route and click every control.** No catalog to maintain.
+  Rejected: it cannot name what it finds, produces hundreds of near-duplicate frames, and a
+  change in the UI changes the crawl, so two runs are not comparable.
+- **Capturing the running app by hand with the OS screenshot tool.** Native and exact.
+  Rejected: a person drives it, so it is neither reproducible nor complete.
+
+## Consequences
+
+- Every catalog image is a real observation of the built app at a named commit, with the real
+  version in the status bar. The cost is a slower run (minutes, not seconds) and a dependency on
+  one machine being up with the owner logged in.
+- Relative-time text ("2 hours ago") and absolute dates change between runs. Nothing is masked:
+  fixtures are seeded relative to the run's start so the relative text is stable, and the
+  remaining date diffs are accepted and listed in the manifest as known-variable areas.
+- Screen Recording, Camera and Microphone grants on the mini apply to the Electron binary's
+  path, which changes when the Electron version changes; a bump can silently turn the recording
+  states into `notCapturable`. The run reports every `notCapturable` state it hit and why.
+- The `KAIPU_DISABLE_SCREEN_CAPTURE` env hook grows a sibling, `KAIPU_FLAG_OVERRIDES` (ADR 0046),
+  both honoured only when `app.isPackaged` is false. The signed build is never affected.
+- The mini must be built at the exact commit being catalogued. The remote wrapper checks out the
+  SHA, builds, runs and records the SHA in the manifest; a run on a dirty tree is refused.
+- The `verify` skill's Electron scenarios and the catalog share `launchApp`; a change to the
+  launch helper is a change to both and is tested by both.
+
+## Non-goals
+
+- Visual regression testing, pixel assertions, or a CI gate of any kind.
+- Replacing the Electron E2E suite or the `verify/` scenarios.
+- Shooting the Windows or Linux build, the light theme, or Spanish.
+- A browsable catalog UI; the output is still PNGs plus a README.
+- Video output of any kind, even for states that only exist while something moves.
+
+## What would reopen this
+
+- The Mac mini stops being available as a logged-in runner and no equivalent machine replaces
+  it; then the choice is between a CI macOS runner without native permissions and the harness.
+- Playwright drops or breaks its Electron support for the Electron version the app pins.
+- The run time grows past what a release recount tolerates (more than ~20 minutes) and profile
+  grouping cannot bring it back.

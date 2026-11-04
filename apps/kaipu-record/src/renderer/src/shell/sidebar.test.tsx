@@ -66,14 +66,14 @@ afterEach(() => {
 });
 
 describe("Sidebar items", () => {
-  it("has no Export item; the other pages keep theirs", () => {
+  it("lists Export between Editor and Library", () => {
     renderAt("/");
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(labels).not.toContain("Export");
-    expect(labels.slice(0, 7)).toEqual([
+    expect(labels.slice(0, 8)).toEqual([
       "Record",
       "Screenshot",
       "Editor",
+      "Export",
       "Library",
       "Shortcuts",
       "Settings",
@@ -81,14 +81,15 @@ describe("Sidebar items", () => {
     ]);
   });
 
-  it("lights the Library on a recording's Export page, and nothing on the bare picker", () => {
-    renderAt("/export/asset-1");
-    expect(libraryLink()).toHaveAttribute("aria-current", "page");
-    cleanup();
-    renderAt(ROUTES.exportNew);
-    expect(
-      screen.getAllByRole("link").filter((l) => l.getAttribute("aria-current") === "page"),
-    ).toEqual([]);
+  it("lights Export on the picker and on a recording's Export page", () => {
+    for (const path of [ROUTES.exportNew, "/export/asset-1"]) {
+      renderAt(path);
+      const current = screen
+        .getAllByRole("link")
+        .filter((l) => l.getAttribute("aria-current") === "page");
+      expect(current.map((l) => l.textContent)).toEqual(["Export"]);
+      cleanup();
+    }
   });
 });
 
