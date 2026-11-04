@@ -93,7 +93,6 @@ const STUB_SETTINGS = {
     duckSystemAudioWhileTalking: false,
   },
   microphone: null,
-  sidebarMode: "stacked",
 } as const;
 
 // Vitest does not expose `afterEach` as a global (globals: false), so

@@ -12,7 +12,6 @@ import {
   retireReadyCards,
   useReadyCopies,
 } from "@renderer/features/video-editor/export/ready-copies";
-import { useSidebarMode } from "./use-sidebar-mode";
 
 interface NavItem {
   to: string;
@@ -40,10 +39,9 @@ const NAV: NavItem[] = [
 /**
  * The desktop's navigation rail: the shared `Rail`, fed react-router's Link,
  * lucide icons and translated labels. The rail itself knows none of those.
- * Its mode (expanded, the label under each icon, or collapsed to icons) is the user's,
- * kept in the app settings; the title bar's button (beside the logo) and Cmd/Ctrl+\ switch them.
+ * Icons only: each label is the link's accessible name and shows in a tooltip.
  */
-export function Sidebar(): React.JSX.Element | null {
+export function Sidebar(): React.JSX.Element {
   const t = useTranslations("nav");
   const tExport = useTranslations("export");
   const { pathname } = useLocation();
@@ -54,7 +52,6 @@ export function Sidebar(): React.JSX.Element | null {
     matchPath({ path: to, end: end ?? false }, pathname) !== null ||
     (to === ROUTES.library && onExportPage);
   const exportBadge = useExportBadge(pathname);
-  const { mode, changed } = useSidebarMode();
 
   const items: LinkItem[] = NAV.map(({ to, labelKey, Icon, end }) => ({
     id: to,
@@ -76,16 +73,13 @@ export function Sidebar(): React.JSX.Element | null {
     active: isActive(ROUTES.cloud),
   };
 
-  // Not known yet: no rail rather than the default one jumping to the saved mode.
-  if (!mode) return null;
-
   return (
     <Rail
       // No brand row: the logo and the name live in the title bar (NIW2-621).
       items={items}
       account={account}
-      mode={mode}
-      animate={changed}
+      // Always icons only, the label in a tooltip on hover and focus (owner decision, NIW2-626).
+      mode="collapsed"
       // Link, not NavLink: NavLink decides aria-current from the link's own target, and the
       // Library must read as current on /export/:assetId. The rail already computed `active`.
       renderLink={(item, props) => <Link to={item.to} {...props} />}
