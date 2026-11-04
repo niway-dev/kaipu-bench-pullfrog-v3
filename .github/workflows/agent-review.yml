@@ -14,7 +14,7 @@ name: Agent review
 # on one pull request share $6 (`auto_budget_usd`, v1.5.0).
 # When the Anthropic API refuses the call (no credit, a rejected key, a persistent rate limit), the
 # pull request gets a "Not reviewed" notice and the check passes (`on_provider_unavailable: warn`,
-# the default since v1.6.0); set it to `fail` to block merging instead.
+# the default since v1.6.0); set it to `fail` to fail the check instead.
 on:
   # `synchronize`: every push to a ready pull request gets an incremental review of what changed
   # since the last reviewed commit (ADR 0028, amendment of 2026-11-01).
