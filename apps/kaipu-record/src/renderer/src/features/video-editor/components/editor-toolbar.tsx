@@ -134,15 +134,27 @@ function ToolFlyout({
   onClose(): void;
 }): React.JSX.Element {
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState({ right: 0, top: 0 });
+  const [pos, setPos] = useState({ left: 0, top: 0 });
 
   useLayoutEffect(() => {
     const rect = anchor.getBoundingClientRect();
     const height = menuRef.current?.offsetHeight ?? 0;
-    // Keep the whole window on screen when the button sits near the bottom.
+    const width = menuRef.current?.offsetWidth ?? 0;
+    // Left of the button, clamped so the whole window stays on screen on every side.
+    const left = Math.max(8, Math.min(rect.left - 6 - width, window.innerWidth - width - 8));
     const top = Math.max(8, Math.min(rect.top, window.innerHeight - height - 8));
-    setPos({ right: window.innerWidth - rect.left + 6, top });
+    setPos({ left, top });
   }, [anchor]);
+
+  // Placed once, so any move of the page under it closes it instead of leaving it adrift.
+  useEffect(() => {
+    window.addEventListener("resize", onClose);
+    document.addEventListener("scroll", onClose, true);
+    return () => {
+      window.removeEventListener("resize", onClose);
+      document.removeEventListener("scroll", onClose, true);
+    };
+  }, [onClose]);
 
   // Focus the current option once, on open.
   useEffect(() => {
@@ -169,18 +181,33 @@ function ToolFlyout({
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     const rows = [...event.currentTarget.querySelectorAll<HTMLElement>('[role^="menuitem"]')];
     const at = rows.indexOf(document.activeElement as HTMLElement);
-    const move = (to: number): void => {
+    // Every key the flyout handles stops here: the page's window handler would
+    // otherwise also clear the selection on Escape, toggle playback on Space and arm a
+    // tool on a shortcut letter. Letters are swallowed, not mapped to a pick.
+    const handled = (): void => {
       event.preventDefault();
+      event.stopPropagation();
+    };
+    const move = (to: number): void => {
+      handled();
       rows[(to + rows.length) % rows.length]?.focus();
     };
-    if (event.key === "Escape" || event.key === "Tab") {
-      event.preventDefault();
+    if (event.key === "Escape") {
+      handled();
       onClose();
       anchor.focus();
+    } else if (event.key === "Tab") {
+      // Close and let focus move on naturally: no preventDefault, no refocus.
+      event.stopPropagation();
+      onClose();
     } else if (event.key === "ArrowDown") move(at + 1);
     else if (event.key === "ArrowUp") move(at - 1);
     else if (event.key === "Home") move(0);
     else if (event.key === "End") move(rows.length - 1);
+    else if (event.key === "Enter" || event.key === " ") {
+      handled();
+      rows[at]?.click();
+    } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey) handled();
   };
 
   return createPortal(
@@ -190,7 +217,7 @@ function ToolFlyout({
       aria-label={label}
       aria-orientation="vertical"
       className={styles.flyout}
-      style={{ right: pos.right, top: pos.top }}
+      style={{ left: pos.left, top: pos.top }}
       onKeyDown={onKeyDown}
     >
       {items.map(({ key, label: itemLabel, Icon, shortcut, current, role, onPick }) => (
@@ -327,6 +354,10 @@ export function EditorToolRail({
   const [open, setOpen] = useState<ToolGroup | "audio" | null>(null);
   const buttons = useRef<Partial<Record<ToolGroup | "audio", HTMLButtonElement | null>>>({});
   const closeFlyout = useCallback(() => setOpen(null), []);
+  // A flyout cannot hang from a disabled button (Privacy over a slide).
+  useEffect(() => {
+    if (open === "privacy" && privacyDisabled) setOpen(null);
+  }, [open, privacyDisabled]);
 
   const flyoutFor = (group: ToolGroup | "audio"): React.JSX.Element | null => {
     const anchor = buttons.current[group];
@@ -449,7 +480,7 @@ export function EditorToolRail({
         data-variants={2}
         title={`${t("toolAudio")} · ${t("toolMoreOptions")}`}
         aria-label={t("toolAudio")}
-        aria-pressed={audioMuted}
+        data-pressed={audioMuted}
         aria-haspopup="menu"
         aria-expanded={open === "audio"}
         className={`${styles.tool} ${audioMuted ? styles.toolActive : ""}`}

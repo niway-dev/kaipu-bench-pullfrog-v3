@@ -285,10 +285,12 @@ describe("EditorToolRail — audio", () => {
     expect(props.onAddMute).not.toHaveBeenCalled();
   });
 
-  it("is pressed, and its flyout offers Unmute, when the recording is already muted", () => {
+  it("reads pressed, and its flyout offers Unmute, when the recording is already muted", () => {
     const props = renderRail({ audioMuted: true });
     const audio = screen.getByRole("button", { name: "Audio" });
-    expect(audio).toHaveAttribute("aria-pressed", "true");
+    // The muted state is carried by the checkbox item, not by a toggle on the opener.
+    expect(audio).not.toHaveAttribute("aria-pressed");
+    expect(audio).toHaveAttribute("data-pressed", "true");
     fireEvent.click(audio);
     const unmute = screen.getByRole("menuitemcheckbox", { name: /Unmute the recording/ });
     expect(unmute).toHaveAttribute("aria-checked", "true");
@@ -305,9 +307,9 @@ describe("EditorToolRail — audio", () => {
 describe("EditorToolRail — audio follows the recording's muted state", () => {
   it("the Audio button turns pressed when the recording becomes muted (load, undo)", () => {
     renderRail();
-    expect(screen.getByRole("button", { name: "Audio" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Audio" })).toHaveAttribute("data-pressed", "false");
     rerenderRail({ audioMuted: true });
-    expect(screen.getByRole("button", { name: "Audio" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Audio" })).toHaveAttribute("data-pressed", "true");
     expect(screen.getByRole("button", { name: "Audio" }).className).toMatch(/toolActive/);
   });
 });
@@ -377,6 +379,66 @@ describe("EditorToolRail — flyout", () => {
     const user = userEvent.setup();
     await user.keyboard("{ArrowUp}{Enter}");
     expect(props.onToolChange).toHaveBeenLastCalledWith("box");
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("Space activates the focused option, like Enter", () => {
+    const { menu, props } = openAnnotate();
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    fireEvent.keyDown(document.activeElement!, { key: " " });
+    expect(props.onToolChange).toHaveBeenLastCalledWith("text");
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("keeps navigation and shortcut letters from reaching the window's handler", () => {
+    openAnnotate();
+    const seen = vi.fn();
+    window.addEventListener("keydown", seen);
+    try {
+      for (const key of ["ArrowDown", "ArrowUp", "Home", "End", "r", "b", "z", "v"]) {
+        fireEvent.keyDown(document.activeElement!, { key });
+      }
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+      expect(seen).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("keydown", seen);
+    }
+  });
+
+  it("Escape does not reach the window either", () => {
+    openAnnotate();
+    const seen = vi.fn();
+    window.addEventListener("keydown", seen);
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    window.removeEventListener("keydown", seen);
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("Tab closes the flyout and lets focus move on: no preventDefault, no refocus", () => {
+    const { button } = openAnnotate();
+    const notPrevented = fireEvent.keyDown(screen.getByRole("menu"), { key: "Tab" });
+    expect(notPrevented).toBe(true);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(button).not.toHaveFocus();
+  });
+
+  it("closes when the window is resized", () => {
+    openAnnotate();
+    fireEvent(window, new Event("resize"));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("closes when anything scrolls", () => {
+    openAnnotate();
+    fireEvent.scroll(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("closes when its button becomes disabled (Privacy over a slide)", () => {
+    renderRail({ tool: "blur" });
+    fireEvent.click(screen.getByRole("button", { name: "Blur" }));
+    expect(screen.getByRole("menu", { name: "Privacy" })).toBeInTheDocument();
+    rerenderRail({ tool: "blur", privacyDisabled: true });
     expect(screen.queryByRole("menu")).toBeNull();
   });
 

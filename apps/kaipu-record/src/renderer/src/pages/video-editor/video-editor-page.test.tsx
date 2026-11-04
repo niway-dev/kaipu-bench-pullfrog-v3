@@ -760,6 +760,51 @@ describe("VideoEditorPage — shortcuts leave dropdowns alone", () => {
   });
 });
 
+describe("VideoEditorPage — a tool flyout keeps its keys to itself", () => {
+  beforeEach(() => {
+    stubDecodedVideoSize(1280, 720);
+  });
+
+  afterEach(() => {
+    stubDecodedVideoSize(0, 0);
+  });
+
+  async function openAudioFlyoutWithZoomSelected(): Promise<HTMLElement> {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom" }));
+    await screen.findByRole("heading", { name: "Zoom 1" });
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+    return screen.getByRole("menu", { name: "Audio" });
+  }
+
+  it("Escape closes the flyout and leaves the selected zoom selected", async () => {
+    const menu = await openAudioFlyoutWithZoomSelected();
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Zoom 1" })).toBeInTheDocument();
+  });
+
+  it("Space picks the focused option and does not toggle playback", async () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    try {
+      await openAudioFlyoutWithZoomSelected();
+      playSpy.mockClear();
+      fireEvent.keyDown(document.activeElement!, { key: " " });
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(playSpy).not.toHaveBeenCalled();
+    } finally {
+      playSpy.mockRestore();
+    }
+  });
+
+  it("a shortcut letter typed in the flyout does not arm a tool underneath", async () => {
+    const menu = await openAudioFlyoutWithZoomSelected();
+    fireEvent.keyDown(menu, { key: "r" });
+    expect(screen.getByRole("button", { name: "Box" }).className).not.toMatch(/toolActive/);
+  });
+});
+
 describe("toolForShortcut — the keyboard agrees with the toolbar's disabled states", () => {
   it("maps each annotation shortcut to its tool", () => {
     expect(toolForShortcut("v", { onSlide: false })).toBe("select");
