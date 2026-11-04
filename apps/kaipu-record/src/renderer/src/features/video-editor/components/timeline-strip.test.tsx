@@ -1,5 +1,7 @@
 import { fireEvent, render } from "@testing-library/react";
+import { ZoomIn } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
+import type { VideoOverlay } from "../scene";
 import type { LayoutEntry } from "../timeline";
 import type { PreviewPlayback } from "../use-preview-playback";
 import { TimelineStrip } from "./timeline-strip";
@@ -442,5 +444,105 @@ describe("TimelineStrip trim drag baseline and abort", () => {
     const handle = stubHandle(container, '[data-trim-handle="start"]');
     fireEvent.pointerMove(handle, { pointerId: 1, clientX: 200 });
     expect(onTrim).not.toHaveBeenCalled();
+  });
+});
+
+describe("TimelineStrip lanes", () => {
+  const box: VideoOverlay = {
+    id: "o1",
+    kind: "box",
+    x: 0.1,
+    y: 0.1,
+    w: 0.2,
+    h: 0.2,
+    color: "#f6055c",
+    stroke: 1,
+    seed: 1,
+    start: 1,
+    end: 3,
+  };
+
+  function laneNames(container: HTMLElement): string[] {
+    return Array.from(container.querySelectorAll("span"))
+      .filter((el) => el.querySelector("svg") && el.textContent)
+      .map((el) => el.textContent ?? "");
+  }
+
+  function renderStrip(overlays: VideoOverlay[]): HTMLElement {
+    return render(
+      <TimelineStrip
+        layout={twoClipLayout}
+        playback={makePlayback()}
+        thumbnails={[]}
+        selectedItemId={null}
+        onSelectItem={vi.fn()}
+        overlays={overlays}
+        selectedOverlayId={null}
+        onSelectOverlay={vi.fn()}
+        extraLanes={[{ key: "zooms", label: "Zooms", icon: ZoomIn, node: <div /> }]}
+      />,
+    ).container;
+  }
+
+  it("puts Clips first and leaves out an empty Annotations lane", () => {
+    expect(laneNames(renderStrip([]))).toEqual(["Clips", "Zooms"]);
+  });
+
+  it("shows Annotations right under Clips once there is one", () => {
+    expect(laneNames(renderStrip([box]))).toEqual(["Clips", "Annotations", "Zooms"]);
+  });
+});
+
+describe("TimelineStrip ruler hover", () => {
+  it("shows the time under the pointer without seeking, and hides it on leave", () => {
+    const playback = makePlayback();
+    const { getByTestId, container } = render(
+      <TimelineStrip
+        layout={twoClipLayout}
+        playback={playback}
+        thumbnails={[]}
+        selectedItemId={null}
+        onSelectItem={vi.fn()}
+        overlays={[]}
+        selectedOverlayId={null}
+        onSelectOverlay={vi.fn()}
+      />,
+    );
+    const ruler = getByTestId("ruler");
+    ruler.getBoundingClientRect = vi.fn(() => ({ left: 0, width: 1000 }) as DOMRect);
+    ruler.hasPointerCapture = vi.fn(() => false);
+
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: 746 });
+
+    const hover = container.querySelector("[data-visible]");
+    expect(hover?.textContent).toBe("0:07.4");
+    expect(playback.seek).not.toHaveBeenCalled();
+
+    fireEvent.pointerLeave(ruler);
+    expect(container.querySelector("[data-visible]")).toBeNull();
+  });
+
+  it("puts the readout left of the line near the right edge, so it is not clipped", () => {
+    const { getByTestId, container } = render(
+      <TimelineStrip
+        layout={twoClipLayout}
+        playback={makePlayback()}
+        thumbnails={[]}
+        selectedItemId={null}
+        onSelectItem={vi.fn()}
+        overlays={[]}
+        selectedOverlayId={null}
+        onSelectOverlay={vi.fn()}
+      />,
+    );
+    const ruler = getByTestId("ruler");
+    ruler.getBoundingClientRect = vi.fn(() => ({ left: 0, width: 1000 }) as DOMRect);
+    ruler.hasPointerCapture = vi.fn(() => false);
+
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: 980 });
+    expect(container.querySelector("[data-visible]")).toHaveAttribute("data-flip");
+
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: 500 });
+    expect(container.querySelector("[data-visible]")).not.toHaveAttribute("data-flip");
   });
 });
