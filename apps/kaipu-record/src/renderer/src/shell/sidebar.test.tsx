@@ -1,7 +1,8 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ROUTES } from "@shared/routes";
+import type { AppSettings } from "@shared/types";
 import {
   __resetReadyCopiesForTests,
   getReadyCopies,
@@ -185,5 +186,87 @@ describe("Sidebar Library badge (copies being made or ready)", () => {
     expect(libraryLink()).toHaveAccessibleName(/2 copies in progress or ready/);
     await act(() => router.navigate("/library/copy-1"));
     expect(getReadyCopies().copies.map((c) => c.assetId)).toEqual(["copy-2"]);
+  });
+});
+
+describe("Sidebar modes (NIW2-626)", () => {
+  const nav = (): HTMLElement => screen.getByRole("navigation");
+
+  /** The settings the main process holds, as if persisted across a restart. */
+  function persisted(sidebarMode: AppSettings["sidebarMode"]) {
+    const original = window.electronAPI.getSettings;
+    let stored: Partial<AppSettings> = { sidebarMode };
+    vi.spyOn(window.electronAPI, "getSettings").mockImplementation(async () => ({
+      ...(await original()),
+      ...stored,
+    }));
+    const update = vi.fn(async (patch: Partial<AppSettings>) => {
+      stored = { ...stored, ...patch };
+      return { ...(await original()), ...stored };
+    });
+    vi.spyOn(window.electronAPI, "updateSettings").mockImplementation(update);
+    return update;
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("opens expanded, icon and label on one row, before anything was chosen", () => {
+    renderAt("/");
+    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+  });
+
+  it("opens in the mode stored in the settings (it survives a restart)", async () => {
+    persisted("collapsed");
+    renderAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "collapsed"));
+    // Icons only, yet every item keeps its name.
+    expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
+  });
+
+  it("the toggle at the rail's foot cycles expanded → stacked → collapsed → expanded and saves each", async () => {
+    const update = persisted("expanded-row");
+    renderAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "expanded-row"));
+    fireEvent.click(screen.getByRole("button", { name: /Change sidebar layout to Stacked/ }));
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+    fireEvent.click(screen.getByRole("button", { name: /Change sidebar layout to Icons only/ }));
+    expect(nav()).toHaveAttribute("data-mode", "collapsed");
+    fireEvent.click(screen.getByRole("button", { name: /Change sidebar layout to Expanded/ }));
+    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+    expect(update.mock.calls.map(([patch]) => patch)).toEqual([
+      { sidebarMode: "stacked" },
+      { sidebarMode: "collapsed" },
+      { sidebarMode: "expanded-row" },
+    ]);
+  });
+
+  it("Cmd+\\ cycles the mode on macOS and saves it", async () => {
+    const update = persisted("expanded-row");
+    renderAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "expanded-row"));
+    fireEvent.keyDown(window, { key: "\\", code: "Backslash", metaKey: true });
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+    expect(update).toHaveBeenCalledWith({ sidebarMode: "stacked" });
+  });
+
+  it("ignores Ctrl+\\ on macOS, a bare \\ and Cmd+Shift+\\", async () => {
+    const update = persisted("expanded-row");
+    renderAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "expanded-row"));
+    fireEvent.keyDown(window, { key: "\\", code: "Backslash", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "\\", code: "Backslash" });
+    fireEvent.keyDown(window, { key: "|", code: "Backslash", metaKey: true, shiftKey: true });
+    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("shows the shortcut in the toggle's title", async () => {
+    persisted("expanded-row");
+    renderAt("/");
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "expanded-row"));
+    expect(screen.getByRole("button", { name: /Change sidebar layout/ })).toHaveAttribute(
+      "title",
+      expect.stringContaining("⌘\\"),
+    );
   });
 });

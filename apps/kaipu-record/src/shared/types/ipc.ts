@@ -238,6 +238,21 @@ export function sanitizeCountdownSeconds(value: unknown): RecordingCountdownSeco
   );
 }
 
+/**
+ * How the main window's navigation rail lays itself out (NIW2-626): icon and label on one row,
+ * the label under the icon, or icons only. Literals on purpose: this module is shared with the
+ * preload bundle. They match `RailMode` in @kaipu/ui; the sidebar passes one as the other, so
+ * a drift is a type error there.
+ */
+export const SIDEBAR_MODES = ["expanded-row", "stacked", "collapsed"] as const;
+export type SidebarMode = (typeof SIDEBAR_MODES)[number];
+/** The owner wants to try the Linear-like row first. */
+export const DEFAULT_SIDEBAR_MODE: SidebarMode = "expanded-row";
+
+export function sanitizeSidebarMode(value: unknown): SidebarMode {
+  return SIDEBAR_MODES.find((mode) => mode === value) ?? DEFAULT_SIDEBAR_MODE;
+}
+
 export interface AppSettings {
   theme: Theme;
   /** UI language for every renderer window + the native tray. */
@@ -354,6 +369,11 @@ export interface AppSettings {
    * input the system lists first. `null` until one is picked.
    */
   microphone: { deviceId: string; label: string } | null;
+  /**
+   * The navigation rail's layout, changed by the button at the rail's foot or Cmd/Ctrl+Backslash.
+   * App-wide: a workspace never overrides it.
+   */
+  sidebarMode: SidebarMode;
 }
 
 /**
@@ -389,6 +409,7 @@ export const DEFAULT_SETTINGS: Omit<AppSettings, "shortcuts"> = {
   cameraBubble: DEFAULT_CAMERA_BUBBLE,
   audio: DEFAULT_AUDIO_SETTINGS,
   microphone: null,
+  sidebarMode: DEFAULT_SIDEBAR_MODE,
 };
 
 /** Prefixes on the `recording:finalize` rejection message; the renderer picks the toast from them. */

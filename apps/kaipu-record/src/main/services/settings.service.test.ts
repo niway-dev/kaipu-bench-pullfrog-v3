@@ -83,6 +83,7 @@ describe("mergeSettings", () => {
         trayHintShown: true,
         diagnosticsEnabled: false,
         microphone: { deviceId: "yeti", label: "Yeti Nano" },
+        sidebarMode: "collapsed",
       }),
     ).toEqual({
       theme: "dark",
@@ -121,6 +122,7 @@ describe("mergeSettings", () => {
         duckSystemAudioWhileTalking: false,
       },
       microphone: { deviceId: "yeti", label: "Yeti Nano" },
+      sidebarMode: "collapsed",
     });
   });
 
@@ -254,6 +256,19 @@ describe("mergeSettings", () => {
   it("defaults showBarInRecording to false when absent or invalid", () => {
     expect(mergeSettings({}).showBarInRecording).toBe(false);
     expect(mergeSettings({ showBarInRecording: "yes" as never }).showBarInRecording).toBe(false);
+  });
+
+  it("keeps each sidebar mode (NIW2-626)", () => {
+    for (const mode of ["expanded-row", "stacked", "collapsed"] as const) {
+      expect(mergeSettings({ sidebarMode: mode }).sidebarMode).toBe(mode);
+    }
+  });
+
+  it("defaults sidebarMode to expanded-row when absent or unknown", () => {
+    expect(mergeSettings({}).sidebarMode).toBe("expanded-row");
+    for (const invalid of ["wide", "", null, 3, true]) {
+      expect(mergeSettings({ sidebarMode: invalid as never }).sidebarMode).toBe("expanded-row");
+    }
   });
 
   it("keeps each offered countdown length (0, 3, 5)", () => {

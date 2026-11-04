@@ -18,6 +18,7 @@ import {
   type UploadMode,
   sanitizeCountdownSeconds,
   sanitizeExportQuality,
+  sanitizeSidebarMode,
 } from "@shared/types";
 import { defaultShortcutsFor } from "@shared/shortcut-defaults";
 import { sanitizeQuality } from "@shared/recording-quality";
@@ -163,6 +164,7 @@ export function mergeSettings(
     cameraBubble: sanitizeCameraBubble(safe.cameraBubble),
     audio: sanitizeAudioSettings(safe.audio),
     microphone: sanitizeMicrophone(safe.microphone),
+    sidebarMode: sanitizeSidebarMode(safe.sidebarMode),
   };
 }
 

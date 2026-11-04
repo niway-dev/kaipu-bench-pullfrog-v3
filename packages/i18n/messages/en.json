@@ -89,7 +89,11 @@
     "account": "Account",
     "cloud": "Cloud",
     "editor": "Editor",
-    "export": "Export"
+    "export": "Export",
+    "sidebarToggle": "Change sidebar layout to {next}",
+    "sidebarModeExpanded": "Expanded",
+    "sidebarModeStacked": "Stacked",
+    "sidebarModeCollapsed": "Icons only"
   },
   "editor": {
     "title": "Editor",

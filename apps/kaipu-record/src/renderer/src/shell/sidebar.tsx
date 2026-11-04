@@ -1,6 +1,18 @@
 import { useEffect, useRef } from "react";
 import { Link, matchPath, useLocation } from "react-router-dom";
-import { Video, Library, Camera, Keyboard, Settings, User, Cloud, PenLine } from "lucide-react";
+import {
+  Video,
+  Library,
+  Camera,
+  Keyboard,
+  Settings,
+  User,
+  Cloud,
+  PenLine,
+  PanelLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { Rail, type RailItem } from "@kaipu/ui";
 import { ROUTES } from "@shared/routes";
@@ -12,6 +24,21 @@ import {
   retireReadyCards,
   useReadyCopies,
 } from "@renderer/features/video-editor/export/ready-copies";
+import type { SidebarMode } from "@shared/types";
+import { nextSidebarMode, sidebarToggleHint, useSidebarMode } from "./use-sidebar-mode";
+
+const MODE_LABEL_KEY = {
+  "expanded-row": "sidebarModeExpanded",
+  stacked: "sidebarModeStacked",
+  collapsed: "sidebarModeCollapsed",
+} as const satisfies Record<SidebarMode, string>;
+
+/** The toggle draws where it is going: closing to icons, opening to rows, or the middle step. */
+const MODE_TOGGLE_ICON = {
+  "expanded-row": PanelLeftOpen,
+  stacked: PanelLeft,
+  collapsed: PanelLeftClose,
+} as const satisfies Record<SidebarMode, typeof Video>;
 
 interface NavItem {
   to: string;
@@ -39,6 +66,8 @@ const NAV: NavItem[] = [
 /**
  * The desktop's navigation rail: the shared `Rail`, fed react-router's Link,
  * lucide icons and translated labels. The rail itself knows none of those.
+ * Its mode (rows, stacked or icons only) is the user's, kept in the app settings;
+ * the button at the rail's foot and Cmd/Ctrl+\ step through the three.
  */
 export function Sidebar(): React.JSX.Element {
   const t = useTranslations("nav");
@@ -51,6 +80,9 @@ export function Sidebar(): React.JSX.Element {
     matchPath({ path: to, end: end ?? false }, pathname) !== null ||
     (to === ROUTES.library && onExportPage);
   const exportBadge = useExportBadge(pathname);
+  const { mode, cycle } = useSidebarMode();
+  const next = nextSidebarMode(mode);
+  const ToggleIcon = MODE_TOGGLE_ICON[next];
 
   const items: LinkItem[] = NAV.map(({ to, labelKey, Icon, end }) => ({
     id: to,
@@ -77,6 +109,13 @@ export function Sidebar(): React.JSX.Element {
       // No brand row: the logo and the name live in the title bar (NIW2-621).
       items={items}
       account={account}
+      mode={mode}
+      modeToggle={{
+        label: t("sidebarToggle", { next: t(MODE_LABEL_KEY[next]) }),
+        hint: sidebarToggleHint(window.electronAPI.platform),
+        icon: <ToggleIcon size={16} strokeWidth={1.8} />,
+        onToggle: cycle,
+      }}
       // Link, not NavLink: NavLink decides aria-current from the link's own target, and the
       // Library must read as current on /export/:assetId. The rail already computed `active`.
       renderLink={(item, props) => <Link to={item.to} {...props} />}
