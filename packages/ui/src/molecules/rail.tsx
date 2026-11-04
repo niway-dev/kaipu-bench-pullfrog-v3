@@ -134,9 +134,15 @@ const styles = stylex.create({
     fontWeight: tokens.fontWeightMedium,
     letterSpacing: 0,
   },
+  // "Screenshot" is a hair wider than the 60px item at 11px: no ellipsis, and the label may
+  // use the 2px either side of the item, still inside the 64px rail.
   labelStacked: {
+    maxWidth: "none",
+    overflow: "visible",
+    textOverflow: "clip",
     fontSize: tokens.fontSizeXs,
     lineHeight: "13px",
+    letterSpacing: "-0.01em",
   },
   labelExpanded: {
     flexGrow: 1,
