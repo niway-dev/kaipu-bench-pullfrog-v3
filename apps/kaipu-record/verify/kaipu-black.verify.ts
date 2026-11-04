@@ -35,6 +35,9 @@ test("kaipu black: pages and sidebar modes at 1440x900", async () => {
 
   try {
     await dismissOnboarding(page);
+    // The first-run "New: workspaces" note in the title bar is not what these shots are about.
+    const gotIt = page.getByRole("button", { name: "Got it" });
+    if (await gotIt.isVisible().catch(() => false)) await gotIt.click();
 
     await go("#/");
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
