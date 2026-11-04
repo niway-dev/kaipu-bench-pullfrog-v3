@@ -56,63 +56,74 @@ function renderAt(path: string) {
   return router;
 }
 
-const exportLink = (): HTMLElement => screen.getByRole("link", { name: /^Export/ });
+const libraryLink = (): HTMLElement => screen.getByRole("link", { name: /^Library/ });
 
 afterEach(() => {
   __resetReadyCopiesForTests();
   runnerStatus.set("idle");
 });
 
-describe("Sidebar Export entry and badge", () => {
-  it("sits right under Editor", () => {
+describe("Sidebar items", () => {
+  it("has no Export item; the other pages keep theirs", () => {
     renderAt("/");
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(labels.indexOf("Export")).toBe(labels.indexOf("Editor") + 1);
+    expect(labels).not.toContain("Export");
+    expect(labels.slice(0, 7)).toEqual([
+      "Record",
+      "Screenshot",
+      "Editor",
+      "Library",
+      "Shortcuts",
+      "Settings",
+      "Cloud",
+    ]);
   });
 
-  it("is active on Export with and without a video", () => {
+  it("lights the Library on a recording's Export page, and nothing on the bare picker", () => {
     renderAt("/export/asset-1");
-    expect(exportLink()).toHaveAttribute("aria-current", "page");
+    expect(libraryLink()).toHaveAttribute("aria-current", "page");
     cleanup();
     renderAt(ROUTES.exportNew);
-    expect(exportLink()).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getAllByRole("link").filter((l) => l.getAttribute("aria-current") === "page"),
+    ).toEqual([]);
   });
+});
 
+describe("Sidebar Library badge (copies being made or ready)", () => {
   it("counts an export that is encoding, on top of the finished copies", () => {
     renderAt("/");
     act(() => runnerStatus.set("exporting"));
-    expect(exportLink()).toHaveAccessibleName(/1 copy in progress or ready/);
-    expect(exportLink()).toHaveTextContent("1");
+    expect(libraryLink()).toHaveAccessibleName(/1 copy in progress or ready/);
+    expect(libraryLink()).toHaveTextContent("1");
     act(() => noteFinishedCopy("copy-1"));
-    expect(exportLink()).toHaveTextContent("2");
+    expect(libraryLink()).toHaveTextContent("2");
   });
 
-  it("counts copies that finished out of sight, and clears when Export opens", async () => {
+  it("counts copies that finished out of sight, and clears when the Library opens", async () => {
     const router = renderAt("/");
-    expect(exportLink()).toHaveTextContent(/^Export$/);
+    expect(libraryLink()).toHaveTextContent(/^Library$/);
     act(() => noteFinishedCopy("copy-1"));
-    expect(exportLink()).toHaveAccessibleName(/1 copy in progress or ready/);
-    expect(exportLink()).toHaveTextContent("1");
-    // The Library no longer carries it.
-    expect(screen.getByRole("link", { name: /^Library/ })).toHaveTextContent(/^Library$/);
+    expect(libraryLink()).toHaveAccessibleName(/1 copy in progress or ready/);
+    expect(libraryLink()).toHaveTextContent("1");
 
-    await act(() => router.navigate(ROUTES.exportNew));
-    expect(exportLink()).toHaveTextContent(/^Export$/);
+    await act(() => router.navigate(ROUTES.library));
+    expect(libraryLink()).toHaveTextContent(/^Library$/);
     // Still pointed at in the Library until the copy itself is opened.
     expect(getReadyCopies().copies).toEqual([{ assetId: "copy-1", announced: true, card: true }]);
   });
 
-  it("opening the Library clears it too, since the Library points at the copies", async () => {
+  it("opening Export clears it too, since Export points at the copies", async () => {
     const router = renderAt("/");
     act(() => noteFinishedCopy("copy-1"));
-    await act(() => router.navigate(ROUTES.library));
-    expect(exportLink()).toHaveTextContent(/^Export$/);
+    await act(() => router.navigate(ROUTES.exportNew));
+    expect(libraryLink()).toHaveTextContent(/^Library$/);
   });
 
-  it("a copy that finishes while Export is open never badges", () => {
-    renderAt(ROUTES.exportNew);
+  it("a copy that finishes while the Library is open never badges", () => {
+    renderAt(ROUTES.library);
     act(() => noteFinishedCopy("copy-1"));
-    expect(exportLink()).toHaveTextContent(/^Export$/);
+    expect(libraryLink()).toHaveTextContent(/^Library$/);
   });
 
   it("leaving the Library retires its Ready to upload cards, not the copies", async () => {
@@ -138,7 +149,7 @@ describe("Sidebar Export entry and badge", () => {
     const router = renderAt("/");
     act(() => noteFinishedCopy("copy-1"));
     act(() => noteFinishedCopy("copy-2"));
-    expect(exportLink()).toHaveAccessibleName(/2 copies in progress or ready/);
+    expect(libraryLink()).toHaveAccessibleName(/2 copies in progress or ready/);
     await act(() => router.navigate("/library/copy-1"));
     expect(getReadyCopies().copies.map((c) => c.assetId)).toEqual(["copy-2"]);
   });

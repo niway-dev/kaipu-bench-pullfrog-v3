@@ -1,16 +1,6 @@
 import { useEffect, useRef } from "react";
-import { NavLink, matchPath, useLocation } from "react-router-dom";
-import {
-  Video,
-  Library,
-  Camera,
-  Keyboard,
-  Settings,
-  User,
-  Cloud,
-  PenLine,
-  Upload,
-} from "lucide-react";
+import { Link, matchPath, useLocation } from "react-router-dom";
+import { Video, Library, Camera, Keyboard, Settings, User, Cloud, PenLine } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { KaipuLogo } from "@kaipu/brand";
 import { Rail, type RailItem } from "@kaipu/ui";
@@ -26,22 +16,13 @@ import {
 
 interface NavItem {
   to: string;
-  labelKey:
-    | "record"
-    | "screenshots"
-    | "editor"
-    | "export"
-    | "library"
-    | "shortcuts"
-    | "settings"
-    | "cloud";
+  labelKey: "record" | "screenshots" | "editor" | "library" | "shortcuts" | "settings" | "cloud";
   Icon: typeof Video;
   end?: boolean;
 }
 
 interface LinkItem extends RailItem {
   to: string;
-  end?: boolean;
 }
 
 // Record is the index route (`/`), so it uses `end` to avoid matching everything.
@@ -50,8 +31,6 @@ const NAV: NavItem[] = [
   { to: ROUTES.screenshots, labelKey: "screenshots", Icon: Camera },
   // Active on every /editor/* URL (not `end`), so an open item keeps it lit.
   { to: ROUTES.editor, labelKey: "editor", Icon: PenLine },
-  // Active on /export and /export/:assetId.
-  { to: ROUTES.exportNew, labelKey: "export", Icon: Upload },
   { to: ROUTES.library, labelKey: "library", Icon: Library },
   { to: ROUTES.shortcuts, labelKey: "shortcuts", Icon: Keyboard },
   { to: ROUTES.settings, labelKey: "settings", Icon: Settings },
@@ -59,25 +38,28 @@ const NAV: NavItem[] = [
 ];
 
 /**
- * The desktop's navigation rail: the shared `Rail`, fed react-router's NavLink,
+ * The desktop's navigation rail: the shared `Rail`, fed react-router's Link,
  * lucide icons and translated labels. The rail itself knows none of those.
  */
 export function Sidebar(): React.JSX.Element {
   const t = useTranslations("nav");
   const tExport = useTranslations("export");
   const { pathname } = useLocation();
+  // Export has no item of its own (NIW2-618). A page about one recording belongs to the Library
+  // that recording lives in, so the Library stays lit; the bare /export picker lights nothing.
+  const onExportPage = matchPath({ path: ROUTES.export, end: true }, pathname) !== null;
   const isActive = (to: string, end?: boolean): boolean =>
-    matchPath({ path: to, end: end ?? false }, pathname) !== null;
+    matchPath({ path: to, end: end ?? false }, pathname) !== null ||
+    (to === ROUTES.library && onExportPage);
   const exportBadge = useExportBadge(pathname);
 
   const items: LinkItem[] = NAV.map(({ to, labelKey, Icon, end }) => ({
     id: to,
     to,
-    end,
     label: t(labelKey),
     icon: <Icon size={19} strokeWidth={1.8} />,
     active: isActive(to, end),
-    ...(to === ROUTES.exportNew && exportBadge > 0
+    ...(to === ROUTES.library && exportBadge > 0
       ? { badge: exportBadge, badgeLabel: tExport("railBadge", { count: exportBadge }) }
       : {}),
   }));
@@ -93,17 +75,19 @@ export function Sidebar(): React.JSX.Element {
 
   return (
     <Rail
-      brand={<KaipuLogo use="product" size={40} />}
+      brand={<KaipuLogo use="product" size={30} style={{ borderRadius: 8 }} />}
       brandTitle="Kaipu Record"
       items={items}
       account={account}
-      renderLink={(item, props) => <NavLink to={item.to} end={item.end} {...props} />}
+      // Link, not NavLink: NavLink decides aria-current from the link's own target, and the
+      // Library must read as current on /export/:assetId. The rail already computed `active`.
+      renderLink={(item, props) => <Link to={item.to} {...props} />}
     />
   );
 }
 
 /**
- * The Export item's count: the copy being made right now, plus finished copies the user has
+ * The Library item's count (the copies Export makes end up there): the copy being made right now, plus finished copies the user has
  * not been shown (NIW2-586) — one that finished while its ready card was hidden, or after the
  * card was closed. Opening Export or the Library clears the finished ones (both point at the
  * copies); opening a copy's page forgets that copy. Leaving the Library retires the "Ready to

@@ -22,7 +22,7 @@ import type { StyleXStyles } from "@stylexjs/stylex";
 const styles = stylex.create({
   rail: {
     boxSizing: "border-box",
-    width: "72px",
+    width: "64px",
     height: "100%",
     display: "flex",
     flexDirection: "column",
@@ -36,7 +36,7 @@ const styles = stylex.create({
   },
   brand: {
     flexShrink: 0,
-    // Taller than a nav item: the mark needs air around it at 40px, and the
+    // Taller than a nav item: the mark needs air around it at 30px, and the
     // extra row height is what stops it reading as just another item.
     height: "64px",
     display: "flex",
@@ -85,7 +85,7 @@ const styles = stylex.create({
   },
   label: {
     fontFamily: tokens.fontMono,
-    fontSize: "9px",
+    fontSize: "8.5px",
     letterSpacing: "0.06em",
     textTransform: "uppercase",
   },
