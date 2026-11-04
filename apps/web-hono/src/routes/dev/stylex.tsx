@@ -58,7 +58,7 @@ function StylexProbe() {
   return (
     <div style={{ padding: 24 }}>
       {/* Default vars = dark values, no theme applied. */}
-      <div style={{ ...row, background: "#0f0f11" }}>
+      <div style={{ ...row, background: "#060607" }}>
         <Variants />
       </div>
       {/* Same components under the generated light theme — both at once is the

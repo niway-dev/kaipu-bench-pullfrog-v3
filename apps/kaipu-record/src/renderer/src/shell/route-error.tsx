@@ -1,5 +1,6 @@
 import { isRouteErrorResponse, useNavigate, useRouteError } from "react-router-dom";
 import { useTranslations, type Translator } from "@kaipu/i18n";
+import { TitleBar } from "./title-bar";
 import styles from "./route-error.module.css";
 
 interface ErrorInfo {
@@ -51,7 +52,14 @@ function ErrorCard({ info, screen }: { info: ErrorInfo; screen?: boolean }): Rea
 export function RouteErrorBoundary(): React.JSX.Element {
   const error = useRouteError();
   const t = useTranslations("routeError");
-  return <ErrorCard info={describe(error, t)} screen />;
+  // The router's error element replaces AppRoot, title bar included: draw one, so the
+  // window can still be dragged and the traffic lights do not sit on the card.
+  return (
+    <>
+      <TitleBar workspace={false} />
+      <ErrorCard info={describe(error, t)} screen />
+    </>
+  );
 }
 
 /** In-shell catch-all (`path: "*"`) for unknown app paths — keeps the sidebar. */
