@@ -28,7 +28,7 @@ export function TitleBar({ workspace = true }: { workspace?: boolean }): React.J
   const showSwitcher = workspace && workspaces !== null && !onboarding;
   return (
     <header className={styles.bar} data-platform={hostPlatform()}>
-      <KaipuLogo use="product" size={20} />
+      <KaipuLogo use="product" size={26} />
       <span className={styles.name}>Kaipu Record</span>
       {showSwitcher && (
         <>
