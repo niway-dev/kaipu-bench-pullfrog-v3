@@ -5,7 +5,7 @@ description: "NIW2-625: one command runs the real built desktop app on the Mac m
 
 # UI state catalog — design
 
-**Status: 🔵 Proposed · 2026-11-04, round 2. Design only; nothing is implemented.** Ticket
+**Status: 🟢 Implemented by the NIW2-628 / NIW2-629 / NIW2-630 stack (PRs pending review) · designed 2026-11-04, round 2.** Ticket
 [NIW2-625](https://linear.app/niway/issue/NIW2-625/ui-state-catalog-on-demand-screenshots-of-every-desktop-screen-and).
 ADRs: [0044](/architecture/decisions/0044-the-ui-state-catalog-runs-the-real-app-on-the-mac-mini/)
 (driver), [0045](/architecture/decisions/0045-ui-catalog-images-live-in-a-separate-repository/)
@@ -91,8 +91,10 @@ not assumed:
      `~/.local/share/mise/installs/node/24.21.0/bin/node` (Screen Recording) and Electron's
      ad-hoc cdhash. A Node or Electron upgrade needs a new grant. The run starts with a
      preflight that prints each permission's status and stops with the missing grant named.
-   - Accessibility for that `node` was still denied at the last check. Until it is granted,
-     the click-zoom gate is shot on its "not granted" side only, and the README says so.
+   - Accessibility for that `node` was granted on 2026-11-04, so the click-zoom gate is shot on
+     both sides: `settingsPermissions/all-granted` shows `clickZoom:granted` and
+     `settingsPermissions/click-zoom-denied` shows `clickZoom:notGranted` (the latter only on a
+     runner that lacks the grant; otherwise the README says it was not capturable).
 2. **Account states: fully offline (owner decision).** The catalog never runs the API. It
    shoots `signed-out` (no `auth.enc`) and `unknown` (stored session, API unreachable). States
    that need a live server (`signedIn`, `cloud`, `sessionExpired`) are `notCapturable` with the
@@ -550,7 +552,7 @@ In `apps/kaipu-record/package.json` unless noted:
 | `bun run ui-catalog --only <glob>`                     | mini only       | Only the matching state ids (`record/*`, `windows/capture-toast/*`, `editor/video@min`).                                                                                                                                                                              |
 | `bun run ui-catalog --twice`                           | mini only       | Every state twice; reports nondeterministic crops outside the known-variable list.                                                                                                                                                                                    |
 | `bun run ui-catalog:lint`                              | either          | Deny-list scan of fixtures, catalog descriptions and the generated README. Also run by `publish`.                                                                                                                                                                     |
-| `bun run ui-catalog:publish [--push] [--force]`        | owner's machine | Clones `git@github-niway:niway-dev/kaipu-ui-catalog.git` into a temp dir, verifies `origin`, replaces `screens/`, `areas/`, `manifest.json`, `README.md`, commits `catalog: kaipu-record <version> <date> @ <sha>`.                                                   |
+| `bun run ui-catalog:publish [--push] [--force]`        | owner's machine | Clones `git@github-csdev:niway-dev/kaipu-ui-catalog.git` into a temp dir, verifies `origin`, replaces `screens/`, `areas/`, `manifest.json`, `README.md`, commits `catalog: kaipu-record <version> <date> @ <sha>`.                                                   |
 | `bun run ui-catalog:status`                            | either          | Reads the catalog repository's `manifest.json` from `main` and compares with the latest `desktop-v*` tag; prints `current` or `behind <tag>`.                                                                                                                         |
 
 The run is a Playwright test project after all, unlike round 1: `_electron.launch` and the
@@ -559,7 +561,7 @@ quit watchdog are built for `@playwright/test`, `verify/` already runs that way 
 reporter gives the per-state log for free. Nothing uses `toHaveScreenshot` or `-snapshots`
 folders.
 
-The SSH alias follows `~/GITHUB_ACCOUNTS.md`; publish refuses a remote whose owner is not
+The SSH alias follows `~/GITHUB_ACCOUNTS.md`, which maps the `niway-dev` repositories to `github-csdev` on this machine (the first draft wrote `github-niway`, an alias that does not exist); publish refuses a remote whose owner is not
 `niway-dev`, a non-empty clone directory, or a manifest older than the repository's last commit
 (without `--force`). It never touches the monorepo's git state.
 
