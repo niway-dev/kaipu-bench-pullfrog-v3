@@ -37,12 +37,23 @@ describe("tool rail and picture", () => {
     expect(rule(css("editor-toolbar.module.css"), ".rail")).toMatch(/(?:^|\s)width:\s*44px;/);
   });
 
-  it("the Audio variant switch is an 18px hit target with a visible focus ring", () => {
+  it("the tool flyout uses the panel surface, a strong 1px line, a 6px radius and the popover shadow", () => {
+    const flyout = rule(css("editor-toolbar.module.css"), ".flyout");
+    expect(flyout).toMatch(/background:\s*var\(--bg-panel\)/);
+    expect(flyout).toMatch(/border:\s*1px solid var\(--line-strong\)/);
+    expect(flyout).toMatch(/border-radius:\s*6px/);
+    expect(flyout).toMatch(/box-shadow:\s*var\(--shadow-popover\)/);
+  });
+
+  it("the current flyout option takes the accent colour", () => {
+    expect(rule(css("editor-toolbar.module.css"), ".flyoutCurrent")).toMatch(
+      /color:\s*var\(--accent-primary\)/,
+    );
+  });
+
+  it("nothing paints a hover fill in a corner of a rail button", () => {
     const toolbar = css("editor-toolbar.module.css");
-    const sw = rule(toolbar, ".variantSwitch");
-    expect(sw).toMatch(/(?:^|\s)width:\s*18px;/);
-    expect(sw).toMatch(/(?:^|\s)height:\s*18px;/);
-    expect(rule(toolbar, ".variantSwitch:focus-visible")).toMatch(/outline:\s*2px solid/);
+    expect(toolbar).not.toMatch(/variantSwitch/);
   });
 
   it("the picture sits on the left with a 12px margin", () => {

@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
+  Check,
   Download,
   Droplet,
   EyeOff,
@@ -71,8 +73,7 @@ const SPLIT_SHORTCUT = "S";
 
 /**
  * The drawing modes that share one rail button (Kaipu Black, NIW2-619). The button
- * shows its group's current variant; a second click on the active group moves to the
- * next one, in this order.
+ * shows its group's current variant; the flyout lists all of them.
  */
 export const TOOL_GROUPS = {
   annotate: ["box", "arrow", "text"],
@@ -85,29 +86,137 @@ function variantsOf(group: ToolGroup): readonly EditorTool[] {
 }
 
 /**
- * What a click on a group's button arms. A group that is not active arms the variant
- * it shows (`remembered`: the last one used, or the first); the active group cycles to
- * its next variant. Pure and exported so the policy is testable on its own.
+ * The opening rule. A click on a group's button whose tool is NOT active arms the
+ * variant it shows (`remembered`: the last one used, or the first) — one click, no
+ * flyout. A click on the group that IS active opens the flyout with every variant.
+ * The corner mark is only a glyph that says "has variants"; it is not a hit target.
+ * Audio has no armed variant (both are actions), so its button always opens the flyout.
+ * Pure and exported so the policy is testable on its own.
  */
-export function toolForGroupClick(
+export function groupClickAction(
   group: ToolGroup,
   current: EditorTool,
   remembered: EditorTool,
-): EditorTool {
-  const variants = variantsOf(group);
-  const at = variants.indexOf(current);
-  if (at === -1) return remembered;
-  return variants[(at + 1) % variants.length]!;
+): { kind: "arm"; tool: EditorTool } | { kind: "open" } {
+  return variantsOf(group).includes(current) ? { kind: "open" } : { kind: "arm", tool: remembered };
 }
 
-function nextVariant(group: ToolGroup, tool: EditorTool): EditorTool {
-  const variants = variantsOf(group);
-  return variants[(variants.indexOf(tool) + 1) % variants.length]!;
+/** One row of a flyout. */
+interface FlyoutItem {
+  key: string;
+  label: string;
+  Icon: typeof Square;
+  /** Plain keyboard symbol printed at the row's end, when the action has one. */
+  shortcut?: string;
+  /** The tool in use, or the toggle that is on: accent colour and a check. */
+  current: boolean;
+  /** `menuitemradio` for an exclusive tool, `menuitemcheckbox` for a toggle. */
+  role: "menuitemradio" | "menuitemcheckbox" | "menuitem";
+  onPick(): void;
 }
 
-/** The Audio tool's two jobs. Neither is a drawing mode, so there is no "active" Audio
- *  tool for a second click to cycle; the corner switch picks the variant instead. */
-type AudioVariant = "muteSection" | "muteAll";
+/**
+ * The small window listing all of a group's options, to the LEFT of the rail and
+ * anchored to its button. Portalled to the body with fixed coordinates because the
+ * rail clips its overflow. Opens with the current option focused; arrows move (and
+ * wrap), Home/End jump, Enter picks, Escape or Tab closes, and a pointer-down anywhere
+ * else closes. Closing returns focus to the button.
+ */
+function ToolFlyout({
+  anchor,
+  label,
+  items,
+  onClose,
+}: {
+  anchor: HTMLElement;
+  label: string;
+  items: readonly FlyoutItem[];
+  onClose(): void;
+}): React.JSX.Element {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState({ right: 0, top: 0 });
+
+  useLayoutEffect(() => {
+    const rect = anchor.getBoundingClientRect();
+    const height = menuRef.current?.offsetHeight ?? 0;
+    // Keep the whole window on screen when the button sits near the bottom.
+    const top = Math.max(8, Math.min(rect.top, window.innerHeight - height - 8));
+    setPos({ right: window.innerWidth - rect.left + 6, top });
+  }, [anchor]);
+
+  // Focus the current option once, on open.
+  useEffect(() => {
+    const rows = menuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]');
+    const at = Math.max(
+      0,
+      items.findIndex((item) => item.current),
+    );
+    rows?.[at]?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as Node;
+      // The button's own click toggles; closing here too would reopen it.
+      if (menuRef.current?.contains(target) || anchor.contains(target)) return;
+      onClose();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [anchor, onClose]);
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    const rows = [...event.currentTarget.querySelectorAll<HTMLElement>('[role^="menuitem"]')];
+    const at = rows.indexOf(document.activeElement as HTMLElement);
+    const move = (to: number): void => {
+      event.preventDefault();
+      rows[(to + rows.length) % rows.length]?.focus();
+    };
+    if (event.key === "Escape" || event.key === "Tab") {
+      event.preventDefault();
+      onClose();
+      anchor.focus();
+    } else if (event.key === "ArrowDown") move(at + 1);
+    else if (event.key === "ArrowUp") move(at - 1);
+    else if (event.key === "Home") move(0);
+    else if (event.key === "End") move(rows.length - 1);
+  };
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label={label}
+      aria-orientation="vertical"
+      className={styles.flyout}
+      style={{ right: pos.right, top: pos.top }}
+      onKeyDown={onKeyDown}
+    >
+      {items.map(({ key, label: itemLabel, Icon, shortcut, current, role, onPick }) => (
+        <button
+          key={key}
+          type="button"
+          role={role}
+          aria-checked={role === "menuitem" ? undefined : current}
+          tabIndex={-1}
+          className={`${styles.flyoutItem} ${current ? styles.flyoutCurrent : ""}`}
+          onClick={() => {
+            onPick();
+            onClose();
+            anchor.focus();
+          }}
+        >
+          <Icon size={16} aria-hidden />
+          <span className={styles.flyoutLabel}>{itemLabel}</span>
+          {shortcut ? <kbd className={styles.flyoutKey}>{shortcut}</kbd> : null}
+          <Check size={14} aria-hidden className={styles.flyoutCheck} data-shown={current} />
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}
 
 /**
  * Undo/redo/delete as the host prints them: "⌘Z" / "⌘⇧Z" / "⌫" on macOS, and
@@ -176,6 +285,11 @@ export interface EditorToolRailProps {
   cursorSelected?: boolean;
 }
 
+const GROUP_LABEL: Record<ToolGroup, "toolAnnotate" | "toolPrivacy"> = {
+  annotate: "toolAnnotate",
+  privacy: "toolPrivacy",
+};
+
 function toolLabelKey(tool: EditorTool): ToolLabelKey | "toolBlur" | "toolCover" {
   return isPrivacyTool(tool) ? PRIVACY_META[tool].labelKey : TOOL_META[tool].labelKey;
 }
@@ -209,42 +323,94 @@ export function EditorToolRail({
       setRemembered({ ...remembered, [group]: tool });
     }
   }
-  const [audio, setAudio] = useState<AudioVariant>(audioMuted ? "muteAll" : "muteSection");
-  // When the recording becomes muted (a session that loads muted, an undo), show the
-  // pressed mute-everything variant: otherwise nothing on the rail says it is muted.
-  const [wasMuted, setWasMuted] = useState(audioMuted);
-  if (audioMuted !== wasMuted) {
-    setWasMuted(audioMuted);
-    if (audioMuted) setAudio("muteAll");
-  }
+  // The group whose flyout is open; its button is the anchor.
+  const [open, setOpen] = useState<ToolGroup | "audio" | null>(null);
+  const buttons = useRef<Partial<Record<ToolGroup | "audio", HTMLButtonElement | null>>>({});
+  const closeFlyout = useCallback(() => setOpen(null), []);
+
+  const flyoutFor = (group: ToolGroup | "audio"): React.JSX.Element | null => {
+    const anchor = buttons.current[group];
+    if (open !== group || !anchor) return null;
+    if (group === "audio") {
+      return (
+        <ToolFlyout
+          anchor={anchor}
+          label={t("toolAudio")}
+          onClose={closeFlyout}
+          items={[
+            {
+              key: "muteSection",
+              label: t("toolMute"),
+              Icon: VolumeX,
+              current: false,
+              role: "menuitem",
+              onPick: onAddMute,
+            },
+            {
+              key: "muteAll",
+              label: audioMuted ? t("toolUnmuteAll") : t("toolMuteAll"),
+              Icon: audioMuted ? VolumeOff : Volume2,
+              current: audioMuted,
+              role: "menuitemcheckbox",
+              onPick: onToggleMuteAll,
+            },
+          ]}
+        />
+      );
+    }
+    return (
+      <ToolFlyout
+        anchor={anchor}
+        label={t(GROUP_LABEL[group])}
+        onClose={closeFlyout}
+        items={variantsOf(group).map((variant) => ({
+          key: variant,
+          label: t(toolLabelKey(variant)),
+          Icon: toolIcon(variant),
+          shortcut: TOOL_SHORTCUT[variant],
+          current: variant === tool,
+          role: "menuitemradio" as const,
+          onPick: () => onToolChange(variant),
+        }))}
+      />
+    );
+  };
 
   const groupButton = (group: ToolGroup, disabled = false): React.JSX.Element => {
     const active = variantsOf(group).includes(tool);
     const shown = active ? tool : remembered[group];
     const Icon = toolIcon(shown);
     const label = t(toolLabelKey(shown));
-    const next = t(toolLabelKey(nextVariant(group, shown)));
     return (
-      <button
-        type="button"
-        data-tool-group={group}
-        data-variants={variantsOf(group).length}
-        title={`${label} (${TOOL_SHORTCUT[shown]}) · ${t("toolCycle", { next })}`}
-        aria-label={label}
-        aria-pressed={active}
-        disabled={disabled}
-        className={`${styles.tool} ${active ? styles.toolActive : ""}`}
-        onClick={() => onToolChange(toolForGroupClick(group, tool, remembered[group]))}
-      >
-        <Icon size={19} />
-      </button>
+      <>
+        <button
+          type="button"
+          ref={(el) => {
+            buttons.current[group] = el;
+          }}
+          data-tool-group={group}
+          data-variants={variantsOf(group).length}
+          title={`${label} (${TOOL_SHORTCUT[shown]}) · ${t("toolMoreOptions")}`}
+          aria-label={label}
+          aria-pressed={active}
+          aria-haspopup="menu"
+          aria-expanded={open === group}
+          disabled={disabled}
+          className={`${styles.tool} ${active ? styles.toolActive : ""}`}
+          onClick={() => {
+            const action = groupClickAction(group, tool, remembered[group]);
+            if (action.kind === "arm") {
+              setOpen(null);
+              onToolChange(action.tool);
+            } else setOpen(open === group ? null : group);
+          }}
+        >
+          <Icon size={19} />
+        </button>
+        {flyoutFor(group)}
+      </>
     );
   };
-
-  const audioLabel =
-    audio === "muteSection" ? t("toolMute") : audioMuted ? t("toolUnmuteAll") : t("toolMuteAll");
-  const otherAudio: AudioVariant = audio === "muteSection" ? "muteAll" : "muteSection";
-  const otherAudioLabel = otherAudio === "muteSection" ? t("toolMute") : t("toolMuteAll");
 
   return (
     <div className={styles.rail} role="toolbar" aria-orientation="vertical">
@@ -272,33 +438,26 @@ export function EditorToolRail({
         <ZoomIn size={19} />
       </button>
       {groupButton("privacy", privacyDisabled)}
-      <div className={styles.toolSlot}>
-        <button
-          type="button"
-          data-tool-group="audio"
-          data-variants={2}
-          title={audio === "muteSection" ? t("hintMute") : audioLabel}
-          aria-label={audioLabel}
-          aria-pressed={audio === "muteAll" ? audioMuted : undefined}
-          className={`${styles.tool} ${audio === "muteAll" && audioMuted ? styles.toolActive : ""}`}
-          onClick={audio === "muteSection" ? onAddMute : onToggleMuteAll}
-        >
-          {audio === "muteSection" ? (
-            <VolumeX size={19} />
-          ) : audioMuted ? (
-            <VolumeOff size={19} />
-          ) : (
-            <Volume2 size={19} />
-          )}
-        </button>
-        <button
-          type="button"
-          className={styles.variantSwitch}
-          title={t("audioCycle", { next: otherAudioLabel })}
-          aria-label={t("audioCycle", { next: otherAudioLabel })}
-          onClick={() => setAudio(otherAudio)}
-        />
-      </div>
+      {/* Both Audio variants are actions, so there is no armed variant to re-click:
+          the button always opens the flyout, and it reads pressed while muted. */}
+      <button
+        type="button"
+        ref={(el) => {
+          buttons.current.audio = el;
+        }}
+        data-tool-group="audio"
+        data-variants={2}
+        title={`${t("toolAudio")} · ${t("toolMoreOptions")}`}
+        aria-label={t("toolAudio")}
+        aria-pressed={audioMuted}
+        aria-haspopup="menu"
+        aria-expanded={open === "audio"}
+        className={`${styles.tool} ${audioMuted ? styles.toolActive : ""}`}
+        onClick={() => setOpen(open === "audio" ? null : "audio")}
+      >
+        {audioMuted ? <VolumeOff size={19} /> : <Volume2 size={19} />}
+      </button>
+      {flyoutFor("audio")}
       {(onHideWebcam || onOpenCursor) && <span className={styles.railSeparator} aria-hidden />}
       {/* An action like Zoom: a hidden webcam section from the playhead on. */}
       {onHideWebcam && (

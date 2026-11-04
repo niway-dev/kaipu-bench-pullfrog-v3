@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
   EditorToolbar,
   EditorToolRail,
-  toolForGroupClick,
+  groupClickAction,
   type EditorToolbarProps,
   type EditorToolRailProps,
 } from "./editor-toolbar";
@@ -71,7 +72,7 @@ describe("EditorToolbar", () => {
       el.getAttribute("data-tool-group"),
     );
     expect(groups).toEqual(["select", "annotate", "zoom", "privacy", "audio"]);
-    for (const name of ["Select", "Box", "Zoom", "Blur", "Mute a section"]) {
+    for (const name of ["Select", "Box", "Zoom", "Blur", "Audio"]) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("button", { name: "Arrow" })).toBeNull();
@@ -98,16 +99,18 @@ describe("EditorToolbar", () => {
     expect(props.onToolChange).toHaveBeenCalledWith("box");
   });
 
-  it("a second click on the active Annotate cycles box → arrow → text → box", () => {
+  it("a second click on the active Annotate opens the flyout and does not change the tool", () => {
     const props = renderRail({ tool: "box" });
+    expect(screen.queryByRole("menu")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Box" }));
-    expect(props.onToolChange).toHaveBeenLastCalledWith("arrow");
-    rerenderRail({ tool: "arrow" });
-    fireEvent.click(screen.getByRole("button", { name: "Arrow" }));
-    expect(props.onToolChange).toHaveBeenLastCalledWith("text");
-    rerenderRail({ tool: "text" });
-    fireEvent.click(screen.getByRole("button", { name: "Text" }));
-    expect(props.onToolChange).toHaveBeenLastCalledWith("box");
+    expect(screen.getByRole("menu", { name: "Annotate" })).toBeInTheDocument();
+    expect(props.onToolChange).not.toHaveBeenCalled();
+  });
+
+  it("a first click on an inactive group arms its variant and opens no flyout", () => {
+    renderRail({ tool: "select" });
+    fireEvent.click(screen.getByRole("button", { name: "Box" }));
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("remembers the last variant: back on Select, Annotate still shows Text and re-arms it", () => {
@@ -190,12 +193,12 @@ describe("EditorToolbar — v2 tooltip shortcuts (PR 10 polish)", () => {
     // A group with variants names the next one after the shortcut.
     expect(screen.getByRole("button", { name: "Box" })).toHaveAttribute(
       "title",
-      "Box (R) · Click again for Arrow",
+      "Box (R) · Click again for all options",
     );
     expect(screen.getByRole("button", { name: "Zoom" }).getAttribute("title")).toMatch(/\(Z\)$/);
     expect(screen.getByRole("button", { name: "Blur" })).toHaveAttribute(
       "title",
-      "Blur (B) · Click again for Cover",
+      "Blur (B) · Click again for all options",
     );
     expect(screen.getByRole("button", { name: "Undo" })).toHaveAttribute("title", "Undo (⌘Z)");
     expect(screen.getByRole("button", { name: "Redo" })).toHaveAttribute("title", "Redo (⇧⌘Z)");
@@ -234,20 +237,16 @@ describe("EditorToolbar — v2 tooltip shortcuts (PR 10 polish)", () => {
 });
 
 describe("EditorToolRail — v2 privacy tools", () => {
-  it("arms Blur first, and a second click on the active group switches to Cover and back", () => {
+  it("arms Blur first; a second click opens a flyout where Cover is one pick away", () => {
     const props = renderRail();
     fireEvent.click(screen.getByRole("button", { name: "Blur" }));
     expect(props.onToolChange).toHaveBeenLastCalledWith("blur");
     rerenderRail({ tool: "blur" });
     fireEvent.click(screen.getByRole("button", { name: "Blur" }));
+    const menu = screen.getByRole("menu", { name: "Privacy" });
+    fireEvent.click(within(menu).getByRole("menuitemradio", { name: /Cover/ }));
     expect(props.onToolChange).toHaveBeenLastCalledWith("cover");
-    rerenderRail({ tool: "cover" });
-    expect(screen.getByRole("button", { name: "Cover" })).toHaveAttribute(
-      "title",
-      "Cover (C) · Click again for Blur",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Cover" }));
-    expect(props.onToolChange).toHaveBeenLastCalledWith("blur");
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("follows the keyboard: C from anywhere shows Cover on the Privacy button", () => {
@@ -265,62 +264,145 @@ describe("EditorToolRail — v2 privacy tools", () => {
 });
 
 describe("EditorToolRail — audio", () => {
-  // Mute-a-section is an action and mute-everything a toggle, so neither is ever the
-  // "active" tool a second click could cycle; the corner switch picks the variant.
-  it("adds a muted section at the playhead", () => {
+  // Mute-a-section and mute-everything are both actions: neither is a mode that stays
+  // armed, so the Audio button always opens the flyout and the pick runs the action.
+  it("opens a flyout with both actions; Mute a section adds a muted section", () => {
     const props = renderRail();
-    fireEvent.click(screen.getByRole("button", { name: "Mute a section" }));
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+    const menu = screen.getByRole("menu", { name: "Audio" });
+    expect(menu.querySelectorAll('[role^="menuitem"]')).toHaveLength(2);
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Mute a section/ }));
     expect(props.onAddMute).toHaveBeenCalledOnce();
     expect(props.onToggleMuteAll).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("the corner switch turns the Audio tool into mute-everything, and back", () => {
+  it("Mute the whole recording toggles the mute, and shows as checked when muted", () => {
     const props = renderRail();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Switch Audio to: Mute the whole recording" }),
-    );
-    const mute = screen.getByRole("button", { name: "Mute the whole recording" });
-    expect(mute).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(mute);
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Mute the whole recording/ }));
     expect(props.onToggleMuteAll).toHaveBeenCalledOnce();
     expect(props.onAddMute).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Switch Audio to: Mute a section" }));
-    expect(screen.getByRole("button", { name: "Mute a section" })).toBeInTheDocument();
   });
 
-  it("opens on mute-everything, pressed, when the recording is already muted", () => {
-    // The same control both states — a second button would let the two disagree.
+  it("is pressed, and its flyout offers Unmute, when the recording is already muted", () => {
     const props = renderRail({ audioMuted: true });
-    const unmute = screen.getByRole("button", { name: "Unmute the recording" });
-    expect(unmute).toHaveAttribute("aria-pressed", "true");
+    const audio = screen.getByRole("button", { name: "Audio" });
+    expect(audio).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(audio);
+    const unmute = screen.getByRole("menuitemcheckbox", { name: /Unmute the recording/ });
+    expect(unmute).toHaveAttribute("aria-checked", "true");
     fireEvent.click(unmute);
     expect(props.onToggleMuteAll).toHaveBeenCalledOnce();
+  });
+
+  it("has no corner switch button any more", () => {
+    renderRail();
+    expect(screen.queryByRole("button", { name: /Switch Audio/ })).toBeNull();
   });
 });
 
 describe("EditorToolRail — audio follows the recording's muted state", () => {
-  it("switches to mute-everything, pressed, when the recording becomes muted (load, undo)", () => {
+  it("the Audio button turns pressed when the recording becomes muted (load, undo)", () => {
     renderRail();
-    expect(screen.getByRole("button", { name: "Mute a section" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Audio" })).toHaveAttribute("aria-pressed", "false");
     rerenderRail({ audioMuted: true });
-    expect(screen.getByRole("button", { name: "Unmute the recording" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.getByRole("button", { name: "Audio" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Audio" }).className).toMatch(/toolActive/);
   });
 });
 
-describe("toolForGroupClick", () => {
-  it("arms the remembered variant when the group is not active", () => {
-    expect(toolForGroupClick("annotate", "select", "arrow")).toBe("arrow");
-    expect(toolForGroupClick("privacy", "box", "cover")).toBe("cover");
+describe("EditorToolRail — flyout", () => {
+  function openAnnotate(): { button: HTMLElement; menu: HTMLElement; props: EditorToolRailProps } {
+    const props = renderRail({ tool: "arrow" });
+    const button = screen.getByRole("button", { name: "Arrow" });
+    button.focus();
+    fireEvent.click(button);
+    return { button, menu: screen.getByRole("menu", { name: "Annotate" }), props };
+  }
+
+  it("lists every variant with its label and shortcut, the current one marked", () => {
+    const { menu } = openAnnotate();
+    const items = within(menu).getAllByRole("menuitemradio");
+    expect(items.map((i) => i.textContent)).toEqual(["BoxR", "ArrowA", "TextT"]);
+    expect(items.map((i) => i.getAttribute("aria-checked"))).toEqual(["false", "true", "false"]);
+    expect(items[1]!.className).toMatch(/flyoutCurrent/);
   });
 
-  it("cycles to the next variant when the group is already active", () => {
-    expect(toolForGroupClick("annotate", "box", "box")).toBe("arrow");
-    expect(toolForGroupClick("annotate", "text", "text")).toBe("box");
-    expect(toolForGroupClick("privacy", "blur", "blur")).toBe("cover");
-    expect(toolForGroupClick("privacy", "cover", "cover")).toBe("blur");
+  it("the Privacy flyout lists Blur (B) and Cover (C)", () => {
+    renderRail({ tool: "blur" });
+    fireEvent.click(screen.getByRole("button", { name: "Blur" }));
+    const items = within(screen.getByRole("menu", { name: "Privacy" })).getAllByRole(
+      "menuitemradio",
+    );
+    expect(items.map((i) => i.textContent)).toEqual(["BlurB", "CoverC"]);
+  });
+
+  it("picking a variant arms it, closes the flyout and returns focus to the button", () => {
+    const { button, menu, props } = openAnnotate();
+    fireEvent.click(within(menu).getByRole("menuitemradio", { name: /Text/ }));
+    expect(props.onToolChange).toHaveBeenLastCalledWith("text");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(button).toHaveFocus();
+  });
+
+  it("closes on Escape without changing the tool, and focus returns to the button", () => {
+    const { button, props } = openAnnotate();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(props.onToolChange).not.toHaveBeenCalled();
+    expect(button).toHaveFocus();
+  });
+
+  it("closes on a click outside", () => {
+    openAnnotate();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("opens with the current variant focused; arrows move between options and wrap", () => {
+    const { menu } = openAnnotate();
+    const [box, arrow, text] = within(menu).getAllByRole("menuitemradio");
+    expect(arrow).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(text).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(box).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "ArrowUp" });
+    expect(text).toHaveFocus();
+  });
+
+  it("Enter on the focused option picks it", async () => {
+    const { props } = openAnnotate();
+    const user = userEvent.setup();
+    await user.keyboard("{ArrowUp}{Enter}");
+    expect(props.onToolChange).toHaveBeenLastCalledWith("box");
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("clicking the button again closes the flyout", () => {
+    const { button } = openAnnotate();
+    fireEvent.click(button);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("the corner mark is a glyph, not a second button", () => {
+    renderRail();
+    // One button per tool, nothing extra over a corner: the mark is a pseudo-element.
+    expect(screen.getAllByRole("button")).toHaveLength(5);
+    expect(document.querySelectorAll("button button")).toHaveLength(0);
+  });
+});
+
+describe("groupClickAction", () => {
+  it("arms the remembered variant when the group is not active", () => {
+    expect(groupClickAction("annotate", "select", "arrow")).toEqual({ kind: "arm", tool: "arrow" });
+    expect(groupClickAction("privacy", "box", "cover")).toEqual({ kind: "arm", tool: "cover" });
+  });
+
+  it("opens the flyout when the group is already active", () => {
+    expect(groupClickAction("annotate", "box", "box")).toEqual({ kind: "open" });
+    expect(groupClickAction("privacy", "cover", "cover")).toEqual({ kind: "open" });
   });
 });
 

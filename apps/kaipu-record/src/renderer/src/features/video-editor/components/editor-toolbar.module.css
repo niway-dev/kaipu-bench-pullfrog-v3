@@ -54,33 +54,73 @@
   opacity: 0.6;
 }
 
-/* The Audio tool and its corner switch: the switch sits over the corner mark. */
-.toolSlot {
-  position: relative;
-  flex-shrink: 0;
+/* The flyout: every option of a group, to the left of the rail. Portalled to the body
+   and placed with fixed coordinates, because the rail clips its overflow. */
+.flyout {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 190px;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-popover);
 }
 
-/* 18 px: the smallest hit target we allow on the rail; it covers the button's corner. */
-.variantSwitch {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 18px;
-  height: 18px;
-  padding: 0;
+.flyoutItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
   border: none;
-  border-radius: 0 0 6px 0;
+  border-radius: 4px;
   background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
   cursor: pointer;
 }
 
-.variantSwitch:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 1px;
+.flyoutItem:hover,
+.flyoutItem:focus-visible {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-primary);
+  outline: none;
 }
 
-.variantSwitch:hover {
-  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
+.flyoutCurrent {
+  color: var(--accent-primary);
+}
+
+.flyoutItem.flyoutCurrent:hover,
+.flyoutItem.flyoutCurrent:focus-visible {
+  color: var(--accent-primary);
+}
+
+.flyoutLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.flyoutKey {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  opacity: 0.8;
+}
+
+.flyoutCheck {
+  flex-shrink: 0;
+  visibility: hidden;
+}
+
+.flyoutCheck[data-shown="true"] {
+  visibility: visible;
 }
 
 .railSeparator {
