@@ -12,7 +12,6 @@ import {
   Upload,
 } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
-import { KaipuLogo } from "@kaipu/brand";
 import { Rail, type RailItem } from "@kaipu/ui";
 import { ROUTES } from "@shared/routes";
 import { useExportRunner } from "@renderer/features/video-editor/export/export-runner";
@@ -93,8 +92,7 @@ export function Sidebar(): React.JSX.Element {
 
   return (
     <Rail
-      brand={<KaipuLogo use="product" size={40} />}
-      brandTitle="Kaipu Record"
+      // No brand row: the logo and the name live in the title bar (NIW2-621).
       items={items}
       account={account}
       renderLink={(item, props) => <NavLink to={item.to} end={item.end} {...props} />}

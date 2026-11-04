@@ -11,8 +11,6 @@ import { ROUTES } from "@shared/routes";
 import { EnvBadge } from "./env-badge";
 import { ReconcileDialogHost } from "@renderer/features/library/reconcile/reconcile-dialog";
 import { PendingSettingsHost } from "@renderer/pages/settings/scope/scope-controls";
-import { WorkspaceSwitcher } from "@renderer/features/workspaces/workspace-switcher";
-import { setHeaderEndElement } from "@renderer/features/workspaces/header-slot";
 import styles from "./app-shell.module.css";
 
 /**
@@ -64,12 +62,6 @@ export function AppShell(): React.JSX.Element {
       <div className={styles.body}>
         <Sidebar />
         <div className={styles.column}>
-          {/* The workspace switcher's one mount point (design "Kaipu Workspaces v2": a
-              header row right of the rail). Moving it is moving this line. */}
-          <header className={styles.header}>
-            <WorkspaceSwitcher />
-            <div className={styles.headerEnd} ref={setHeaderEndElement} />
-          </header>
           <main className={styles.content} data-full-bleed={isFullBleedPath(pathname) || undefined}>
             <Outlet />
           </main>

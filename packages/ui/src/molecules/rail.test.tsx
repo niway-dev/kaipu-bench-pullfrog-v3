@@ -65,6 +65,14 @@ describe("Rail", () => {
     expect(screen.getByTitle("Kaipu Record")).toHaveTextContent("mark");
   });
 
+  it("draws no brand row when there is no brand", () => {
+    const { container } = render(
+      <Rail items={[]} brandTitle="Kaipu Record" renderLink={(_, props) => <span {...props} />} />,
+    );
+    expect(screen.queryByTitle("Kaipu Record")).toBeNull();
+    expect(container.querySelector("nav")?.children).toHaveLength(1);
+  });
+
   it("renders the account item in the footer, named by its label", () => {
     const account: LinkItem = { id: "account", label: "Account", icon: <i />, to: "/cloud" };
     render(
