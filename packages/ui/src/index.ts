@@ -50,7 +50,6 @@ export {
   type RailItem,
   type RailLinkProps,
   type RailMode,
-  type RailModeToggle,
   type RailProps,
 } from "./molecules/rail";
 export {

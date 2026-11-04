@@ -185,37 +185,17 @@ describe("Rail", () => {
       expect(tip()).toBeNull();
     });
 
-    it("draws the mode toggle in the footer and calls it on click", () => {
-      let toggled = 0;
-      render(
-        <Rail
-          mode="stacked"
-          items={items}
-          renderLink={link}
-          modeToggle={{
-            label: "Collapse sidebar",
-            hint: "⌘\\",
-            icon: <i />,
-            onToggle: () => toggled++,
-          }}
-        />,
-      );
-      const toggle = screen.getByRole("button", { name: "Collapse sidebar" });
-      fireEvent.click(toggle);
-      expect(toggled).toBe(1);
-    });
-
-    it("the collapsed toggle has a tooltip with its shortcut", () => {
+    it("has no toggle of its own: the desktop's lives in its title bar", () => {
       render(
         <Rail
           mode="collapsed"
           items={items}
+          account={{ id: "account", label: "Account", icon: <i />, to: "/cloud" }}
           renderLink={link}
-          modeToggle={{ label: "Expand sidebar", hint: "⌘\\", icon: <i />, onToggle: () => {} }}
         />,
       );
-      fireEvent.focus(screen.getByRole("button", { name: "Expand sidebar" }));
-      expect(tip()).toHaveTextContent("Expand sidebar ⌘\\");
+      expect(screen.queryByRole("button")).toBeNull();
+      expect(screen.getByRole("link", { name: "Account" })).toBeInTheDocument();
     });
   });
 

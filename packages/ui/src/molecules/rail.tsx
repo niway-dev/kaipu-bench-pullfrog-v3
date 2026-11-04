@@ -6,8 +6,9 @@ import type { StyleXStyles } from "@stylexjs/stylex";
 
 /**
  * The navigation rail: icon + label items whose active state is a soft accent
- * fill with an indicator bar on the rail's edge, an optional account item and
- * an optional mode toggle pinned to the footer.
+ * fill with an indicator bar on the rail's edge, and an optional account item
+ * pinned to the footer. It has no mode toggle: a caller that offers one draws it
+ * in its own chrome (the desktop's title bar).
  *
  * Two modes (NIW2-626), chosen by the caller:
  * - `stacked` ("expanded" in the app's words): the label under the icon, 64px
@@ -218,23 +219,6 @@ const styles = stylex.create({
     transitionDuration: "150ms",
     transitionTimingFunction: "ease",
   },
-  toggle: {
-    width: "28px",
-    height: "28px",
-    padding: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 0,
-    borderRadius: "7px",
-    backgroundColor: { default: "transparent", ":hover": tokens.bgHover },
-    color: { default: tokens.text3, ":hover": tokens.text2 },
-    cursor: "pointer",
-    outline: { default: "none", ":focus-visible": `2px solid ${tokens.accentRing}` },
-    transitionProperty: "background-color, color",
-    transitionDuration: "150ms",
-    transitionTimingFunction: "ease",
-  },
   // Fixed, so the rail's own overflow cannot clip it.
   tooltip: {
     position: "fixed",
@@ -296,16 +280,6 @@ export interface RailLinkProps {
   children: ReactNode;
 }
 
-/** The footer button that changes the rail's mode. The caller decides what "next" is. */
-export interface RailModeToggle {
-  /** Already translated; the button's accessible name. */
-  label: string;
-  /** The keyboard shortcut, shown in the title and tooltip ("⌘\\"). */
-  hint?: string;
-  icon: ReactNode;
-  onToggle: () => void;
-}
-
 export interface RailProps<T extends RailItem = RailItem> {
   /**
    * The mark at the top, sized by the caller. Omit it where the window chrome already
@@ -325,8 +299,6 @@ export interface RailProps<T extends RailItem = RailItem> {
   mode?: RailMode;
   /** Animate width changes. Off by default, so the first paint never animates. */
   animate?: boolean;
-  /** A button in the footer that changes the mode; none when absent. */
-  modeToggle?: RailModeToggle;
   /** Consumer overrides, as StyleX styles rather than a className. */
   style?: StyleXStyles;
 }
@@ -345,7 +317,6 @@ export function Rail<T extends RailItem = RailItem>({
   account,
   mode = "stacked",
   animate = false,
-  modeToggle,
   style,
 }: RailProps<T>) {
   const collapsed = mode === "collapsed";
@@ -362,12 +333,6 @@ export function Rail<T extends RailItem = RailItem>({
     const hide = () => setTip(null);
     return { onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide };
   };
-
-  const toggleText = modeToggle
-    ? modeToggle.hint
-      ? `${modeToggle.label} ${modeToggle.hint}`
-      : modeToggle.label
-    : "";
 
   return (
     <nav
@@ -445,35 +410,21 @@ export function Rail<T extends RailItem = RailItem>({
         })}
       </div>
 
-      {account || modeToggle ? (
+      {account ? (
         <div {...stylex.props(styles.footer)}>
-          {account
-            ? renderLink(account, {
-                ...stylex.props(styles.avatar),
-                ...(collapsed ? {} : { title: account.label }),
-                "aria-label": account.label,
-                "aria-current": account.active ? "page" : undefined,
-                ...tipHandlers(account.label),
-                children: account.icon,
-              })
-            : null}
-          {modeToggle ? (
-            <button
-              type="button"
-              aria-label={modeToggle.label}
-              {...(collapsed ? {} : { title: toggleText })}
-              onClick={modeToggle.onToggle}
-              {...tipHandlers(toggleText)}
-              {...stylex.props(styles.toggle)}
-            >
-              {modeToggle.icon}
-            </button>
-          ) : null}
+          {renderLink(account, {
+            ...stylex.props(styles.avatar),
+            ...(collapsed ? {} : { title: account.label }),
+            "aria-label": account.label,
+            "aria-current": account.active ? "page" : undefined,
+            ...tipHandlers(account.label),
+            children: account.icon,
+          })}
         </div>
       ) : null}
 
       {tip ? (
-        // Visual only: it repeats the item's accessible name (or the toggle's label), so a
+        // Visual only: it repeats the item's accessible name, so a
         // tooltip role or aria-describedby would make a screen reader say it twice.
         <span
           aria-hidden="true"
