@@ -10,6 +10,7 @@ import {
   noteReadyCardsShown,
 } from "@renderer/features/video-editor/export/ready-copies";
 import { Sidebar } from "./sidebar";
+import { TitleBar } from "./title-bar";
 import { __resetSidebarModeSnapshotForTests, rememberSidebarMode } from "./sidebar-mode-snapshot";
 
 /** The runner's status, set by a test as if an export were encoding. */
@@ -41,6 +42,26 @@ vi.mock("@renderer/features/video-editor/export/export-runner", async (importOri
     },
   };
 });
+
+/** The window's chrome as the app draws it: the title bar (which holds the toggle) and the rail. */
+function renderWithTitleBarAt(path: string) {
+  const router = createMemoryRouter(
+    [
+      {
+        path: "*",
+        element: (
+          <>
+            <TitleBar workspace={false} />
+            <Sidebar />
+          </>
+        ),
+      },
+    ],
+    { initialEntries: [path] },
+  );
+  render(<RouterProvider router={router} />);
+  return router;
+}
 
 function renderAt(path: string) {
   const router = createMemoryRouter(
@@ -229,9 +250,14 @@ describe("Sidebar modes (NIW2-626)", () => {
     expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
   });
 
-  it("the toggle at the rail's foot switches expanded ↔ collapsed, names what it does, and saves each", async () => {
-    const update = persisted("stacked");
+  it("draws no toggle of its own: it lives in the title bar", () => {
     renderAt("/");
+    expect(screen.queryByRole("button", { name: /sidebar/i })).toBeNull();
+  });
+
+  it("the title bar's toggle switches the rail expanded ↔ collapsed, names what it does, and saves each", async () => {
+    const update = persisted("stacked");
+    renderWithTitleBarAt("/");
     await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
     fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
     expect(nav()).toHaveAttribute("data-mode", "collapsed");
@@ -265,7 +291,7 @@ describe("Sidebar modes (NIW2-626)", () => {
 
   it("shows the shortcut in the toggle's title", async () => {
     persisted("stacked");
-    renderAt("/");
+    renderWithTitleBarAt("/");
     await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
     expect(screen.getByRole("button", { name: "Collapse sidebar" })).toHaveAttribute(
       "title",

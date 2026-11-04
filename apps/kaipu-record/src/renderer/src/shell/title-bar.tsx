@@ -1,5 +1,7 @@
 import React, { useContext } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { KaipuLogo } from "@kaipu/brand";
+import { useTranslations } from "@kaipu/i18n";
 import { WorkspaceSwitcher } from "@renderer/features/workspaces/workspace-switcher";
 import {
   setHeaderActionsElement,
@@ -8,15 +10,18 @@ import {
 import { useOptionalWorkspaces } from "@renderer/features/workspaces/workspaces-context";
 import { hostPlatform } from "@renderer/features/shortcuts/host-platform";
 import { OnboardingContext } from "@renderer/features/onboarding/onboarding-context";
+import { toggleSidebarMode } from "./sidebar-mode-snapshot";
+import { sidebarToggleHint, useSidebarToggle } from "./use-sidebar-mode";
 import styles from "./title-bar.module.css";
 
 /**
  * The main window's title bar (NIW2-621), drawn by us in the space main frees with
  * `titleBarStyle` (see main/window-chrome.ts):
  *
- * - macOS: traffic lights · logo · "Kaipu Record" · workspace switcher … page actions · item chip
- * - Windows / Linux: logo · "Kaipu Record" · workspace switcher … page actions · item chip ·
- *   native caption buttons
+ * - macOS: traffic lights · logo · sidebar toggle · "Kaipu Record" · workspace switcher … page
+ *   actions · item chip
+ * - Windows / Linux: logo · sidebar toggle · "Kaipu Record" · workspace switcher … page
+ *   actions · item chip · native caption buttons
  *
  * The OS draws its controls over this bar, so the bar only leaves their side empty: a fixed
  * inset for the traffic lights, `env(titlebar-area-*)` for the Windows overlay. The bar drags
@@ -33,6 +38,7 @@ export function TitleBar({ workspace = true }: { workspace?: boolean }): React.J
   return (
     <header className={styles.bar} data-platform={hostPlatform()}>
       <KaipuLogo use="product" size={28} />
+      <SidebarToggle />
       <span className={styles.name}>Kaipu Record</span>
       {showSwitcher && (
         <>
@@ -52,5 +58,32 @@ export function TitleBar({ workspace = true }: { workspace?: boolean }): React.J
         </>
       )}
     </header>
+  );
+}
+
+/**
+ * Collapse or expand the rail (NIW2-626), beside the logo where the owner wants it. Drawn only
+ * while a rail is on screen, and never part of the crowded-bar collapse rules below: it is the
+ * way to make room. Names what it will do; the title carries the shortcut.
+ */
+function SidebarToggle(): React.JSX.Element | null {
+  const t = useTranslations("nav");
+  const { mode, shown } = useSidebarToggle();
+  if (!shown || !mode) return null;
+  const collapse = mode === "stacked";
+  const label = t(collapse ? "sidebarCollapse" : "sidebarExpand");
+  const Icon = collapse ? PanelLeftClose : PanelLeftOpen;
+  return (
+    <div className={styles.interactive}>
+      <button
+        type="button"
+        className={styles.sidebarToggle}
+        aria-label={label}
+        title={`${label} (${sidebarToggleHint(window.electronAPI.platform)})`}
+        onClick={toggleSidebarMode}
+      >
+        <Icon size={16} strokeWidth={1.8} aria-hidden />
+      </button>
+    </div>
   );
 }

@@ -1,17 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Link, matchPath, useLocation } from "react-router-dom";
-import {
-  Video,
-  Library,
-  Camera,
-  Keyboard,
-  Settings,
-  User,
-  Cloud,
-  PenLine,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
+import { Video, Library, Camera, Keyboard, Settings, User, Cloud, PenLine } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { Rail, type RailItem } from "@kaipu/ui";
 import { ROUTES } from "@shared/routes";
@@ -23,14 +12,7 @@ import {
   retireReadyCards,
   useReadyCopies,
 } from "@renderer/features/video-editor/export/ready-copies";
-import type { SidebarMode } from "@shared/types";
-import { sidebarToggleHint, useSidebarMode } from "./use-sidebar-mode";
-
-/** The toggle names and draws what it will do: collapse to icons, or expand back to labels. */
-const MODE_TOGGLE = {
-  stacked: { labelKey: "sidebarCollapse", Icon: PanelLeftClose },
-  collapsed: { labelKey: "sidebarExpand", Icon: PanelLeftOpen },
-} as const satisfies Record<SidebarMode, { labelKey: string; Icon: typeof Video }>;
+import { useSidebarMode } from "./use-sidebar-mode";
 
 interface NavItem {
   to: string;
@@ -59,7 +41,7 @@ const NAV: NavItem[] = [
  * The desktop's navigation rail: the shared `Rail`, fed react-router's Link,
  * lucide icons and translated labels. The rail itself knows none of those.
  * Its mode (expanded, the label under each icon, or collapsed to icons) is the user's,
- * kept in the app settings; the button at the rail's foot and Cmd/Ctrl+\ switch them.
+ * kept in the app settings; the title bar's button (beside the logo) and Cmd/Ctrl+\ switch them.
  */
 export function Sidebar(): React.JSX.Element | null {
   const t = useTranslations("nav");
@@ -72,7 +54,7 @@ export function Sidebar(): React.JSX.Element | null {
     matchPath({ path: to, end: end ?? false }, pathname) !== null ||
     (to === ROUTES.library && onExportPage);
   const exportBadge = useExportBadge(pathname);
-  const { mode, changed, cycle } = useSidebarMode();
+  const { mode, changed } = useSidebarMode();
 
   const items: LinkItem[] = NAV.map(({ to, labelKey, Icon, end }) => ({
     id: to,
@@ -96,7 +78,6 @@ export function Sidebar(): React.JSX.Element | null {
 
   // Not known yet: no rail rather than the default one jumping to the saved mode.
   if (!mode) return null;
-  const { labelKey, Icon: ToggleIcon } = MODE_TOGGLE[mode];
 
   return (
     <Rail
@@ -105,12 +86,6 @@ export function Sidebar(): React.JSX.Element | null {
       account={account}
       mode={mode}
       animate={changed}
-      modeToggle={{
-        label: t(labelKey),
-        hint: sidebarToggleHint(window.electronAPI.platform),
-        icon: <ToggleIcon size={16} strokeWidth={1.8} />,
-        onToggle: cycle,
-      }}
       // Link, not NavLink: NavLink decides aria-current from the link's own target, and the
       // Library must read as current on /export/:assetId. The rail already computed `active`.
       renderLink={(item, props) => <Link to={item.to} {...props} />}

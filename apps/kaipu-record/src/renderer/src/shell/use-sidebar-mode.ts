@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
-import { SIDEBAR_MODES, type SidebarMode } from "@shared/types";
+import { useEffect, useSyncExternalStore } from "react";
+import type { SidebarMode } from "@shared/types";
 import { useAppSettings } from "@renderer/pages/settings/use-app-settings";
-import { knownSidebarMode, rememberSidebarMode } from "./sidebar-mode-snapshot";
+import {
+  isRailShown,
+  knownSidebarMode,
+  registerRail,
+  rememberSidebarMode,
+  sidebarModeChanged,
+  subscribeSidebarMode,
+  toggleSidebarMode,
+} from "./sidebar-mode-snapshot";
 
-/** The other mode: expanded (stacked) ↔ collapsed. */
-export function nextSidebarMode(mode: SidebarMode): SidebarMode {
-  return SIDEBAR_MODES[(SIDEBAR_MODES.indexOf(mode) + 1) % SIDEBAR_MODES.length]!;
-}
+export { nextSidebarMode } from "./sidebar-mode-snapshot";
 
 /**
  * Cmd+\ on macOS, Ctrl+\ elsewhere (NIW2-626). No global shortcut and no editor key uses it.
@@ -43,33 +48,22 @@ export function sidebarToggleHint(platform: string): string {
 }
 
 /**
- * The rail's mode, persisted in the app settings so it survives a restart. `null` while it is
- * not known yet (no root left it and the settings have not arrived): the rail then draws
- * nothing rather than the default and a jump. A change shows at once, before the settings
- * write comes back, and two presses in a row each switch once. `changed` turns true on
- * the first change the user makes, so only those animate.
+ * The rail's mode for the sidebar, persisted in the app settings so it survives a restart.
+ * `null` while it is not known yet (no root left it and the settings have not arrived): the
+ * rail then draws nothing rather than the default and a jump. While mounted it also marks the
+ * rail as shown (so the title bar draws the toggle) and owns the Cmd/Ctrl+\ shortcut.
  */
-export function useSidebarMode(): {
-  mode: SidebarMode | null;
-  changed: boolean;
-  cycle: () => void;
-} {
-  const { settings, update } = useAppSettings();
-  const [startup] = useState(knownSidebarMode);
-  const [chosen, setChosen] = useState<SidebarMode | null>(null);
-  const saved = chosen ?? settings?.sidebarMode ?? startup;
-  const mode = saved;
-  const next = mode ? nextSidebarMode(mode) : null;
+export function useSidebarMode(): { mode: SidebarMode | null; changed: boolean } {
+  const { settings } = useAppSettings();
+  const mode = useSyncExternalStore(subscribeSidebarMode, knownSidebarMode);
+  const changed = useSyncExternalStore(subscribeSidebarMode, sidebarModeChanged);
 
+  // The settings win until the user changes the mode here.
   useEffect(() => {
-    if (saved) rememberSidebarMode(saved);
-  }, [saved]);
+    if (settings && !sidebarModeChanged()) rememberSidebarMode(settings.sidebarMode);
+  }, [settings]);
 
-  const cycle = useCallback(() => {
-    if (!next) return;
-    setChosen(next);
-    void update({ sidebarMode: next });
-  }, [next, update]);
+  useEffect(() => registerRail(), []);
 
   useEffect(() => {
     const platform = window.electronAPI.platform;
@@ -77,11 +71,18 @@ export function useSidebarMode(): {
       if (event.repeat || !isSidebarToggleKey(event, platform)) return;
       if (!sidebarShortcutMayRun(event)) return;
       event.preventDefault();
-      cycle();
+      toggleSidebarMode();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cycle]);
+  }, []);
 
-  return { mode, changed: chosen !== null, cycle };
+  return { mode, changed };
+}
+
+/** The title bar's view: the mode, whether a rail is on screen, and the switch. */
+export function useSidebarToggle(): { mode: SidebarMode | null; shown: boolean } {
+  const mode = useSyncExternalStore(subscribeSidebarMode, knownSidebarMode);
+  const shown = useSyncExternalStore(subscribeSidebarMode, isRailShown);
+  return { mode, shown };
 }
