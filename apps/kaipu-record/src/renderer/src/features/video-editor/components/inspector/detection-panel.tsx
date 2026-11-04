@@ -53,8 +53,6 @@ export function DetectionPanel({
       ) : (
         <p className={styles.text}>{t("detectionNoTrack")}</p>
       )}
-      <h3 className={styles.sectionLabel}>{t("selectionLabel")}</h3>
-      <p className={styles.text}>{t("selectionHint")}</p>
       <p className={styles.note}>{t("exportSafetyNote")}</p>
     </section>
   );

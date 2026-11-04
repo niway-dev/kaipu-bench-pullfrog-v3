@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   EditorToolbar,
   EditorToolRail,
+  toolForGroupClick,
   type EditorToolbarProps,
   type EditorToolRailProps,
 } from "./editor-toolbar";
@@ -18,7 +19,6 @@ function renderToolbar(overrides: Partial<EditorToolbarProps> = {}): EditorToolb
     onDeleteSelected: vi.fn(),
     deleteDisabled: false,
     onAddImage: vi.fn(),
-    tool: "select",
     onExport: vi.fn(),
     exportDisabled: false,
     ...overrides,
@@ -39,9 +39,11 @@ function renderRail(overrides: Partial<EditorToolRailProps> = {}): EditorToolRai
     audioMuted: false,
     ...overrides,
   };
-  render(<EditorToolRail {...props} />);
+  const view = render(<EditorToolRail {...props} />);
+  rerenderRail = (next) => view.rerender(<EditorToolRail {...props} {...next} />);
   return props;
 }
+let rerenderRail: (next: Partial<EditorToolRailProps>) => void = () => {};
 
 describe("EditorToolbar", () => {
   it("renders the six actions", () => {
@@ -61,21 +63,61 @@ describe("EditorToolbar", () => {
     expect(exportButtons[exportButtons.length - 1]).toBeDisabled();
   });
 
-  it("renders the four annotation tools and highlights the active one", () => {
-    renderRail({ tool: "box" });
-    for (const name of ["Select", "Box", "Arrow", "Text"]) {
+  it("the rail holds five tools: Select, Annotate, Zoom, Privacy and Audio", () => {
+    renderRail();
+    // Annotate shows its current variant (Box), Privacy its own (Blur), Audio its
+    // own (Mute a section); the other variants are not separate buttons any more.
+    const groups = [...document.querySelectorAll("[data-tool-group]")].map((el) =>
+      el.getAttribute("data-tool-group"),
+    );
+    expect(groups).toEqual(["select", "annotate", "zoom", "privacy", "audio"]);
+    for (const name of ["Select", "Box", "Zoom", "Blur", "Mute a section"]) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
     }
-    expect(screen.getByRole("button", { name: "Box" }).className).toMatch(/toolActive/);
+    expect(screen.queryByRole("button", { name: "Arrow" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cover" })).toBeNull();
+  });
+
+  it("marks the groups that have variants, and only those", () => {
+    renderRail();
+    const marked = [...document.querySelectorAll("[data-variants]")].map((el) =>
+      el.getAttribute("data-tool-group"),
+    );
+    expect(marked).toEqual(["annotate", "privacy", "audio"]);
+  });
+
+  it("highlights the active tool on its group's button", () => {
+    renderRail({ tool: "arrow" });
+    expect(screen.getByRole("button", { name: "Arrow" }).className).toMatch(/toolActive/);
     expect(screen.getByRole("button", { name: "Select" }).className).not.toMatch(/toolActive/);
   });
 
-  it("fires onToolChange with the picked tool", () => {
+  it("a first click on Annotate arms its first variant", () => {
     const props = renderRail();
-    fireEvent.click(screen.getByRole("button", { name: "Arrow" }));
-    expect(props.onToolChange).toHaveBeenCalledWith("arrow");
+    fireEvent.click(screen.getByRole("button", { name: "Box" }));
+    expect(props.onToolChange).toHaveBeenCalledWith("box");
   });
 
+  it("a second click on the active Annotate cycles box → arrow → text → box", () => {
+    const props = renderRail({ tool: "box" });
+    fireEvent.click(screen.getByRole("button", { name: "Box" }));
+    expect(props.onToolChange).toHaveBeenLastCalledWith("arrow");
+    rerenderRail({ tool: "arrow" });
+    fireEvent.click(screen.getByRole("button", { name: "Arrow" }));
+    expect(props.onToolChange).toHaveBeenLastCalledWith("text");
+    rerenderRail({ tool: "text" });
+    fireEvent.click(screen.getByRole("button", { name: "Text" }));
+    expect(props.onToolChange).toHaveBeenLastCalledWith("box");
+  });
+
+  it("remembers the last variant: back on Select, Annotate still shows Text and re-arms it", () => {
+    const props = renderRail({ tool: "text" });
+    rerenderRail({ tool: "select" });
+    const annotate = screen.getByRole("button", { name: "Text" });
+    expect(annotate.className).not.toMatch(/toolActive/);
+    fireEvent.click(annotate);
+    expect(props.onToolChange).toHaveBeenLastCalledWith("text");
+  });
   it("fires the matching callback on click", () => {
     const props = renderToolbar();
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
@@ -136,11 +178,6 @@ describe("EditorToolRail — v2 camera group", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom" }));
     expect(props.onAddZoom).toHaveBeenCalledTimes(1);
   });
-
-  it("shows the hint of the active tool", () => {
-    renderToolbar({ tool: "arrow" });
-    expect(screen.getByText("Drag on the preview to draw an arrow.")).toBeInTheDocument();
-  });
 });
 
 describe("EditorToolbar — v2 tooltip shortcuts (PR 10 polish)", () => {
@@ -150,12 +187,16 @@ describe("EditorToolbar — v2 tooltip shortcuts (PR 10 polish)", () => {
     renderRail();
     renderToolbar();
     expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute("title", "Select (V)");
-    expect(screen.getByRole("button", { name: "Box" })).toHaveAttribute("title", "Box (R)");
-    expect(screen.getByRole("button", { name: "Arrow" })).toHaveAttribute("title", "Arrow (A)");
-    expect(screen.getByRole("button", { name: "Text" })).toHaveAttribute("title", "Text (T)");
+    // A group with variants names the next one after the shortcut.
+    expect(screen.getByRole("button", { name: "Box" })).toHaveAttribute(
+      "title",
+      "Box (R) · Click again for Arrow",
+    );
     expect(screen.getByRole("button", { name: "Zoom" }).getAttribute("title")).toMatch(/\(Z\)$/);
-    expect(screen.getByRole("button", { name: "Blur" })).toHaveAttribute("title", "Blur (B)");
-    expect(screen.getByRole("button", { name: "Cover" })).toHaveAttribute("title", "Cover (C)");
+    expect(screen.getByRole("button", { name: "Blur" })).toHaveAttribute(
+      "title",
+      "Blur (B) · Click again for Cover",
+    );
     expect(screen.getByRole("button", { name: "Undo" })).toHaveAttribute("title", "Undo (⌘Z)");
     expect(screen.getByRole("button", { name: "Redo" })).toHaveAttribute("title", "Redo (⇧⌘Z)");
     expect(screen.getByRole("button", { name: "Split here" })).toHaveAttribute(
@@ -193,12 +234,28 @@ describe("EditorToolbar — v2 tooltip shortcuts (PR 10 polish)", () => {
 });
 
 describe("EditorToolRail — v2 privacy tools", () => {
-  it("activates Blur and Cover as tools", () => {
+  it("arms Blur first, and a second click on the active group switches to Cover and back", () => {
     const props = renderRail();
     fireEvent.click(screen.getByRole("button", { name: "Blur" }));
-    expect(props.onToolChange).toHaveBeenCalledWith("blur");
+    expect(props.onToolChange).toHaveBeenLastCalledWith("blur");
+    rerenderRail({ tool: "blur" });
+    fireEvent.click(screen.getByRole("button", { name: "Blur" }));
+    expect(props.onToolChange).toHaveBeenLastCalledWith("cover");
+    rerenderRail({ tool: "cover" });
+    expect(screen.getByRole("button", { name: "Cover" })).toHaveAttribute(
+      "title",
+      "Cover (C) · Click again for Blur",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Cover" }));
-    expect(props.onToolChange).toHaveBeenCalledWith("cover");
+    expect(props.onToolChange).toHaveBeenLastCalledWith("blur");
+  });
+
+  it("follows the keyboard: C from anywhere shows Cover on the Privacy button", () => {
+    renderRail();
+    rerenderRail({ tool: "cover" });
+    const privacy = screen.getByRole("button", { name: "Cover" });
+    expect(privacy).toHaveAttribute("data-tool-group", "privacy");
+    expect(privacy.className).toMatch(/toolActive/);
   });
 
   it("disables them over a slide", () => {
@@ -208,25 +265,50 @@ describe("EditorToolRail — v2 privacy tools", () => {
 });
 
 describe("EditorToolRail — audio", () => {
+  // Mute-a-section is an action and mute-everything a toggle, so neither is ever the
+  // "active" tool a second click could cycle; the corner switch picks the variant.
   it("adds a muted section at the playhead", () => {
     const props = renderRail();
     fireEvent.click(screen.getByRole("button", { name: "Mute a section" }));
     expect(props.onAddMute).toHaveBeenCalledOnce();
+    expect(props.onToggleMuteAll).not.toHaveBeenCalled();
   });
 
-  it("offers to mute everything, and says so when it already is", () => {
-    renderRail();
+  it("the corner switch turns the Audio tool into mute-everything, and back", () => {
+    const props = renderRail();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Switch Audio to: Mute the whole recording" }),
+    );
     const mute = screen.getByRole("button", { name: "Mute the whole recording" });
     expect(mute).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(mute);
+    expect(props.onToggleMuteAll).toHaveBeenCalledOnce();
+    expect(props.onAddMute).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Switch Audio to: Mute a section" }));
+    expect(screen.getByRole("button", { name: "Mute a section" })).toBeInTheDocument();
   });
 
-  it("flips its name and pressed state once the recording is muted", () => {
+  it("opens on mute-everything, pressed, when the recording is already muted", () => {
     // The same control both states — a second button would let the two disagree.
     const props = renderRail({ audioMuted: true });
     const unmute = screen.getByRole("button", { name: "Unmute the recording" });
     expect(unmute).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(unmute);
     expect(props.onToggleMuteAll).toHaveBeenCalledOnce();
+  });
+});
+
+describe("toolForGroupClick", () => {
+  it("arms the remembered variant when the group is not active", () => {
+    expect(toolForGroupClick("annotate", "select", "arrow")).toBe("arrow");
+    expect(toolForGroupClick("privacy", "box", "cover")).toBe("cover");
+  });
+
+  it("cycles to the next variant when the group is already active", () => {
+    expect(toolForGroupClick("annotate", "box", "box")).toBe("arrow");
+    expect(toolForGroupClick("annotate", "text", "text")).toBe("box");
+    expect(toolForGroupClick("privacy", "blur", "blur")).toBe("cover");
+    expect(toolForGroupClick("privacy", "cover", "cover")).toBe("blur");
   });
 });
 

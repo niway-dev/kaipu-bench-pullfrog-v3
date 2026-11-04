@@ -298,6 +298,33 @@ describe("VideoEditorLoader — an identity two files claim (NIW2-560)", () => {
   });
 });
 
+describe("VideoEditorPage — playback is the play button and Space only (NIW2-619)", () => {
+  it("Space starts playback", async () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    renderEditor();
+    await waitForEditorLoaded();
+
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: " " });
+      expect(playSpy).toHaveBeenCalled();
+    });
+    playSpy.mockRestore();
+  });
+
+  it("a click on the picture does not start playback, and no 'click to play' text is shown", async () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    renderEditor();
+    await waitForEditorLoaded();
+
+    fireEvent.click(document.querySelector("video")!);
+    await act(async () => {});
+
+    expect(playSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText(/click .*to play/i)).toBeNull();
+    playSpy.mockRestore();
+  });
+});
+
 describe("VideoEditorPage — transport bar", () => {
   it("renders the play/pause button with aria-label Play by default", async () => {
     renderEditor();
@@ -757,6 +784,22 @@ describe("VideoEditorPage — tool shortcuts end to end", () => {
     });
   });
 
+  it.each([
+    ["a", "Arrow", "annotate"],
+    ["t", "Text", "annotate"],
+    ["b", "Blur", "privacy"],
+    ["c", "Cover", "privacy"],
+  ])("%s goes straight to %s, shown on the %s button", async (key, name, group) => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    await pressUntil(key, () => {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("data-tool-group", group);
+      expect(button.className).toMatch(/toolActive/);
+    });
+  });
+
   it("V hands the tool back to select after R armed Box", async () => {
     renderEditor();
     await waitForEditorLoaded();
@@ -799,6 +842,17 @@ describe("VideoEditorPage — inspector column priority (annotation follow-ups)"
     // The footer this harness waits on and the inspector column land on different
     // renders, so the inspector's heading is a `findBy`, not a `getBy`.
     expect(await screen.findByRole("heading", { name: "Detection" })).toBeInTheDocument();
+  });
+
+  it("with nothing selected the inspector opens on 'Click a segment on the timeline to edit it.'", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    const empty = await screen.findByText("Click a segment on the timeline to edit it.");
+    const inspector = document.querySelector('[data-testid="editor-inspector"]')!;
+    // The hint row above the inspector is gone: the text lives in the inspector, once.
+    expect(inspector.contains(empty)).toBe(true);
+    expect(screen.getAllByText("Click a segment on the timeline to edit it.")).toHaveLength(1);
   });
 
   it("arming the Box tool (R) shows the annotation defaults panel in the inspector, with no floating popover duplicating its controls", async () => {

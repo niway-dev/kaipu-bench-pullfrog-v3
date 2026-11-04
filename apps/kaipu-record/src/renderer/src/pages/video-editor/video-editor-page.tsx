@@ -80,7 +80,10 @@ import {
   webcamInspectorTarget,
   webcamOutlined,
 } from "@renderer/features/video-editor/webcam/webcam-selection";
-import { EditorInspector } from "@renderer/features/video-editor/components/inspector/editor-inspector";
+import {
+  EditorInspector,
+  InspectorEmptyState,
+} from "@renderer/features/video-editor/components/inspector/editor-inspector";
 import { DetectionPanel } from "@renderer/features/video-editor/components/inspector/detection-panel";
 import { ZoomInspector } from "@renderer/features/video-editor/components/inspector/zoom-inspector";
 import {
@@ -1585,7 +1588,6 @@ function VideoEditor({
             onDeleteSelected={handleDeleteSelected}
             deleteDisabled={deleteDisabled}
             onAddImage={handleAddImage}
-            tool={videoTools.tool}
             onExport={handleExport}
             exportDisabled={gifExport.status === "exporting" || scene.items.length === 0}
           >
@@ -1688,16 +1690,23 @@ function VideoEditor({
                 onRemove={handleDeleteOverlay}
                 onRemoved={() => setSelectedOverlayId(null)}
               />
-            ) : videoTools.tool === "box" ||
-              videoTools.tool === "arrow" ||
-              videoTools.tool === "text" ? (
-              <AnnotationDefaultsPanel tools={videoTools} />
             ) : (
-              <DetectionPanel
-                zooms={zooms}
-                sensitivity={scene.zoomSensitivity}
-                clicksAvailable={cursorTrack?.clicksAvailable ?? false}
-              />
+              // Nothing selected: the empty state, then the drawing defaults while a
+              // drawing tool is armed, or the Detection panel.
+              <>
+                <InspectorEmptyState tool={videoTools.tool} />
+                {videoTools.tool === "box" ||
+                videoTools.tool === "arrow" ||
+                videoTools.tool === "text" ? (
+                  <AnnotationDefaultsPanel tools={videoTools} />
+                ) : (
+                  <DetectionPanel
+                    zooms={zooms}
+                    sensitivity={scene.zoomSensitivity}
+                    clicksAvailable={cursorTrack?.clicksAvailable ?? false}
+                  />
+                )}
+              </>
             )}
           </EditorInspector>
         </div>

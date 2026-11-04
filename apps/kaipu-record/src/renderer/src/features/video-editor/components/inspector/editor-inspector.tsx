@@ -6,7 +6,38 @@
  * Detection panel, so the column is never empty. Clip selections keep the timeline.
  */
 import type { ReactNode } from "react";
+import { useTranslations } from "@kaipu/i18n";
+import type { EditorTool } from "../../annotations/video-tools";
 import styles from "./editor-inspector.module.css";
+
+type HintKey = "hintSelect" | "hintBox" | "hintArrow" | "hintText" | "hintBlur" | "hintCover";
+
+/** One line per tool (UI spec § 3.2). Exhaustive on purpose: a new EditorTool stops
+ *  compiling until its hint exists. Zoom is an action, not a tool, so it has none here;
+ *  its `hintZoom` copy is the rail button's title. */
+const TOOL_HINT: Record<EditorTool, HintKey> = {
+  select: "hintSelect",
+  box: "hintBox",
+  arrow: "hintArrow",
+  text: "hintText",
+  blur: "hintBlur",
+  cover: "hintCover",
+};
+
+/**
+ * The inspector's empty state (Kaipu Black, NIW2-619): with nothing selected, the first
+ * line says what to do next — "Click a segment on the timeline to edit it." with Select,
+ * or how to draw with a drawing tool. It replaces the hint row that sat above the
+ * inspector, under the editor's actions.
+ */
+export function InspectorEmptyState({ tool }: { tool: EditorTool }): React.JSX.Element {
+  const t = useTranslations("videoEditor");
+  return (
+    <p className={styles.empty} data-testid="inspector-empty">
+      {t(TOOL_HINT[tool])}
+    </p>
+  );
+}
 
 export function EditorInspector({ children }: { children: ReactNode }): React.JSX.Element {
   return (

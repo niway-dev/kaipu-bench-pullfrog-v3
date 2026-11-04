@@ -1,28 +1,27 @@
 /*
  * Video-editor chrome, in two pieces.
  *
- * `.toolbar` is the card at the top of the right-hand column: the history and
- * clip actions, the status chips, Export and the active tool's hint. `.rail` is
- * the vertical tool column to the right of the preview — the drawing tools moved there because a horizontal strip
- * of them spent the full width of the window on eight icons, and width is what
- * the timeline needs.
+ * `.toolbar` is the row of editor actions the page puts in the title bar: the
+ * history and clip actions, the status chips and Export. `.rail` is the vertical
+ * tool column to the right of the preview — a horizontal strip of tools spent the
+ * full width of the window on a few icons, and width is what the timeline needs.
  *
  * Tokens still mirror the screenshot editor's top bar
  * (screenshot-editor-page.module.css: .toolbar/.actions/.iconBtn/.divider) so
  * both editors read as the same product.
  */
 
-/* The vertical tool column. Scrolls rather than squeezing: a tool that shrinks
-   below its hit target is worse than one the user has to scroll to. */
-/* The rail is as tall as the preview. Twelve tools fit a ~400 px preview; on a shorter
-   window it still scrolls with the wheel, but never shows scrollbars — a vertical
-   bar inside a 50 px column also forced a horizontal one (the "phantom scroll"). */
+/* The tool column right of the preview: 44 px wide (Kaipu Black, NIW2-619), five
+   tools plus the webcam and cursor buttons a recording may add. It scrolls with the
+   wheel rather than squeezing a tool below its hit target, and never shows a
+   scrollbar — a vertical bar in a column this narrow also forced a horizontal one. */
 .rail {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 6px;
+  width: 44px;
+  padding: 6px 0;
   overflow: hidden auto;
   scrollbar-width: none;
   background: var(--bg-panel);
@@ -31,21 +30,51 @@
   flex-shrink: 0;
 }
 
-/* Inside the rail the groups stack, so their own border would draw a box around
-   two icons; the separator between groups does that job instead. */
-.railGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .rail::-webkit-scrollbar {
   display: none;
 }
 
 .rail .tool {
+  position: relative;
   flex-shrink: 0;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+}
+
+/* A group with variants: a small corner mark, bottom right, says the button holds more
+   than the tool it shows. */
+.rail .tool[data-variants]::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  border-style: solid;
+  border-width: 0 0 5px 5px;
+  border-color: transparent transparent currentColor transparent;
+  opacity: 0.6;
+}
+
+/* The Audio tool and its corner switch: the switch sits over the corner mark. */
+.toolSlot {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.variantSwitch {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 0 0 6px 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.variantSwitch:hover {
+  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
 }
 
 .railSeparator {
@@ -56,30 +85,13 @@
   background: var(--line);
 }
 
-/* The top of the right-hand column (NIW2-611), as wide as the inspector below it,
-   separated from it by a rule: the actions on one line, then the status chips, Export, and the hint. */
+/* The editor's actions in the title bar's right side (Kaipu Black, NIW2-619): undo,
+   redo, image, split, delete, the status chips and Export on one row. */
 .toolbar {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-}
-
-/* Annotation tool group (select/box/arrow/text) — same tokens as the screenshot
-   editor's AnnotationToolbar (annotation-toolbar.module.css) so both editors read
-   as the same product. .toolbar's justify-content: space-between keeps this on the
-   left and .actions on the right without needing an explicit flex-grow here. */
-.toolGroup {
-  display: flex;
-  gap: 3px;
-  padding: 3px;
-  background: var(--bg-modal);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  min-width: 0;
 }
 
 .tool {
@@ -114,11 +126,10 @@
   gap: 6px;
 }
 
-/* The original-untouched pill and the autosave state. Wraps rather than overflow
-   the column when both are showing. */
+/* The original-untouched pill and the autosave state, on the title bar's one line. */
 .status {
   display: flex;
-  flex-wrap: wrap;
+  white-space: nowrap;
   align-items: center;
   gap: var(--space-xs) var(--space-sm);
   min-width: 0;
@@ -128,8 +139,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   background: transparent;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
@@ -170,7 +181,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 34px;
+  height: 28px;
   padding: 0 var(--space-md);
   background: var(--accent);
   box-shadow: 0 6px 16px -8px rgba(246, 5, 92, 0.7);
@@ -193,13 +204,4 @@
 .exportBtn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-/* Contextual hint (UI spec § 3.2): muted, under Export. It wraps: the column is
-   narrow, and a cut-off instruction is worse than a second line. */
-.hint {
-  min-width: 0;
-  font-size: var(--font-size-xs);
-  line-height: 1.4;
-  color: var(--text-muted);
 }
