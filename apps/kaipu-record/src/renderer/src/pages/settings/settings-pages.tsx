@@ -144,28 +144,25 @@ export function PermissionsSettingsPage(): React.JSX.Element {
             resolves — both correctly hide the row (plans/video-editor-v2/03 § UI:
             "Hidden when the status is not-required"). */}
         {accessibility.status !== "not-required" && (
-          // `Row` (@kaipu/ui) forwards no props to its DOM, so the area root is this wrapper;
-          // `display: contents` keeps it out of the layout (the catalog crops its child).
-          <div {...uiArea("settingsPermissions.clickZoom")} style={{ display: "contents" }}>
-            <Row
-              icon={<MousePointerClick size={16} />}
-              label={t("clickZoomLabel")}
-              description={
-                <span
-                  className={
-                    accessibility.status === "granted" ? styles.statusGranted : styles.statusDenied
-                  }
-                >
-                  {accessibility.status === "granted" ? t("granted") : t("notGranted")}
-                </span>
-              }
-              action={
-                <Button variant="outline" size="sm" onClick={() => void accessibility.request()}>
-                  {accessibility.status === "granted" ? t("reRequest") : t("request")}
-                </Button>
-              }
-            />
-          </div>
+          <Row
+            {...uiArea("settingsPermissions.clickZoom")}
+            icon={<MousePointerClick size={16} />}
+            label={t("clickZoomLabel")}
+            description={
+              <span
+                className={
+                  accessibility.status === "granted" ? styles.statusGranted : styles.statusDenied
+                }
+              >
+                {accessibility.status === "granted" ? t("granted") : t("notGranted")}
+              </span>
+            }
+            action={
+              <Button variant="outline" size="sm" onClick={() => void accessibility.request()}>
+                {accessibility.status === "granted" ? t("reRequest") : t("request")}
+              </Button>
+            }
+          />
         )}
       </Section>
     </SettingsPanel>

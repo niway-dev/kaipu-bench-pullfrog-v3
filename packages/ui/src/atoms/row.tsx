@@ -79,11 +79,21 @@ export interface RowProps {
   style?: StyleXStyles;
   /** Overrides for the trailing action's container. */
   actionStyle?: StyleXStyles;
+  /** Names the row for the desktop UI catalog, which crops by this attribute. */
+  "data-ui-area"?: string;
 }
 
-export function Row({ label, icon, description, action, style, actionStyle }: RowProps) {
+export function Row({
+  label,
+  icon,
+  description,
+  action,
+  style,
+  actionStyle,
+  "data-ui-area": uiArea,
+}: RowProps) {
   return (
-    <div {...stylex.props(styles.row, style)}>
+    <div data-ui-area={uiArea} {...stylex.props(styles.row, style)}>
       {icon ? (
         <span aria-hidden {...stylex.props(styles.icon)}>
           {icon}
