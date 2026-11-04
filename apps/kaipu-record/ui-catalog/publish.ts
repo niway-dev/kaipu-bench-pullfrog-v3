@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +20,7 @@ import {
   repoRootOf,
 } from "./lint";
 import type { Manifest } from "./manifest";
+import { compareVersions } from "./status";
 
 /**
  * `bun run ui-catalog:publish [<output dir>] [--push] [--force] [--remote <url>] [--author "Name <email>"]`
@@ -45,7 +47,7 @@ export const PUBLISH_USAGE = `Usage: bun run ui-catalog:publish [<output dir>] [
 
   <output dir>  a run's folder under .evidence/ui-catalog/ (default: the newest)
   --push        push the commit to ${CATALOG_BRANCH}; without it the commit stays in the temp clone
-  --force       publish a run older than the one the catalog already holds
+  --force       publish a run older than, or not ahead of, the catalog's
   --remote      the catalog repository (default: ${DEFAULT_REMOTE})
   --author      commit identity; default: user.name / user.email read from the monorepo`;
 
@@ -102,14 +104,53 @@ export function commitMessage(manifest: Manifest): string {
   return `catalog: kaipu-record ${manifest.app.version} ${manifestDate(manifest)} @ ${manifest.app.shortSha}`;
 }
 
-/** A refusal reason when `incoming` is older than `current`; null when it may go ahead. */
-export function backwardsReason(current: Manifest | null, incoming: Manifest): string | null {
+/** Whether `current` is an ancestor of `incoming`; null when it cannot be told (a SHA unknown here). */
+export type AncestryCheck = (currentSha: string, incomingSha: string) => boolean | null;
+
+/** Read-only `git merge-base --is-ancestor` in the monorepo: 0 yes, 1 no, anything else unknown. */
+export function gitAncestry(repoRoot: string): AncestryCheck {
+  return (currentSha, incomingSha) => {
+    try {
+      execFileSync("git", ["merge-base", "--is-ancestor", currentSha, incomingSha], {
+        cwd: repoRoot,
+        stdio: "ignore",
+      });
+      return true;
+    } catch (error) {
+      return (error as { status?: number }).status === 1 ? false : null;
+    }
+  };
+}
+
+/**
+ * A refusal reason when `incoming` would take the catalog backwards; null when it may go
+ * ahead. Backwards is any of: an older date, an older app version, or (both SHAs known) a
+ * current commit that is not an ancestor of the incoming one. `--force` skips all three.
+ */
+export function backwardsReason(
+  current: Manifest | null,
+  incoming: Manifest,
+  isAncestor: AncestryCheck = () => null,
+): string | null {
   if (!current) return null;
-  if (Date.parse(incoming.generatedAt) >= Date.parse(current.generatedAt)) return null;
-  return (
-    `the catalog already holds ${current.app.shortSha} from ${manifestDate(current)}, ` +
-    `newer than ${incoming.app.shortSha} from ${manifestDate(incoming)}; use --force to go backwards`
-  );
+  const held = `the catalog already holds ${current.app.version} @ ${current.app.shortSha} from ${manifestDate(current)}`;
+  const offered = `${incoming.app.version} @ ${incoming.app.shortSha} from ${manifestDate(incoming)}`;
+  if (Date.parse(incoming.generatedAt) < Date.parse(current.generatedAt)) {
+    return `${held}, newer than ${offered}; use --force to go backwards`;
+  }
+  if (compareVersions(incoming.app.version, current.app.version) < 0) {
+    return `${held}, a newer app version than ${offered}; use --force to go backwards`;
+  }
+  if (current.app.sha && incoming.app.sha && current.app.sha !== incoming.app.sha) {
+    const ancestor = isAncestor(current.app.sha, incoming.app.sha);
+    if (ancestor === null) {
+      return `${held}; cannot tell whether ${incoming.app.shortSha} is ahead of it (a commit is unknown in this clone); use --force to publish anyway`;
+    }
+    if (!ancestor) {
+      return `${held}, which is not an ancestor of ${offered}; use --force to publish anyway`;
+    }
+  }
+  return null;
 }
 
 export interface PublishOptions {
@@ -120,6 +161,8 @@ export interface PublishOptions {
   readonly identity: Identity;
   /** Defaults to the real lint; a test can pass its own. */
   readonly lint?: (outDir: string) => Promise<LintResult>;
+  /** Defaults to `git merge-base --is-ancestor` in the monorepo; a test can pass its own. */
+  readonly isAncestor?: AncestryCheck;
 }
 
 export type PublishResult =
@@ -160,7 +203,11 @@ export async function publish(options: PublishOptions): Promise<PublishResult> {
     return { status: "refused", reason: `the clone's origin is ${origin}, not ${remote}` };
   }
 
-  const backwards = backwardsReason(readCatalogManifest(cloneDir), manifest);
+  const backwards = backwardsReason(
+    readCatalogManifest(cloneDir),
+    manifest,
+    options.isAncestor ?? gitAncestry(repoRootOf()),
+  );
   if (backwards && !options.force) return { status: "refused", reason: backwards };
 
   // An empty repository has no branch yet: start it on the catalog's branch.

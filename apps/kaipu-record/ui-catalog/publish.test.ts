@@ -5,7 +5,14 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { checkRemote, remoteOwnerAndRepo } from "./catalog-repo";
 import type { LintResult } from "./lint";
-import { backwardsReason, commitMessage, parseAuthor, parsePublishArgs, publish } from "./publish";
+import {
+  backwardsReason,
+  commitMessage,
+  gitAncestry,
+  parseAuthor,
+  parsePublishArgs,
+  publish,
+} from "./publish";
 import {
   compareVersions,
   describeStatus,
@@ -151,13 +158,66 @@ describe("arguments and messages", () => {
     );
   });
 
-  it("refuses to go backwards only on an older date", () => {
+  it("refuses to go backwards on an older date", () => {
     const current = manifestOf("aaaaaaaa", "2026-11-04T10:00:00Z");
     expect(backwardsReason(null, current)).toBeNull();
-    expect(backwardsReason(current, manifestOf("bbbbbbbb", "2026-11-05T10:00:00Z"))).toBeNull();
-    expect(backwardsReason(current, manifestOf("cccccccc", "2026-11-03T10:00:00Z"))).toMatch(
-      /--force/,
-    );
+    expect(
+      backwardsReason(current, manifestOf("bbbbbbbb", "2026-11-05T10:00:00Z"), () => true),
+    ).toBeNull();
+    expect(
+      backwardsReason(current, manifestOf("cccccccc", "2026-11-03T10:00:00Z"), () => true),
+    ).toMatch(/--force/);
+  });
+
+  it("refuses an older app version even when the run is fresh", () => {
+    const current = manifestOf("aaaaaaaa", "2026-11-04T10:00:00Z", "0.16.0");
+    const oldTag = manifestOf("bbbbbbbb", "2026-11-06T10:00:00Z", "0.15.1");
+    expect(backwardsReason(current, oldTag, () => true)).toMatch(/newer app version/);
+    const sameVersion = manifestOf("cccccccc", "2026-11-06T10:00:00Z", "0.16.0");
+    expect(backwardsReason(current, sameVersion, () => true)).toBeNull();
+  });
+
+  it("refuses a commit that does not descend from the current one", () => {
+    const current = manifestOf("aaaaaaaa", "2026-11-04T10:00:00Z");
+    const incoming = manifestOf("bbbbbbbb", "2026-11-05T10:00:00Z");
+    expect(backwardsReason(current, incoming, () => false)).toMatch(/not an ancestor/);
+    expect(backwardsReason(current, incoming, () => true)).toBeNull();
+  });
+
+  it("refuses when the ancestry cannot be checked, and says why", () => {
+    const current = manifestOf("aaaaaaaa", "2026-11-04T10:00:00Z");
+    const incoming = manifestOf("bbbbbbbb", "2026-11-05T10:00:00Z");
+    expect(backwardsReason(current, incoming, () => null)).toMatch(/unknown in this clone/);
+    // The default check is "cannot tell", so a caller that passes nothing is refused too.
+    expect(backwardsReason(current, incoming)).toMatch(/--force/);
+    // The same commit needs no ancestry check.
+    expect(backwardsReason(current, manifestOf("aaaaaaaa", "2026-11-05T10:00:00Z"))).toBeNull();
+  });
+
+  it("gitAncestry reads a real repository: yes, no and unknown", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "ui-catalog-anc-"));
+    git(repo, "init", "--quiet", "-b", "main");
+    const commit = (m: string): string => {
+      git(
+        repo,
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@example.test",
+        "commit",
+        "--quiet",
+        "--allow-empty",
+        "-m",
+        m,
+      );
+      return git(repo, "rev-parse", "HEAD");
+    };
+    const first = commit("one");
+    const second = commit("two");
+    const check = gitAncestry(repo);
+    expect(check(first, second)).toBe(true);
+    expect(check(second, first)).toBe(false);
+    expect(check("f".repeat(40), second)).toBeNull();
   });
 });
 
@@ -171,6 +231,7 @@ describe("publish", () => {
     const manifest = manifestOf("11111111", "2026-11-04T10:00:00Z");
     const out = outputFolder(manifest);
     const result = await publish({
+      isAncestor: () => true,
       outDir: out,
       remote,
       push: false,
@@ -195,6 +256,7 @@ describe("publish", () => {
     expect(() => git(remote, "rev-parse", "main")).toThrow();
 
     const pushed = await publish({
+      isAncestor: () => true,
       outDir: out,
       remote,
       push: true,
@@ -209,6 +271,7 @@ describe("publish", () => {
   it("replaces the previous images and reports an identical republish as unchanged", async () => {
     const first = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"));
     await publish({
+      isAncestor: () => true,
       outDir: first,
       remote,
       push: true,
@@ -217,6 +280,7 @@ describe("publish", () => {
       lint: cleanLint,
     });
     const again = await publish({
+      isAncestor: () => true,
       outDir: first,
       remote,
       push: true,
@@ -228,6 +292,7 @@ describe("publish", () => {
 
     const second = outputFolder(manifestOf("22222222", "2026-11-05T10:00:00Z", "0.17.0"));
     const result = await publish({
+      isAncestor: () => true,
       outDir: second,
       remote,
       push: true,
@@ -246,6 +311,7 @@ describe("publish", () => {
   it("refuses an older run without --force and allows it with --force", async () => {
     const newer = outputFolder(manifestOf("22222222", "2026-11-05T10:00:00Z"));
     await publish({
+      isAncestor: () => true,
       outDir: newer,
       remote,
       push: true,
@@ -256,6 +322,7 @@ describe("publish", () => {
     const older = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"));
 
     const refused = await publish({
+      isAncestor: () => true,
       outDir: older,
       remote,
       push: true,
@@ -267,6 +334,7 @@ describe("publish", () => {
     expect(git(remote, "log", "--format=%s", "main").split("\n")).toHaveLength(1);
 
     const forced = await publish({
+      isAncestor: () => true,
       outDir: older,
       remote,
       push: true,
@@ -281,6 +349,7 @@ describe("publish", () => {
   it("refuses a folder whose name is not its manifest's SHA", async () => {
     const out = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"), "99999999");
     const result = await publish({
+      isAncestor: () => true,
       outDir: out,
       remote,
       push: true,
@@ -303,6 +372,7 @@ describe("publish", () => {
       errors: [],
     });
     const result = await publish({
+      isAncestor: () => true,
       outDir: out,
       remote,
       push: true,
@@ -317,6 +387,7 @@ describe("publish", () => {
   it("refuses a GitHub remote that is not the catalog repository", async () => {
     const out = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"));
     const result = await publish({
+      isAncestor: () => true,
       outDir: out,
       remote: "git@github-csdev:niway-dev/kaipu-record.git",
       push: true,
@@ -358,6 +429,7 @@ describe("status", () => {
 
     const manifest = manifestOf("11111111", "2026-11-04T10:00:00Z");
     await publish({
+      isAncestor: () => true,
       outDir: outputFolder(manifest),
       remote,
       push: true,
