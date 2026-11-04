@@ -210,6 +210,13 @@ export function EditorToolRail({
     }
   }
   const [audio, setAudio] = useState<AudioVariant>(audioMuted ? "muteAll" : "muteSection");
+  // When the recording becomes muted (a session that loads muted, an undo), show the
+  // pressed mute-everything variant: otherwise nothing on the rail says it is muted.
+  const [wasMuted, setWasMuted] = useState(audioMuted);
+  if (audioMuted !== wasMuted) {
+    setWasMuted(audioMuted);
+    if (audioMuted) setAudio("muteAll");
+  }
 
   const groupButton = (group: ToolGroup, disabled = false): React.JSX.Element => {
     const active = variantsOf(group).includes(tool);

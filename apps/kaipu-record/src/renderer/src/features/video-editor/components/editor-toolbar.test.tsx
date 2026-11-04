@@ -298,6 +298,18 @@ describe("EditorToolRail — audio", () => {
   });
 });
 
+describe("EditorToolRail — audio follows the recording's muted state", () => {
+  it("switches to mute-everything, pressed, when the recording becomes muted (load, undo)", () => {
+    renderRail();
+    expect(screen.getByRole("button", { name: "Mute a section" })).toBeInTheDocument();
+    rerenderRail({ audioMuted: true });
+    expect(screen.getByRole("button", { name: "Unmute the recording" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+});
+
 describe("toolForGroupClick", () => {
   it("arms the remembered variant when the group is not active", () => {
     expect(toolForGroupClick("annotate", "select", "arrow")).toBe("arrow");
