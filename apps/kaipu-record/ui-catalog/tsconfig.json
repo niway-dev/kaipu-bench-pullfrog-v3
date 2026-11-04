@@ -1,0 +1,21 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
+  "include": [
+    "./**/*.ts",
+    "../e2e/helpers/**/*.ts",
+    "../src/shared/**/*.ts",
+    "../src/preload/index.d.ts"
+  ],
+  "exclude": ["./fixtures/out", "../src/shared/**/*.test.ts"],
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "types": ["node"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "baseUrl": "..",
+    "paths": {
+      "@shared": ["src/shared"],
+      "@shared/*": ["src/shared/*"]
+    }
+  }
+}

@@ -22,6 +22,7 @@ REQUIRED=(
 # Optional: absence is reported but does not fail the check.
 OPTIONAL=(
   "gh||opening and reviewing pull requests|brew install gh"
+  "ffmpeg||the UI catalog's fixture video (apps/kaipu-record/ui-catalog/fixtures)|brew install ffmpeg"
 )
 
 red=$'\033[31m'; green=$'\033[32m'; yellow=$'\033[33m'; dim=$'\033[90m'; bold=$'\033[1m'; off=$'\033[0m'

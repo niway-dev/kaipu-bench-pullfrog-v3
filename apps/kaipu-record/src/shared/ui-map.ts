@@ -169,10 +169,9 @@ export const UI_MAP = {
     areas: {
       page: { states: ["ready", "loading", "notFound", "notExportable"] },
       header: { states: ["default"] },
-      stage: {
-        states: ["nothingPicked", "destinationPicked"],
-        gatedBy: [{ setting: "exportQuality" }],
-      },
+      // Not gated by `exportQuality`: that setting only preselects a row in the editor's export
+      // sheet; this page never reads it.
+      stage: { states: ["nothingPicked", "destinationPicked"] },
       destinationRow: { states: ["default", "selected"] },
     },
   },
@@ -194,8 +193,10 @@ export const UI_MAP = {
     areas: {
       page: { states: ["idle", "busyWhileRecording"] },
       captureButton: { states: ["idle", "disabled"] },
+      // No "window": Capture window is switched off (`ENABLED_CAPTURE_MODES`), so the page has
+      // only the Frame and Screen chips.
       modeChips: {
-        states: ["frame", "window", "screen"],
+        states: ["frame", "screen"],
         gatedBy: [{ setting: "screenshotMode" }],
       },
       recent: { states: ["list"] },
@@ -300,7 +301,8 @@ export const UI_MAP = {
     areas: {
       page: { states: ["default"] },
       language: { states: ["default"] },
-      theme: { states: ["dark", "light"] },
+      // Dark only: the light theme is out of the catalog's scope (spec, non-goals).
+      theme: { states: ["dark"] },
       account: { states: ["default"] },
     },
   },
@@ -404,7 +406,9 @@ export const UI_MAP = {
       },
       cameraSettings: { states: ["open"], gatedBy: [{ recordingSetting: "isCameraEnabled" }] },
       recordingIndicator: { states: ["recording", "paused"] },
-      captureButtons: { states: ["idle", "busy"], gatedBy: [{ setting: "screenshotMode" }] },
+      // No "busy": a take locks the panel on its Record tab, so the capture buttons are never
+      // drawn mid-take (capture-panel.tsx keeps the prop for the day the lock lifts).
+      captureButtons: { states: ["idle"], gatedBy: [{ setting: "screenshotMode" }] },
     },
   },
   controlBar: {
@@ -431,7 +435,9 @@ export const UI_MAP = {
     query: "window=capture-overlay",
     areas: {
       frameBox: { states: ["screenshot", "record"] },
-      selectionToolbar: { states: ["capture", "record"] },
+      // Only the capture intent draws it: opened to record, the Frame box draws the record
+      // widget instead (frame-box.tsx), and Window has no overlay picker to record from.
+      selectionToolbar: { states: ["capture"] },
       screenCard: { states: ["screenshot", "record", "highlighted"] },
       windowPicker: { states: ["noWindow", "hovered"] },
       ratioBar: { states: ["free", "ratio"] },
