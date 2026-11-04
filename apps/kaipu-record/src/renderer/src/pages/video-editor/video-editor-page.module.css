@@ -11,18 +11,6 @@
   height: 100%;
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  flex-shrink: 0;
-}
-
 /* "ORIGINAL UNTOUCHED" — a reminder, not a control (v2 PR 10 polish, W12). */
 .saveState {
   background: none;
@@ -40,14 +28,6 @@
   cursor: pointer;
 }
 
-.title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-}
-
 .stage {
   position: relative;
   /* Two rows: video region takes all available space, transport bar is always visible.
@@ -55,7 +35,7 @@
   display: grid;
   grid-template-rows: 1fr auto;
   overflow: hidden;
-  background: var(--bg-app);
+  background: var(--bg-canvas);
 }
 
 /* Video region: centers PreviewStage in whatever height the stage's 1fr row leaves.
@@ -90,8 +70,8 @@
   /* Short on purpose (NIW2-611): the bar will take more tools, so it stays one
      compact row of 28 px controls. */
   padding: 4px var(--space-md);
-  border-top: 1px solid var(--border);
-  background: var(--bg-card);
+  border-top: 1px solid var(--line);
+  background: var(--bg-panel);
   flex-shrink: 0;
 }
 
@@ -116,7 +96,7 @@
   height: 28px;
   background: var(--accent-primary);
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: #fff;
   cursor: pointer;
   transition: background var(--transition);
@@ -139,7 +119,7 @@
   height: 28px;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -162,7 +142,7 @@
   height: 28px;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -187,9 +167,9 @@
      ≈196 px with PR 6's five rows, ≈238 px once PR 8 adds the 38 px Privacy lane. */
   min-height: 160px;
   flex-shrink: 0;
-  background: var(--bg-card);
+  background: var(--bg-panel);
   /* Flat (NIW2-611): a rule above, not a card; the page runs edge to edge. */
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 /* v2: the stage and the 288 px properties column share the middle row. */
@@ -213,7 +193,8 @@
   width: 288px;
   min-height: 0;
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--line);
+  background: var(--bg-panel);
 }
 
 /* "4 zooms detected" · "2 private regions" (UI spec § 5). */

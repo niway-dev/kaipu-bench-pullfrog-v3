@@ -8,6 +8,7 @@
      right edge, are clipped too — accepted, see the "overflow: hidden is a real
      regression" decision in plans/video-editor-v2/09. */
   overflow: hidden;
+  border-radius: 4px;
 }
 
 /* v2: everything that belongs to the FOOTAGE (video, slide, privacy regions,

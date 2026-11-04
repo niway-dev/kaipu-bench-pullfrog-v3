@@ -25,9 +25,9 @@
   padding: 6px;
   overflow: hidden auto;
   scrollbar-width: none;
-  background: var(--bg-card);
+  background: var(--bg-panel);
   /* Flat (NIW2-611): a rule on its left, not a card. */
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--line);
   flex-shrink: 0;
 }
 
@@ -53,7 +53,7 @@
   width: 22px;
   height: 1px;
   margin: 1px 0;
-  background: var(--border);
+  background: var(--line);
 }
 
 /* The top of the right-hand column (NIW2-611), as wide as the inspector below it,
@@ -64,8 +64,8 @@
   align-items: stretch;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
@@ -79,7 +79,7 @@
   padding: 3px;
   background: var(--bg-modal);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 6px;
 }
 
 .tool {
@@ -89,7 +89,7 @@
   width: 36px;
   height: 34px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -132,7 +132,7 @@
   height: 34px;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -153,7 +153,7 @@
 .divider {
   width: 1px;
   height: 24px;
-  background: var(--border);
+  background: var(--line);
   margin: 0 var(--space-xs);
 }
 
@@ -174,7 +174,7 @@
   padding: 0 var(--space-md);
   background: var(--accent-primary);
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   color: #fff;
   font-family: var(--font-family);
   font-size: var(--font-size-base);

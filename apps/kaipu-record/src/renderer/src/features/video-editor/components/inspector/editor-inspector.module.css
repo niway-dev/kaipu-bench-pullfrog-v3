@@ -10,5 +10,5 @@
   overflow-y: auto;
   /* Under the toolbar in the right-hand column (NIW2-611); that column draws the
      rule on the left, so the inspector draws none. */
-  background: var(--bg-card);
+  background: var(--bg-panel);
 }

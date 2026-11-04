@@ -69,9 +69,7 @@
 .note,
 .hint {
   margin: 0;
-  padding: var(--space-sm);
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
+  padding: 0;
   font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
@@ -97,7 +95,7 @@
   gap: var(--space-xs);
   padding: var(--space-sm);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
@@ -130,7 +128,7 @@
   width: 34px;
   height: 34px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   cursor: pointer;
 }
 
@@ -149,9 +147,9 @@
 
 .fieldInput {
   padding: var(--space-sm);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg-raised);
   color: var(--text-primary);
   font-size: var(--font-size-sm);
 }
