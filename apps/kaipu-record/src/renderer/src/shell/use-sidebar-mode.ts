@@ -19,6 +19,23 @@ export function isSidebarToggleKey(event: KeyboardEvent, platform: string): bool
   );
 }
 
+/**
+ * Whether the window-level shortcut may act on this key press: not when another handler took
+ * it, not while the user types in a field, and not while a modal dialog owns the keyboard.
+ */
+export function sidebarShortcutMayRun(event: KeyboardEvent): boolean {
+  if (event.defaultPrevented) return false;
+  const target = event.target instanceof Element ? event.target : null;
+  if (
+    target?.closest(
+      'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"][aria-modal="true"]',
+    )
+  ) {
+    return false;
+  }
+  return document.querySelector('[role="dialog"][aria-modal="true"]') === null;
+}
+
 /** The toggle's shortcut as the platform writes it. */
 export function sidebarToggleHint(platform: string): string {
   return platform === "darwin" ? "⌘\\" : "Ctrl+\\";
@@ -43,6 +60,7 @@ export function useSidebarMode(): { mode: SidebarMode; cycle: () => void } {
     const platform = window.electronAPI.platform;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.repeat || !isSidebarToggleKey(event, platform)) return;
+      if (!sidebarShortcutMayRun(event)) return;
       event.preventDefault();
       cycle();
     };

@@ -270,3 +270,61 @@ describe("Sidebar modes (NIW2-626)", () => {
     );
   });
 });
+
+describe("Sidebar shortcut leaves other handlers alone (NIW2-626 review)", () => {
+  const nav = (): HTMLElement => screen.getByRole("navigation");
+  const press = (target: EventTarget, init: KeyboardEventInit = {}) =>
+    fireEvent.keyDown(target, { key: "\\", code: "Backslash", metaKey: true, ...init });
+
+  afterEach(() => {
+    document.body.querySelectorAll("[data-extra]").forEach((el) => el.remove());
+  });
+
+  function extra<T extends HTMLElement>(html: string): T {
+    const host = document.createElement("div");
+    host.setAttribute("data-extra", "");
+    host.innerHTML = html;
+    document.body.append(host);
+    return host.querySelector("[data-target]") as T;
+  }
+
+  it("does nothing when another handler already took the key", () => {
+    renderAt("/");
+    const event = new KeyboardEvent("keydown", {
+      key: "\\",
+      code: "Backslash",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    event.preventDefault();
+    act(() => {
+      window.dispatchEvent(event);
+    });
+    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+  });
+
+  it.each([
+    ["an input", `<input data-target />`],
+    ["a textarea", `<textarea data-target></textarea>`],
+    ["a select", `<select data-target><option>a</option></select>`],
+    ["a contenteditable", `<div data-target contenteditable="true"></div>`],
+  ])("does nothing while typing in %s", (_, html) => {
+    renderAt("/");
+    press(extra(html));
+    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+  });
+
+  it("does nothing while a modal dialog is open, wherever focus is", () => {
+    renderAt("/");
+    extra(`<div role="dialog" aria-modal="true"><button data-target>ok</button></div>`);
+    press(window);
+    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+  });
+
+  it("still works from a plain button outside any dialog", () => {
+    renderAt("/");
+    press(extra(`<button data-target>x</button>`));
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+  });
+});
