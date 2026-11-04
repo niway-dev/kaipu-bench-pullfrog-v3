@@ -3,7 +3,8 @@
   aspect-ratio: 16 / 9;
   border-radius: 4px;
   overflow: hidden;
-  background: #0a0a0c; /* video well: dark in both themes */
+  /* video well: dark in both themes, with the Kaipu Black ambient glow (NIW2-616) */
+  background: radial-gradient(60% 50% at 50% 40%, rgba(246, 5, 92, 0.06), transparent 70%), #0a0a0c;
 }
 
 .video {

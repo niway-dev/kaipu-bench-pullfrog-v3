@@ -40,7 +40,11 @@
 
 /* Video region: centers PreviewStage in whatever height the stage's 1fr row leaves.
    min-height: 0 prevents the grid row from growing beyond its allocated fraction. */
+/* Kaipu Black ambient glow (NIW2-616): behind the footage only, layered over the canvas
+   token so the light theme keeps its own base. Never on panels. */
 .videoRegion {
+  background:
+    radial-gradient(60% 50% at 50% 40%, rgba(246, 5, 92, 0.06), transparent 70%), var(--bg-canvas);
   display: grid;
   place-items: center;
   min-height: 0;
