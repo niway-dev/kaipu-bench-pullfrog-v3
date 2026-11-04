@@ -18,7 +18,7 @@
   /* Label column (UI spec § 6) + the lanes column. Every lane lives in column 2, so all
      lanes share one horizontal extent. The width is declared ONCE, here: the grid
      template and .playheadLayer's offset both read it and must never drift apart. */
-  --lane-label-w: 62px;
+  --lane-label-w: 80px;
   grid-template-columns: var(--lane-label-w) 1fr;
   align-items: center;
   column-gap: var(--space-sm);
