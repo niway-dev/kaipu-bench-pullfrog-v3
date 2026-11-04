@@ -85,6 +85,11 @@ test("kaipu black: pages and sidebar modes at 1440x900", async () => {
     const nav = page.locator("nav[data-mode]");
     await expect(nav).toHaveAttribute("data-mode", "stacked");
     await shot("06-sidebar-expanded");
+    // The toggle sits in the title bar right after the logo (NIW2-626): the bar's left end.
+    await page.screenshot({
+      path: path.join(OUT_DIR, "12-titlebar-toggle-crop.png"),
+      clip: { x: 0, y: 0, width: 420, height: 48 },
+    });
 
     // The keyboard path: Cmd+\ collapses to icons. Focus an item so its tooltip shows.
     await page.keyboard.press("Meta+Backslash");
