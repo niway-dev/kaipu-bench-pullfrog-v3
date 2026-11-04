@@ -49,6 +49,8 @@ function renderAt(path: string) {
       { path: ROUTES.libraryDetail, element: <Sidebar /> },
       { path: ROUTES.exportNew, element: <Sidebar /> },
       { path: ROUTES.export, element: <Sidebar /> },
+      // Every other page renders the same shell sidebar.
+      { path: "*", element: <Sidebar /> },
     ],
     { initialEntries: [path] },
   );
@@ -87,6 +89,37 @@ describe("Sidebar items", () => {
     expect(
       screen.getAllByRole("link").filter((l) => l.getAttribute("aria-current") === "page"),
     ).toEqual([]);
+  });
+});
+
+describe("Sidebar active item", () => {
+  // The rail computes `active` itself now (no NavLink), so every route must
+  // light exactly the one item it belongs to.
+  it.each([
+    ["/", "Record"],
+    ["/screenshots", "Screenshot"],
+    ["/editor", "Editor"],
+    ["/editor/video/asset-1", "Editor"],
+    ["/editor/image/asset-1", "Editor"],
+    ["/library", "Library"],
+    ["/library/asset-1", "Library"],
+    ["/shortcuts", "Shortcuts"],
+    ["/settings", "Settings"],
+  ])("%s lights only %s", (path, label) => {
+    renderAt(path);
+    const current = screen
+      .getAllByRole("link")
+      .filter((l) => l.getAttribute("aria-current") === "page")
+      .map((l) => l.textContent);
+    expect(current).toEqual([label]);
+  });
+
+  it("/cloud lights Cloud and the account avatar, which opens the same page", () => {
+    renderAt("/cloud");
+    const current = screen
+      .getAllByRole("link")
+      .filter((l) => l.getAttribute("aria-current") === "page");
+    expect(current.map((l) => l.textContent)).toEqual(["Cloud", ""]);
   });
 });
 

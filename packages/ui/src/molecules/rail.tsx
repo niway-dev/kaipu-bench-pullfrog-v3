@@ -36,7 +36,7 @@ const styles = stylex.create({
   },
   brand: {
     flexShrink: 0,
-    // Taller than a nav item: the mark needs air around it at 30px, and the
+    // Taller than a nav item: the mark needs air around it, and the
     // extra row height is what stops it reading as just another item.
     height: "64px",
     display: "flex",
@@ -90,9 +90,11 @@ const styles = stylex.create({
     textTransform: "uppercase",
   },
   // The indicator bar on the rail's left edge, visible only while active.
+  // Items are 56px centred in the 64px rail, so -4px puts the bar flush on the
+  // rail's edge; any further out and the rail's overflow clips it.
   bar: {
     position: "absolute",
-    left: "-8px",
+    left: "-4px",
     top: "50%",
     transform: "translateY(-50%) scaleY(0)",
     width: "2px",
