@@ -1,13 +1,14 @@
 /*
- * Audio lane. Same geometry as the zoom lane so the two read as one timeline,
- * but a neutral grey rather than the accent: a muted stretch is an absence, and
+ * Audio lane. Same corners and surface as the zoom lane so the two read as one
+ * timeline, but a neutral grey rather than the accent: a muted stretch is an absence, and
  * painting it in the brand colour would make silence look like the loudest
  * thing on the track.
  */
 
 .lane {
   position: relative;
-  height: 32px;
+  /* Kaipu Black (NIW2-619): 29 px, the spec's value (the zoom lane is 26 px). */
+  height: 29px;
   border-radius: 3px;
   background: var(--bg-raised);
 }

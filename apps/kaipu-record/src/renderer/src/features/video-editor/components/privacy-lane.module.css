@@ -1,6 +1,7 @@
 .lane {
   position: relative;
-  height: 30px;
+  /* Kaipu Black (NIW2-619): 20 px. */
+  height: 20px;
   border-radius: 3px;
   background: var(--bg-raised);
 }

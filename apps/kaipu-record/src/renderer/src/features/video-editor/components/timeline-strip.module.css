@@ -22,7 +22,8 @@
   grid-template-columns: var(--lane-label-w) 1fr;
   align-items: center;
   column-gap: var(--space-sm);
-  row-gap: var(--space-xs);
+  /* 3 px between lanes (Kaipu Black, NIW2-619). */
+  row-gap: 3px;
   flex: 1;
   min-height: 0;
 }
@@ -83,8 +84,8 @@
 
 .track {
   position: relative;
-  /* Filmstrip row: fixed 44 px (UI spec § 6.1) now that the strip stacks more lanes. */
-  height: 44px;
+  /* Filmstrip row: fixed 46 px (Kaipu Black, NIW2-619). */
+  height: 46px;
   border-radius: 3px;
   background: var(--bg-raised);
   cursor: pointer;

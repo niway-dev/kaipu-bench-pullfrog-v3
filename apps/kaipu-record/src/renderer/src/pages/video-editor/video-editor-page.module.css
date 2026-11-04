@@ -46,7 +46,12 @@
   background:
     radial-gradient(60% 50% at 50% 40%, rgba(246, 5, 92, 0.06), transparent 70%), var(--bg-canvas);
   display: grid;
-  place-items: center;
+  /* Kaipu Black (NIW2-619): the picture sits on the left, 12 px from every edge, and
+     stays vertically centred. The container query units below resolve against the
+     content box, so the padding is already taken off the picture's caps. */
+  align-items: center;
+  justify-items: start;
+  padding: 12px;
   min-height: 0;
   overflow: hidden;
   /* Makes this the box that .content's container query units measure. Safe as a size
