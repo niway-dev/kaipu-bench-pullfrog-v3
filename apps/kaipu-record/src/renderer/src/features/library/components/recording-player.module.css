@@ -3,14 +3,14 @@
   aspect-ratio: 16 / 9;
   border-radius: 4px;
   overflow: hidden;
-  background: var(--bg-canvas);
+  background: #0a0a0c; /* video well: dark in both themes */
 }
 
 .video {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: var(--bg-canvas);
+  background: #0a0a0c; /* video well: dark in both themes */
 }
 
 /* The picture's own rectangle inside the player (sized from the decoded ratio in

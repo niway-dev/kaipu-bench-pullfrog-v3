@@ -131,7 +131,7 @@
   width: 34px;
   height: 34px;
   background: transparent;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
