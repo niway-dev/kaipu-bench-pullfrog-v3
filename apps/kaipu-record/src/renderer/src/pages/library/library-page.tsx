@@ -230,7 +230,6 @@ export function LibraryPage(): React.JSX.Element {
               </span>
             )}
           </div>
-          <p className={styles.pageSubtitle}>{t("subtitle")}</p>
         </div>
         <div className={styles.headerActions}>
           <button

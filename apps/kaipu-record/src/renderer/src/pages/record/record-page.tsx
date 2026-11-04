@@ -256,7 +256,6 @@ export function RecordPage(): React.JSX.Element {
     return (
       <div className={styles.idlePage}>
         <WorkspaceNotConnectedNotice />
-        <p className={styles.eyebrow}>{t("eyebrow")}</p>
         <div className={styles.idleHeading}>
           <h1 className={styles.idleTitle}>
             {t("recordingTo", { name: workspaces?.active?.name ?? "…" })}

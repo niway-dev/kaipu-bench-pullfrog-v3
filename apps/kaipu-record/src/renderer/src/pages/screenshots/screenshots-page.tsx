@@ -26,9 +26,7 @@ export function ScreenshotsPage(): React.JSX.Element {
       : null;
   return (
     <div className={styles.page}>
-      <p className={styles.overline}>{t("overline")}</p>
       <h1 className={styles.title}>{t("pageTitle")}</h1>
-      <p className={styles.subtitle}>{t("pageSubtitle")}</p>
       <CaptureModeButtons
         variant="page"
         onCapture={(mode) => void capture(mode)}

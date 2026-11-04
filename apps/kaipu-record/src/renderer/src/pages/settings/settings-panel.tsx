@@ -25,9 +25,9 @@ export function SettingsPanel({
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
-        <h2 className={styles.pageTitle}>
+        <h1 className={styles.pageTitle}>
           {scope ? <ScopedTitle scope={scope}>{title}</ScopedTitle> : title}
-        </h2>
+        </h1>
         <p className={styles.pageSubtitle}>{subtitle}</p>
         {scope === "workspace" && <ScopeLine />}
       </div>

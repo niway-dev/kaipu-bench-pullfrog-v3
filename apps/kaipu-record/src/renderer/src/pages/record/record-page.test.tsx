@@ -192,16 +192,17 @@ describe("RecordPage idle layout (design Kaipu Record Modes)", () => {
       }),
     };
     renderAt(undefined);
-    expect(screen.getByText("RECORD")).toBeInTheDocument();
     // Spec decision 13: the heading names where the take lands, in place of "Ready to record".
+    // NIW2-626: the page names itself once, so no "RECORD" eyebrow repeats the rail's label.
     expect(
-      await screen.findByRole("heading", { name: "Recording to Default workspace" }),
+      await screen.findByRole("heading", { name: "Record to Default workspace" }),
     ).toBeInTheDocument();
+    expect(screen.queryByText("RECORD")).toBeNull();
     expect(screen.queryByText("Ready to record")).toBeNull();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(await screen.findByTestId("frame-caption")).toHaveTextContent("16:9 · 1280 × 720");
     expect(screen.getByRole("button", { name: /^Frame/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("SOUND & CAMERA")).toBeInTheDocument();
+    expect(screen.getByText("Sound & camera")).toBeInTheDocument();
     // No source card: what to record is picked in the selector.
     expect(screen.queryByText("CHOOSE A SOURCE")).toBeNull();
 

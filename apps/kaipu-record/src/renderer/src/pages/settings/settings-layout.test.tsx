@@ -46,7 +46,9 @@ function renderAt(path: string, open = vi.fn()) {
 describe("Settings layout", () => {
   it("opens General by default and lists every wired page in its nav", async () => {
     renderAt("/settings");
-    expect(await screen.findByRole("heading", { level: 2, name: "General" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "General" })).toBeInTheDocument();
+    // NIW2-626: the page heading is the only title; no "Settings" eyebrow repeats the rail.
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     const nav = screen.getByRole("navigation", { name: "Settings" });
     for (const name of [
       "General",
@@ -67,7 +69,7 @@ describe("Settings layout", () => {
 
   it("does not bring back unwired placeholder settings", async () => {
     renderAt("/settings");
-    await screen.findByRole("heading", { level: 2, name: "General" });
+    await screen.findByRole("heading", { level: 1, name: "General" });
     expect(
       screen.queryByRole("link", { name: /devices|storage & uploads|keyboard shortcuts/i }),
     ).not.toBeInTheDocument();
@@ -83,7 +85,7 @@ describe("Settings layout", () => {
     renderAt("/settings/general");
     fireEvent.click(await screen.findByRole("link", { name: "Permissions" }));
     expect(
-      await screen.findByRole("heading", { level: 2, name: "Permissions" }),
+      await screen.findByRole("heading", { level: 1, name: "Permissions" }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /request/i }).length).toBeGreaterThan(0);
   });
@@ -135,7 +137,7 @@ describe("Settings layout", () => {
 
   it("Permissions hides the Accessibility row when it's not required (non-macOS, or the stub default)", async () => {
     renderAt("/settings/permissions");
-    await screen.findByRole("heading", { level: 2, name: "Permissions" });
+    await screen.findByRole("heading", { level: 1, name: "Permissions" });
     expect(screen.queryByText("Zoom on clicks (Accessibility)")).toBeNull();
   });
 
@@ -144,7 +146,7 @@ describe("Settings layout", () => {
       .spyOn(window.electronAPI, "getAccessibilityStatus")
       .mockResolvedValue("denied");
     renderAt("/settings/recording");
-    await screen.findByRole("heading", { level: 2, name: "Recording" });
+    await screen.findByRole("heading", { level: 1, name: "Recording" });
     expect(screen.queryByText("Zoom on clicks (Accessibility)")).toBeNull();
     getAccessibilityStatus.mockRestore();
   });
