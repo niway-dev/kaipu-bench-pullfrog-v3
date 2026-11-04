@@ -192,6 +192,12 @@ export interface CatalogState<S extends ScreenId> {
   readonly stillOnScreen?: Target;
   /** Keep the pointer where the steps left it (hover states). Default: parked in a corner. */
   readonly keepPointer?: boolean;
+  /**
+   * The image shows what was on the runner's screen (a source thumbnail, a capture's preview,
+   * a take's first frame). It cannot be scanned as text, so `ui-catalog:lint` lists it for a
+   * look by eye before publishing (spec failure 7).
+   */
+  readonly embedsScreen?: boolean;
   /** Per-state budget for steps + ready, ms. Default 20 s. */
   readonly timeoutMs?: number;
 }

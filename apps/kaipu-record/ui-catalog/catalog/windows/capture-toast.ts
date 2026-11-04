@@ -19,6 +19,7 @@ export const captureToast = catalog(
   {
     saved: {
       profile: "recording",
+      embedsScreen: true,
       how: "Capture the whole display in Screen mode (one display: no chooser).",
       steps: [captureScreen, { waitFor: { window: "capture-toast" } }],
       demonstrates: ["captureToast.root:saved", "captureToast.card:rest"],
@@ -30,6 +31,7 @@ export const captureToast = catalog(
     },
     hover: {
       profile: "recording",
+      embedsScreen: true,
       steps: [
         captureScreen,
         { waitFor: { window: "capture-toast" } },
@@ -41,6 +43,7 @@ export const captureToast = catalog(
     },
     manual: {
       profile: "recording",
+      embedsScreen: true,
       steps: [
         set({ screenshotCopy: "manual" }),
         captureScreen,
@@ -52,6 +55,7 @@ export const captureToast = catalog(
     },
     copied: {
       profile: "recording",
+      embedsScreen: true,
       how: "Open the overlay to capture a frame and press its Copy button.",
       steps: [
         { call: "requestCaptureScreenshot", args: ["frame"], on: "main" },

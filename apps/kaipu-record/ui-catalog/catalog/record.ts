@@ -159,12 +159,14 @@ export const record = catalog(
     },
     "source-picker-screens": {
       profile: "recording",
+      embedsScreen: true,
       steps: [{ call: "requestChooseSource" }],
       demonstrates: ["record.sourcePicker:screens"],
       gates: [{ permission: "screen", side: "granted" }],
     },
     "source-picker-windows": {
       profile: "recording",
+      embedsScreen: true,
       steps: [
         { call: "requestChooseSource" },
         { waitFor: { area: "record.sourcePicker" } },
@@ -182,6 +184,7 @@ export const record = catalog(
     },
     countdown: {
       profile: "recording",
+      embedsScreen: true,
       how: "Pick the first display and ask for a take; shot during its 3 s countdown, then cancelled.",
       steps: [
         { action: "selectFirstScreen" },
@@ -195,6 +198,7 @@ export const record = catalog(
     },
     recording: {
       profile: "recording",
+      embedsScreen: true,
       how: "Pick the first display and start a take; the main window is shown again over the running take.",
       steps: [
         { action: "selectFirstScreen" },
@@ -212,6 +216,7 @@ export const record = catalog(
     },
     paused: {
       profile: "recording",
+      embedsScreen: true,
       how: "Start a take as in `recording`, then pause it from the control bar's command.",
       steps: [
         { action: "selectFirstScreen" },

@@ -21,17 +21,20 @@ Read first: the spec `apps/documentation/src/content/docs/specs/2026-11-04-ui-st
    gate in `gates` with different `side`s, or `extras.oneSided` says why the other side has
    no look of its own. A side the runner cannot produce (a permission it grants) is still
    written as a state with `requires`; the run reports it as not capturable with the reason.
-4. **A state demonstrates only what its image shows.** The run fails a state whose
+4. **A state whose image shows real screen content sets `embedsScreen: true`** (a source
+   thumbnail, a capture's preview, a take). `ui-catalog:lint` lists those states for a look by eye
+   before `ui-catalog:publish`, because an image cannot be scanned for the deny-list.
+5. **A state demonstrates only what its image shows.** The run fails a state whose
    `demonstrates` names an area that is not on screen, so a claim cannot drift from the image.
-5. **Data, not code.** Steps are `navigate`, `click`/`hover`/`press`/`fill`/`scrollTo` on an
+6. **Data, not code.** Steps are `navigate`, `click`/`hover`/`press`/`fill`/`scrollTo` on an
    area (with `part` for a button inside it, `hasText` to pick one card of many), `waitFor`,
    `call` (a preload method with JSON args), `show`/`hide` (a window), `window` (a size),
    `action` (named runner helpers for takes) and, last resort, `waitMs`. Names in `part` are
    English: every profile pins `locale: "en"`.
-6. **Undo what you change.** The runner resets the route (or reloads, for onboarding), presses
+7. **Undo what you change.** The runner resets the route (or reloads, for onboarding), presses
    Escape and puts the recording toggles back before every state. A setting a state changes
    (`call updateSettings`) is put back in its `after`.
-7. **Fix the map, not the image.** If a declared state cannot exist in the real app, change
+8. **Fix the map, not the image.** If a declared state cannot exist in the real app, change
    `ui-map.ts` (and the renderer's `uiArea` if an area goes) and say why in a comment there.
 
 ## Worked example

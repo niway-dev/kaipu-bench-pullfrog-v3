@@ -1,0 +1,17 @@
+# Strings that must never reach the catalog repository (spec failure 7, ADR 0045).
+# One entry per line, matched case-insensitively as a plain substring. `#` starts a comment.
+#
+# Only generic entries live here, because this repository is public. Values that come from
+# the machine (the user name, the home folder, the hostnames, the runner names in
+# runners.json) are added at run time by `lint.ts` and are never written down.
+
+# A private project named in the public spec: its name must not show up on a runner screen.
+Cricut
+
+# Personal mail addresses.
+@gmail.com
+
+# Absolute paths of a home folder, and private network addresses.
+/Users/
+/home/
+192.168.

@@ -58,6 +58,8 @@ export interface ManifestState {
   /** Not capturable or failed: why. */
   readonly reason?: string;
   readonly demonstrates: readonly string[];
+  /** The image embeds real screen content: `ui-catalog:lint` lists it for a look by eye. */
+  readonly embedsScreen?: boolean;
   /** README sentence: the `how` text or the steps, described. */
   readonly how: string;
   readonly gates: readonly { readonly label: string; readonly side: string }[];

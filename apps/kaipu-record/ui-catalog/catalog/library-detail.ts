@@ -63,6 +63,7 @@ export const libraryDetail = catalog(
     },
     "saved-notice": {
       profile: "recording",
+      embedsScreen: true,
       how: "Record a 3 s take of the first display and stop it: the app opens the new recording's page.",
       steps: [
         { action: "selectFirstScreen" },
