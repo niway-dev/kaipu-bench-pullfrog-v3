@@ -37,7 +37,7 @@
 
 .poster {
   aspect-ratio: 16 / 10;
-  border-radius: var(--radius-lg);
+  border-radius: 4px;
   overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border);

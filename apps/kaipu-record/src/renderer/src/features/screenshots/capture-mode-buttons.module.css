@@ -84,17 +84,15 @@
 
 .hero {
   width: 100%;
-  padding: 22px;
-  background: var(--bg-modal);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  padding: 16px 0;
   text-align: left;
+  border-block: 1px solid var(--line);
 }
 
 .hero .primary {
   height: 50px;
   padding: 0 26px;
-  border-radius: 11px;
+  border-radius: 6px;
   font-size: 15.5px;
 }
 

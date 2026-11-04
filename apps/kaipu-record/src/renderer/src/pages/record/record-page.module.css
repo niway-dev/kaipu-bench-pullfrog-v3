@@ -157,7 +157,7 @@
 .cardDivider {
   height: 1px;
   margin: 14px 0 12px;
-  background: var(--border);
+  background: var(--line);
 }
 
 .sectionLabel {
