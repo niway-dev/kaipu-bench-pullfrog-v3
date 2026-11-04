@@ -28,7 +28,7 @@ const SURFACE_TOKENS = [
   "bg-modal",
 ] as const;
 
-const DARK_TEXT = ["text", "text-2", "text-3"] as const;
+const DARK_TEXT = ["text", "text-2", "text-3", "text-4"] as const;
 const DARK_SURFACES = ["bg-canvas", "bg-panel", "bg-raised", "bg-hover", "bg-active"] as const;
 
 describe("light theme", () => {
@@ -69,9 +69,9 @@ describe("light theme", () => {
   );
 });
 
-// The dark palette (Kaipu Black) is held to the same bar for the three text
-// levels used for reading. `text-4` is excluded on purpose: it only labels
-// sections and tracks in mono caps, as the design specifies.
+// The dark palette (Kaipu Black) is held to the same bar for every text level,
+// `text-4` included: since NIW2-626 it carries small labels that mean something
+// (section and track names), so it has to be readable, not decorative.
 describe("dark theme", () => {
   it.each(DARK_TEXT.flatMap((t) => DARK_SURFACES.map((s) => [t, s] as const)))(
     "dark %s on %s meets WCAG AA (4.5:1)",
