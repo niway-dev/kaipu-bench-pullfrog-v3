@@ -25,7 +25,7 @@ import {
   useReadyCopies,
 } from "@renderer/features/video-editor/export/ready-copies";
 import type { SidebarMode } from "@shared/types";
-import { nextSidebarMode, sidebarToggleHint, useSidebarMode } from "./use-sidebar-mode";
+import { sidebarToggleHint, useSidebarMode } from "./use-sidebar-mode";
 
 const MODE_LABEL_KEY = {
   "expanded-row": "sidebarModeExpanded",
@@ -80,7 +80,7 @@ export function Sidebar(): React.JSX.Element | null {
     matchPath({ path: to, end: end ?? false }, pathname) !== null ||
     (to === ROUTES.library && onExportPage);
   const exportBadge = useExportBadge(pathname);
-  const { mode, changed, cycle } = useSidebarMode();
+  const { mode, next, changed, cycle } = useSidebarMode(pathname);
 
   const items: LinkItem[] = NAV.map(({ to, labelKey, Icon, end }) => ({
     id: to,
@@ -103,8 +103,7 @@ export function Sidebar(): React.JSX.Element | null {
   };
 
   // Not known yet: no rail rather than the default one jumping to the saved mode.
-  if (!mode) return null;
-  const next = nextSidebarMode(mode);
+  if (!mode || !next) return null;
   const ToggleIcon = MODE_TOGGLE_ICON[next];
 
   return (

@@ -11,7 +11,7 @@ import {
 } from "@renderer/features/video-editor/export/ready-copies";
 import { Sidebar } from "./sidebar";
 import { __resetSidebarModeSnapshotForTests, rememberSidebarMode } from "./sidebar-mode-snapshot";
-import { SIDEBAR_ROW_MIN_WINDOW_WIDTH } from "./use-sidebar-mode";
+import { rowMinWindowWidth } from "./use-sidebar-mode";
 
 /** The runner's status, set by a test as if an export were encoding. */
 const runnerStatus = vi.hoisted(() => {
@@ -373,42 +373,69 @@ describe("Sidebar first paint (NIW2-626 review)", () => {
 
 describe("Sidebar in a narrow window (NIW2-626 review)", () => {
   const nav = (): HTMLElement => screen.getByRole("navigation");
-  const startWidth = 1440;
   const resizeTo = (width: number) =>
     act(() => {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
       window.dispatchEvent(new Event("resize"));
     });
+  const editorFloor = rowMinWindowWidth("/editor/video/asset-1");
+  const pageFloor = rowMinWindowWidth("/");
 
   afterEach(() => {
-    resizeTo(startWidth);
+    resizeTo(1440);
     vi.restoreAllMocks();
   });
 
-  it("draws a saved expanded-row rail stacked below the threshold, without saving anything", () => {
-    const update = vi.spyOn(window.electronAPI, "updateSettings");
-    resizeTo(SIDEBAR_ROW_MIN_WINDOW_WIDTH - 1);
+  it("derives each floor from the route's window preset plus the row's extra 136px", () => {
+    expect(editorFloor).toBe(1180 + 136);
+    expect(pageFloor).toBe(900 + 136);
+    expect(rowMinWindowWidth("/library")).toBe(pageFloor);
+    expect(rowMinWindowWidth("/editor")).toBe(editorFloor);
+  });
+
+  it.each([
+    ["a sidebar page", "/", pageFloor],
+    ["the editor", "/editor/video/asset-1", editorFloor],
+  ])(
+    "on %s, saved rows draw stacked just below its floor and as rows at it, saving nothing",
+    (_, path, floor) => {
+      const update = vi.spyOn(window.electronAPI, "updateSettings");
+      resizeTo(floor - 1);
+      renderAt(path);
+      expect(nav()).toHaveAttribute("data-mode", "stacked");
+      resizeTo(floor);
+      expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+      expect(update).not.toHaveBeenCalled();
+    },
+  );
+
+  it("a sidebar page at 1040 (the main window's size) shows rows", () => {
+    resizeTo(1040);
     renderAt("/");
-    expect(nav()).toHaveAttribute("data-mode", "stacked");
-    resizeTo(SIDEBAR_ROW_MIN_WINDOW_WIDTH);
     expect(nav()).toHaveAttribute("data-mode", "expanded-row");
-    resizeTo(1180);
-    expect(nav()).toHaveAttribute("data-mode", "stacked");
-    expect(update).not.toHaveBeenCalled();
   });
 
   it("leaves collapsed and stacked as they are", () => {
     resizeTo(1180);
     rememberSidebarMode("collapsed");
-    renderAt("/");
+    renderAt("/editor");
     expect(nav()).toHaveAttribute("data-mode", "collapsed");
     cleanup();
     rememberSidebarMode("stacked");
-    renderAt("/");
+    renderAt("/editor");
     expect(nav()).toHaveAttribute("data-mode", "stacked");
   });
 
-  it("the threshold leaves the editor's minimum content width beside a 200px rail", () => {
-    expect(SIDEBAR_ROW_MIN_WINDOW_WIDTH).toBeGreaterThanOrEqual(1180 + (200 - 64));
+  it("when rows cannot fit, the toggle skips them and names the mode that will show", () => {
+    resizeTo(editorFloor - 1);
+    rememberSidebarMode("collapsed");
+    renderAt("/editor");
+    const toggle = () => screen.getByRole("button", { name: /Change sidebar layout/ });
+    expect(toggle()).toHaveAccessibleName("Change sidebar layout to Stacked");
+    fireEvent.click(toggle());
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+    expect(toggle()).toHaveAccessibleName("Change sidebar layout to Icons only");
+    fireEvent.click(toggle());
+    expect(nav()).toHaveAttribute("data-mode", "collapsed");
   });
 });
