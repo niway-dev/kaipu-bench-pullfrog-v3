@@ -1,6 +1,16 @@
 import { useEffect, useRef } from "react";
 import { Link, matchPath, useLocation } from "react-router-dom";
-import { Video, Library, Camera, Keyboard, Settings, User, Cloud, PenLine } from "lucide-react";
+import {
+  Video,
+  Library,
+  Camera,
+  Keyboard,
+  Settings,
+  User,
+  Cloud,
+  PenLine,
+  Upload,
+} from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { Rail, type RailItem } from "@kaipu/ui";
 import { ROUTES } from "@shared/routes";
@@ -16,7 +26,15 @@ import { useSidebarMode } from "./use-sidebar-mode";
 
 interface NavItem {
   to: string;
-  labelKey: "record" | "screenshots" | "editor" | "library" | "shortcuts" | "settings" | "cloud";
+  labelKey:
+    | "record"
+    | "screenshots"
+    | "editor"
+    | "export"
+    | "library"
+    | "shortcuts"
+    | "settings"
+    | "cloud";
   Icon: typeof Video;
   end?: boolean;
 }
@@ -31,6 +49,9 @@ const NAV: NavItem[] = [
   { to: ROUTES.screenshots, labelKey: "screenshots", Icon: Camera },
   // Active on every /editor/* URL (not `end`), so an open item keeps it lit.
   { to: ROUTES.editor, labelKey: "editor", Icon: PenLine },
+  // Active on /export and /export/:assetId. Export also re-encodes videos Kaipu did not
+  // record (imported files), so it needs its own entry, not only the editor's button.
+  { to: ROUTES.exportNew, labelKey: "export", Icon: Upload },
   { to: ROUTES.library, labelKey: "library", Icon: Library },
   { to: ROUTES.shortcuts, labelKey: "shortcuts", Icon: Keyboard },
   { to: ROUTES.settings, labelKey: "settings", Icon: Settings },
@@ -47,12 +68,8 @@ export function Sidebar(): React.JSX.Element | null {
   const t = useTranslations("nav");
   const tExport = useTranslations("export");
   const { pathname } = useLocation();
-  // Export has no item of its own (NIW2-618). A page about one recording belongs to the Library
-  // that recording lives in, so the Library stays lit; the bare /export picker lights nothing.
-  const onExportPage = matchPath({ path: ROUTES.export, end: true }, pathname) !== null;
   const isActive = (to: string, end?: boolean): boolean =>
-    matchPath({ path: to, end: end ?? false }, pathname) !== null ||
-    (to === ROUTES.library && onExportPage);
+    matchPath({ path: to, end: end ?? false }, pathname) !== null;
   const exportBadge = useExportBadge(pathname);
   const { mode, changed } = useSidebarMode();
 
@@ -86,8 +103,7 @@ export function Sidebar(): React.JSX.Element | null {
       account={account}
       mode={mode}
       animate={changed}
-      // Link, not NavLink: NavLink decides aria-current from the link's own target, and the
-      // Library must read as current on /export/:assetId. The rail already computed `active`.
+      // Link, not NavLink: the rail already computed `active`.
       renderLink={(item, props) => <Link to={item.to} {...props} />}
     />
   );
