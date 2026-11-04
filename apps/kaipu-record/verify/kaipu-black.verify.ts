@@ -43,6 +43,19 @@ test("kaipu black: pages and sidebar modes at 1440x900", async () => {
     const gotIt = page.getByRole("button", { name: "Got it" });
     if (await gotIt.isVisible().catch(() => false)) await gotIt.click();
 
+    // A plain launch, before anything resizes the window: it opens at the main preset and,
+    // on a build with the rail modes, the rows show.
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+    const plainNav = page.locator("nav[data-mode]");
+    if ((await plainNav.count()) > 0)
+      await expect(plainNav).toHaveAttribute("data-mode", "expanded-row");
+    console.log(
+      `[verify] ${NAME}: plain launch window`,
+      await page.evaluate(() => [innerWidth, innerHeight]),
+    );
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(OUT_DIR, "11-plain-launch.png") });
+
     await go("#/");
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
     await shot("01-record");
