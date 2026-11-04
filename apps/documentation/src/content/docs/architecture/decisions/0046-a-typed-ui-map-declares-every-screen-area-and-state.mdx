@@ -1,0 +1,165 @@
+---
+title: "ADR 0046: A typed UI map declares every screen, area and state"
+description: "apps/kaipu-record/src/shared/ui-map.ts is the one typed inventory of the desktop UI: screens (routes and floating windows) → areas (named zones) → states, each area optionally gated by a feature flag, a setting, a permission or the account. Components mark their root with data-ui-area; the catalog shoots by that id; a unit test keeps routes, windows and the map in step; a new feature adds its areas in the same PR."
+---
+
+# ADR 0046: A typed UI map declares every screen, area and state
+
+## Status
+
+Proposed — design PR pending review, added in round 2 (2026-11-04). [NIW2-625](https://linear.app/niway/issue/NIW2-625/ui-state-catalog-on-demand-screenshots-of-every-desktop-screen-and).
+Spec: [UI state catalog — design](/specs/2026-11-04-ui-state-catalog-design/). Companions:
+[0044](/architecture/decisions/0044-the-ui-state-catalog-runs-the-real-app-on-the-mac-mini/)
+(driver) and
+[0045](/architecture/decisions/0045-ui-catalog-images-live-in-a-separate-repository/) (storage).
+Follows the idiom of `ROUTES` (`src/shared/routes.ts`) and `FLAG_NAMES`/`FLAG_DEFAULTS`
+(`src/shared/analytics.ts`).
+
+## Context
+
+Round 1 described the catalog as a hand-written list of states in `ui-catalog/catalog/*.ts`,
+located on screen by visible text and ARIA roles. The owner's round-2 requirement is stronger:
+"every new feature will be annotated so we keep control over them". The inventory of what the
+UI contains must live in code the app itself compiles against, so that a screen, an area or a
+state that is not declared is a compile error or a failing unit test, not a gap someone notices
+in a README months later.
+
+Facts that shape the design:
+
+- `ROUTES` is already the one typed list of routes, in `src/shared/`, with a comment that
+  explains why: three files named the same paths as string literals and drifted. The window
+  kinds have no such list; they are a comment and a chain of `if`s in `src/renderer/src/main.tsx`.
+- Feature flags are `FLAG_NAMES` (`"bypass-login" | "native-cursor-capture"`) with offline
+  `FLAG_DEFAULTS`, resolved in the renderer by `features/analytics/analytics-client.ts` through
+  the PostHog SDK; main never reads a flag and there is no override hook.
+- The gates that change what a screen shows are of four kinds, and they live in different
+  places: a flag (above); an `AppSettings` key persisted in `settings.json`
+  (`recordingMode`, `screenshotMode`, `recordingCountdownSeconds`, `showBarInRecording`,
+  `showBrandBadge`, `screenshotAfterCapture`, `uploadMode`, `cameraBubble.shape`, …); a
+  `RecordingSettings` key that is in-memory in main and set through IPC
+  (`isMicrophoneEnabled`, `isSystemAudioEnabled`, `isCameraEnabled`); a macOS permission
+  (`screen`, `microphone`, `camera`, `accessibility`; "auto-zoom on clicks" is not a setting,
+  it is the Accessibility grant shown on Settings → Recording); and the account
+  (`AuthStatus.kind`: `signed-out | signed-in | unknown`, plus entitlements for Cloud).
+- `src/shared/**` is reachable from the preload bundle, which externalises workspace packages:
+  a value import from `@kaipu/*` there breaks the preload and opens the app to a black window
+  (CLAUDE.md preload rule). Imports between files inside `src/shared/` are fine; `ROUTES` is one.
+- The renderer already uses `data-testid` on 72 elements for the E2E suite. Visible text is
+  translated and rewritten; ids are not.
+
+## Decision
+
+1. **`apps/kaipu-record/src/shared/ui-map.ts` is the inventory.** One `UI_MAP` object declared
+   `as const` (no TS enums, house rule) with three levels:
+   - **screen**: every `ROUTES` entry and every floating-window kind, keyed by a short id
+     (`record`, `library`, `libraryDetail`, …, `controlBar`, `captureToast`, …). A screen is
+     `{ kind: "route", route: ROUTES.x }`, `{ kind: "window", query: "window=control-bar" }`,
+     `{ kind: "route", route, redirect: true }` for the legacy paths, or
+     `{ kind: "route", route, notCapturable: "<reason>" }`.
+   - **areas**: named zones of the screen (`modePicker`, `mic`, `micPanel`, `camera`,
+     `sourcePicker`, `startButton`, …). An area is a thing a person would point at and name.
+   - **states**: the distinct looks of an area, as a non-empty `as const` tuple
+     (`["frame", "window", "screen"]`, `["on", "off", "panelOpen", "denied"]`).
+
+   Derived types: `ScreenId`, `AreaId` (`` `${ScreenId}.${area}` ``), `StateId`
+   (`` `${AreaId}:${state}` ``). A misspelt id anywhere, including the catalog, is a compile
+   error. The window-kind list `WINDOW_KINDS` is extracted into the same file and
+   `main.tsx` switches on it, so the map and the app read one list.
+
+2. **An area may declare `gatedBy`**, a tuple of gates with four shapes, each typed against the
+   real key it names:
+   - `{ flag: FlagName }`;
+   - `{ setting: "recordingMode" | "showBarInRecording" | … }` (a key of `AppSettings`) or
+     `{ recordingSetting: "isCameraEnabled" | "isMicrophoneEnabled" | "isSystemAudioEnabled" }`;
+   - `{ permission: "screen" | "microphone" | "camera" | "accessibility" }`;
+   - `{ account: "signed-out" | "signed-in" | "cloud" }` (`cloud` = signed in with
+     `entitlements.features.cloudUploads`).
+
+   The catalog shoots a gated area on both sides of each gate, and the README says what every
+   area depends on. The map does not say what the gate does; it says that the gate exists.
+
+3. **Components mark their root with `data-ui-area`.** A helper in the renderer,
+   `uiArea("record.mic")` → `{ "data-ui-area": "record.mic" }`, typed on `AreaId`, spreads onto
+   the root element. The catalog locates an area by that attribute, never by visible text or
+   role, and saves the full window and the crop of the area (the crop is what image recognition
+   analyses). An area that is not in the DOM for a state is not an error in that state; an area
+   that is in the DOM in **no** state of its screen is an error of the run.
+4. **Flags are forced for a catalog run through `KAIPU_FLAG_OVERRIDES`.** Main reads the env
+   var (JSON, `{"native-cursor-capture": true}`) at startup, only when `app.isPackaged` is
+   false, validates every key against `FLAG_NAMES`, and passes the object to every renderer
+   window through `webPreferences.additionalArguments` (`--kaipu-flag-overrides=<json>`); the
+   preload reads it from `process.argv` and exposes it as `window.electronAPI.flagOverrides`,
+   a plain object; `isFlagEnabled` consults it before PostHog. The guard is the same as
+   `KAIPU_DISABLE_SCREEN_CAPTURE`: a packaged build ignores the variable. The risk is a
+   developer who leaves it set in a dev shell; main logs `[flags] overrides active: …` on
+   startup and the DEV env badge in the shell shows "flags overridden", and the catalog
+   manifest records the overrides used.
+5. **Two checks keep the map honest.** `ui-catalog/coverage.test.ts`, a Vitest file in
+   `bun run test`, fails when: a `ROUTES` entry or a `WINDOW_KINDS` entry has no screen (or no
+   `redirect`/`notCapturable`); a screen has no area; an area has an empty `states` tuple; a
+   catalog state references a `StateId` that is not in the map (the type already prevents it;
+   the test guards against `as any`); or a `data-ui-area` string literal in the renderer is not
+   an `AreaId`. At runtime, the catalog run reports every area declared for a screen that it
+   found in the DOM in no state of that screen, as a failure of the run.
+6. **A new feature adds its areas and states to the map in the same PR**, together with the
+   `data-ui-area` on its component roots and at least one catalog state per area. This is an
+   acceptance criterion of every UI PR, noted in the repository's CLAUDE.md (one line, added as
+   an implementation step of this design, not by this design PR).
+7. **`ui-map.ts` holds literals only.** It imports `ROUTES` and `FLAG_NAMES` from its own
+   directory and nothing from a workspace package, per the preload rule; `ui-map.test.ts`
+   imports the file and pins that rule the way `locale` and the shortcut accelerators are
+   pinned.
+
+## Alternatives rejected
+
+- **A catalog-only list in `ui-catalog/catalog/*.ts`** (round 1). The states live next to the
+  tool that uses them. Rejected: nothing in the app references the list, so a new feature can
+  ship without touching it and the only alarm is the route-level coverage test, which does not
+  see areas or states; and locating by visible text breaks on every copy change.
+- **Derive the map from `data-ui-area` attributes found in the source** (a build-time scan).
+  No second declaration. Rejected: a scan finds areas, not states or gates, cannot be typed,
+  and reports after the fact; the point is that the declaration comes first and the component
+  conforms to it.
+- **`data-testid` as the area id.** Already present on 72 elements. Rejected: the test ids name
+  what a test needs (`epoch`, `field`, `child`), not what a person would call a zone, and they
+  are untyped strings; reusing them would make the E2E suite and the catalog fight over names.
+  The two attributes coexist.
+- **Override flags by seeding PostHog's local storage** in the renderer. No main change.
+  Rejected: the SDK's cache format is its own, the override would race the SDK's bootstrap, and
+  a floating window has its own storage; an explicit env var read in main and a plain object in
+  the preload is smaller and visible in a log line.
+- **A TS enum per level.** Rejected by house rule; `as const` with derived types is the idiom
+  of `ROUTES`, `FLAG_NAMES` and `IPC_CHANNELS`.
+
+## Consequences
+
+- Every UI PR carries a diff to `ui-map.ts`; a reviewer sees the new areas and states as a list
+  before seeing pixels. Review question: "is this a new state of an existing area or a new
+  area?"
+- `data-ui-area` attributes are part of the renderer's output. They are inert in production
+  (no CSS or script reads them), cost a few bytes per root, and must never be used for styling.
+- A screen with many states multiplies images: the catalog shoots the full window once per
+  state and one crop per area present. The README groups by area, which is also how image
+  recognition will be pointed at them.
+- `KAIPU_FLAG_OVERRIDES` is a second env hook in main that a packaged build ignores. A flag that
+  is forced on in the catalog and off by default for users produces two images; the README says
+  which is the default.
+- The map is the first thing to update when a route is renamed: the type error lands in
+  `ui-map.ts`, then in every catalog state that named it.
+
+## Non-goals
+
+- Describing layout, copy or behaviour in the map. It names things; it does not specify them.
+- Replacing `data-testid` or the E2E suite's locators.
+- A runtime registry the app consults (routing, feature gating). The map is read by tests and
+  the catalog, never by the app's own logic, so it cannot change behaviour.
+- Covering the web app, the mobile app or the documentation site.
+
+## What would reopen this
+
+- The map grows past what one file can hold readably (several hundred areas) and needs
+  splitting per screen, which changes the derived-type approach.
+- A second consumer (a design tool, a docs generator) needs more than ids from the map, at
+  which point it becomes a schema rather than a constant.
+- The preload rule changes and `src/shared/` may import workspace packages, which would let the
+  map share types with `@kaipu/domain`.
