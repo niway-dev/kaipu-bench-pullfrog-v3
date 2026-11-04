@@ -92,9 +92,10 @@ const styles = stylex.create({
     flexDirection: "column",
     justifyContent: "center",
     gap: "5px",
-    width: "56px",
+    // 60px in the 64px rail: the widest labels ("Screenshot", "Shortcuts") fit at 11px.
+    width: "60px",
     paddingBlock: "9px",
-    paddingInline: "2px",
+    paddingInline: 0,
     borderRadius: "11px",
   },
   itemExpanded: {
@@ -157,7 +158,7 @@ const styles = stylex.create({
     transitionDuration: "150ms",
     transitionTimingFunction: "ease",
   },
-  barStacked: { left: "-4px" },
+  barStacked: { left: "-2px" },
   barInset: { left: "-8px", height: "20px" },
   barActive: {
     transform: "translateY(-50%) scaleY(1)",
