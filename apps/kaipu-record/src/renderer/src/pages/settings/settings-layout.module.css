@@ -1,6 +1,9 @@
+/* Edge to edge, like Export: the nav is a panel flush with the header and the rail, so the
+   layout cancels the shell's content padding and each part carries its own (NIW2-615). */
 .layout {
   display: flex;
-  height: 100%;
+  margin: calc(-1 * var(--space-xl));
+  height: calc(100% + 2 * var(--space-xl));
   min-height: 0;
 }
 
