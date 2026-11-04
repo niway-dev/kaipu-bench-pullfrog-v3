@@ -67,8 +67,13 @@ export function captureEvent(name: string, props?: Record<string, unknown>): voi
   posthog.capture(name, props);
 }
 
-/** Read a flag, returning `fallback` while unresolved/disabled. */
+/**
+ * Read a flag, returning `fallback` while unresolved/disabled. A `KAIPU_FLAG_OVERRIDES`
+ * override (unpackaged builds only) wins over PostHog, started or not.
+ */
 export function isFlagEnabled(name: FlagName, fallback: boolean): boolean {
+  const override = window.electronAPI?.flagOverrides?.[name];
+  if (override !== undefined) return override;
   if (!started) return fallback;
   const value = posthog.isFeatureEnabled(name);
   return value === undefined ? fallback : value;

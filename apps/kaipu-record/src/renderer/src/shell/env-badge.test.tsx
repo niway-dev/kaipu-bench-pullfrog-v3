@@ -9,4 +9,17 @@ describe("EnvBadge", () => {
     render(<EnvBadge />);
     expect(screen.getByText("local env")).toBeInTheDocument();
   });
+
+  it("says when feature flags are overridden", () => {
+    const original = window.electronAPI.flagOverrides;
+    (window.electronAPI as { flagOverrides: unknown }).flagOverrides = {
+      "native-cursor-capture": true,
+    };
+    try {
+      render(<EnvBadge />);
+      expect(screen.getByText("local env · flags overridden")).toBeInTheDocument();
+    } finally {
+      (window.electronAPI as { flagOverrides: unknown }).flagOverrides = original;
+    }
+  });
 });

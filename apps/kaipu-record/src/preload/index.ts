@@ -2,6 +2,7 @@ import { NATIVE_CAPTURE_CHANNELS as nativeChannels } from "@shared/native-captur
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import { IPC_CHANNELS } from "@shared/types";
+import { readFlagOverridesArg } from "@shared/flag-overrides";
 import type { AppSettings, ReconcileProgress } from "@shared/types";
 import type { AuthError, AuthStatus } from "@shared/types/auth";
 import type {
@@ -99,6 +100,7 @@ const kaipuApi: KaipuElectronAPI = {
     stop: (at) => ipcRenderer.invoke(nativeChannels.stop, at),
     cancel: () => ipcRenderer.invoke(nativeChannels.cancel),
   },
+  flagOverrides: Object.freeze(readFlagOverridesArg(process.argv)),
   platform: process.platform,
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.getAppVersion),
   notifyReady: () => ipcRenderer.send(IPC_CHANNELS.appReady),

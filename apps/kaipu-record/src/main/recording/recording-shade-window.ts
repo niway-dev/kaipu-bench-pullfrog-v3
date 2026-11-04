@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from "electron";
 import { join } from "path";
+import { withFlagOverrides } from "../flag-overrides";
 import { is } from "@electron-toolkit/utils";
 import { IPC_CHANNELS } from "@shared/types";
 import type { RecordingShadeState, RecordingShadeView } from "@shared/types/ipc";
@@ -172,12 +173,12 @@ export class RecordingShadeWindow {
       skipTaskbar: true,
       hasShadow: false,
       enableLargerThanScreen: true,
-      webPreferences: {
+      webPreferences: withFlagOverrides({
         preload: join(__dirname, "../preload/index.js"),
         sandbox: false,
         // Hidden between takes: a throttled page would answer the first state late.
         backgroundThrottling: false,
-      },
+      }),
     });
     this.window = window;
     window.setIgnoreMouseEvents(true);

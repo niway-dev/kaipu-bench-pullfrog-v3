@@ -18,6 +18,8 @@ import {
 } from "electron";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { setActiveFlagOverrides, withFlagOverrides } from "./flag-overrides";
+import { parseFlagOverrides } from "@shared/flag-overrides";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { IPC_CHANNELS } from "@shared/types";
 import icon from "../../resources/icon.png?asset";
@@ -211,6 +213,22 @@ if (devIdentity) {
 // told through `second-instance` and brings its window back. The lock is keyed on the
 // userData directory, so E2E launches with their own `--user-data-dir` do not collide.
 const cursorDiagnosticRun = process.argv.includes(CURSOR_CAPTURE_DIAGNOSTIC_FLAG);
+// `KAIPU_FLAG_OVERRIDES` (JSON, e.g. `{"native-cursor-capture":true}`) pins feature flags for
+// the UI state catalog and local checks. Unpackaged builds only: a packaged app ignores it
+// entirely. Unknown flags and non-boolean values are logged and dropped. Every window gets
+// the result as `--kaipu-flag-overrides=` (see `withFlagOverrides`); the preload exposes it as
+// `window.electronAPI.flagOverrides`, which the renderer's `isFlagEnabled` reads first.
+{
+  const { overrides, rejected } = parseFlagOverrides(process.env.KAIPU_FLAG_OVERRIDES, {
+    isPackaged: app.isPackaged,
+  });
+  if (rejected.length > 0) console.warn(`[flags] overrides rejected: ${rejected.join(", ")}`);
+  if (Object.keys(overrides).length > 0) {
+    console.log(`[flags] overrides active: ${JSON.stringify(overrides)}`);
+    setActiveFlagOverrides(overrides);
+  }
+}
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 // `kaipu://` links (browser sign-in hand-back, later billing) reach the app three ways, and all
@@ -319,10 +337,10 @@ function createWindow(showOnReady = true): void {
     // Our own title bar: logo, name and workspace switcher in the chrome (NIW2-621).
     ...mainWindowChrome(process.platform, getAppSettings().theme),
     ...(process.platform === "linux" ? { icon } : {}),
-    webPreferences: {
+    webPreferences: withFlagOverrides({
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false,
-    },
+    }),
   });
 
   mainWindow.webContents.setBackgroundThrottling(false);

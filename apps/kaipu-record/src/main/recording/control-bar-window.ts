@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from "electron";
 import { join } from "path";
+import { withFlagOverrides } from "../flag-overrides";
 import { is } from "@electron-toolkit/utils";
 import { IPC_CHANNELS } from "@shared/types";
 import { CONTROL_BAR_STARTING_TICK, type RecordingTick } from "@shared/types/ipc";
@@ -89,11 +90,11 @@ export class ControlBarWindow {
       alwaysOnTop: true,
       skipTaskbar: true,
       hasShadow: false,
-      webPreferences: {
+      webPreferences: withFlagOverrides({
         preload: join(__dirname, "../preload/index.js"),
         sandbox: false,
         backgroundThrottling: false,
-      },
+      }),
     });
     this.window = window;
     this.window.setAlwaysOnTop(true, "screen-saver");

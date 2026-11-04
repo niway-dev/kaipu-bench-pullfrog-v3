@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, screen } from "electron";
 import type { Rectangle } from "electron";
 import { join } from "path";
+import { withFlagOverrides } from "./flag-overrides";
 import { is } from "@electron-toolkit/utils";
 import { CAPTURE_PANEL_MAX_HEIGHT } from "@shared/capture-panel";
 
@@ -128,10 +129,10 @@ export class CapturePanelWindow {
       skipTaskbar: true,
       transparent: true,
       backgroundColor: "#00000000",
-      webPreferences: {
+      webPreferences: withFlagOverrides({
         preload: join(__dirname, "../preload/index.js"),
         sandbox: false,
-      },
+      }),
     });
     this.window.setAlwaysOnTop(true, "screen-saver");
 

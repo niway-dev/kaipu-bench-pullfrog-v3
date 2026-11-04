@@ -23,7 +23,7 @@ import type {
   RecordingReadyHandOff,
   RecordingReadyPayload,
 } from "./recording-ready";
-import type { SerializedError } from "../analytics";
+import type { FlagName, SerializedError } from "../analytics";
 import type { RecordingWriterKind } from "../webcam-track";
 import type { AppSettings, ShortcutAction, TagSummary, UpdateStatus } from "./ipc";
 import type { TagColor } from "@kaipu/domain/constants";
@@ -255,6 +255,8 @@ export interface WorkspacesBridge {
 export interface KaipuElectronAPI {
   /** Developer opt-in only; recordingReady remains false. */
   nativeCapture: NativeCaptureBridge;
+  /** Feature flags pinned by `KAIPU_FLAG_OVERRIDES` (unpackaged builds only); empty otherwise. */
+  readonly flagOverrides: Readonly<Partial<Record<FlagName, boolean>>>;
   /** Host OS (`process.platform`), exposed because the renderer must not read `process` itself. */
   readonly platform: string;
   /** The running app version (`app.getVersion()`), used by the version gate. */

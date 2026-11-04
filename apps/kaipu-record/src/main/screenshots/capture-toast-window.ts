@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, screen } from "electron";
 import type { BrowserWindowConstructorOptions, Rectangle } from "electron";
 import { join } from "path";
+import { withFlagOverrides } from "../flag-overrides";
 import { is } from "@electron-toolkit/utils";
 import { IPC_CHANNELS } from "@shared/types/ipc";
 import {
@@ -360,10 +361,10 @@ export class CaptureToastWindow {
       focusable: false,
       // The first click on a window of an inactive app lands on the button.
       acceptFirstMouse: true,
-      webPreferences: {
+      webPreferences: withFlagOverrides({
         preload: join(__dirname, "../preload/index.js"),
         sandbox: false,
-      },
+      }),
     });
     window.setAlwaysOnTop(true, "floating");
     // Second guard behind `beforeCapture` dismissing it: excluded from `screencapture` and
