@@ -86,7 +86,7 @@
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  color: #3a3a3e;
+  color: var(--text-4);
 }
 
 .split[data-compact] .status {
