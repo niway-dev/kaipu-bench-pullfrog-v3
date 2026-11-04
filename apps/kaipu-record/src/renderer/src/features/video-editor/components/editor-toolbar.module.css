@@ -172,7 +172,8 @@
   gap: 6px;
   height: 34px;
   padding: 0 var(--space-md);
-  background: var(--accent-primary);
+  background: var(--accent);
+  box-shadow: 0 6px 16px -8px rgba(246, 5, 92, 0.7);
   border: 1px solid transparent;
   border-radius: 6px;
   color: #fff;

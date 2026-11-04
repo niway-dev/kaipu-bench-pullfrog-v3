@@ -70,7 +70,7 @@ describe("Button", () => {
     // what makes the two comparable: the only classes a disabled button may have
     // that the enabled one lacks are its own layer (opacity, cursor, box-shadow).
     // A fourth means the enabled button lost a property the variant set.
-    const variants = ["primary", "danger", "ghost", "outline"] as const;
+    const variants = ["primary", "secondary", "danger", "ghost", "outline"] as const;
     for (const variant of variants) {
       const { rerender, unmount } = render(<Button variant={variant}>Go</Button>);
       const enabled = classesOf(/go/i);
@@ -88,7 +88,7 @@ describe("Button", () => {
   });
 
   it("gives each variant a different set of classes", () => {
-    const variants = ["primary", "danger", "ghost", "outline"] as const;
+    const variants = ["primary", "secondary", "danger", "ghost", "outline"] as const;
     const seen = variants.map((variant) => {
       const { unmount } = render(<Button variant={variant}>{variant}</Button>);
       const classes = [...classesOf(variant)].sort().join(" ");
