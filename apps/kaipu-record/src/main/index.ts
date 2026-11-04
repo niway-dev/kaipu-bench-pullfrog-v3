@@ -123,7 +123,6 @@ import { screenshotTitle } from "@shared/screenshot-title";
 import {
   boundsAroundCenter,
   fitPresetToDisplay,
-  initialMainWindowSize,
   isEditorPreset,
   WINDOW_PRESETS,
   type WindowPresetName,
@@ -311,8 +310,8 @@ function createWindow(showOnReady = true): void {
   // Create the browser window.
   mainWindow = new BrowserWindow({
     title: "Kaipu Record",
-    // The main preset (1040x760) fitted to the screen: one source with the renderer's presets.
-    ...initialMainWindowSize(screen.getPrimaryDisplay().workAreaSize),
+    width: 900,
+    height: 670,
     minWidth: BASE_MIN_WIDTH,
     minHeight: BASE_MIN_HEIGHT,
     show: false,

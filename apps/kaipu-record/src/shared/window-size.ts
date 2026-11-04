@@ -116,19 +116,6 @@ export function fitPresetToDisplay(
   };
 }
 
-/**
- * The size the main window is created at: the `main` preset, fitted to the display. Sidebar
- * pages are laid out for it, and the rail's rows need at least 1036px of it (NIW2-626); the
- * window used to open at its 900px minimum and nothing ever grew it.
- */
-export function initialMainWindowSize(workArea: { width: number; height: number }): {
-  width: number;
-  height: number;
-} {
-  const { width, height } = fitPresetToDisplay(WINDOW_PRESETS.main, workArea);
-  return { width, height };
-}
-
 interface Rect {
   x: number;
   y: number;

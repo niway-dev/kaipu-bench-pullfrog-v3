@@ -3,7 +3,6 @@ import { ROUTES } from "./routes";
 import {
   boundsAroundCenter,
   fitPresetToDisplay,
-  initialMainWindowSize,
   isEditorPreset,
   presetForPath,
   WINDOW_PRESETS,
@@ -149,22 +148,5 @@ describe("boundsAroundCenter", () => {
     expect(next.width).toBe(1440);
     // Taller than the display: it gets all the height there is.
     expect(next.height).toBe(875);
-  });
-});
-
-describe("initialMainWindowSize (NIW2-626)", () => {
-  it("opens at the main preset, the size every sidebar page is laid out for", () => {
-    expect(initialMainWindowSize(BIG)).toEqual({
-      width: WINDOW_PRESETS.main.width,
-      height: WINDOW_PRESETS.main.height,
-    });
-    expect(initialMainWindowSize(BIG)).toEqual({ width: 1040, height: 760 });
-  });
-
-  it("never asks for more than the display gives", () => {
-    expect(initialMainWindowSize({ width: 1000, height: 700 })).toEqual({
-      width: 1000,
-      height: 700,
-    });
   });
 });
