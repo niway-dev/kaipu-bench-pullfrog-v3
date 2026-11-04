@@ -85,6 +85,19 @@ takes `page.screenshot` at named steps, and records video with `recordVideo`. Th
 recording: unattended, no screen-recording permission. Background:
 https://github.com/csdev19/general-knowledge/blob/main/conventions/development-pipeline.md ("Verification on the real surface", "The proof list").
 
+## Where Electron scenarios run
+
+On the owner's Mac mini, never on the owner's laptop (Configuration). The owner is logged in at
+its console, so a window launched over SSH opens in that session.
+
+- `ssh macmini`; the clone is `~/Documents/Workspace/Agent/kaipu-record`. Add a worktree there for
+  the PR's branch; keep that clone's `main` clean.
+- Non-interactive SSH has no node on `PATH`. Prefix every command with
+  `export PATH="$HOME/.local/share/mise/installs/node/24/bin:$HOME/.bun/bin:/opt/homebrew/bin:$PATH"`.
+- Build with `./node_modules/.bin/electron-vite build` (same inline `MAIN_VITE_*` placeholders as
+  below) and run with `node node_modules/@playwright/test/cli.js test -c verify/playwright.config.ts <scenario>`.
+- Copy the artifacts back with `scp` into `.evidence/<topic>/`, then remove the worktree there.
+
 ## How to run a scenario
 
 From `apps/kaipu-record`, in the worktree of the PR (use the PR's code, not the main checkout):
@@ -106,14 +119,25 @@ instance does not interfere (separate `--user-data-dir`).
 
 ## Feature map
 
-| Scenario  | What it shows                                                           | Command                     | Artifacts                                                                     |
-| --------- | ----------------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------- |
-| `launch`  | First run: onboarding dialog, then the main window after "Skip setup"   | `bun run proof:run launch`  | `01-onboarding.png`, `02-main-window.png`, `video.webm`                       |
-| `library` | Library list, then the seeded recording's detail page with "Edit video" | `bun run proof:run library` | `01-library-list.png`, `02-recording-detail.png`, `video.webm`                |
-| `export`  | Editor, export sheet, "Ready to share" card after a real H.264 export   | `bun run proof:run export`  | `01-editor.png`, `02-export-sheet.png`, `03-ready-to-share.png`, `video.webm` |
+| Scenario      | What it shows                                                                   | Command                         | Artifacts                                                                     |
+| ------------- | ------------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
+| `launch`      | First run: onboarding dialog, then the main window after "Skip setup"           | `bun run proof:run launch`      | `01-onboarding.png`, `02-main-window.png`, `video.webm`                       |
+| `library`     | Library list, then the seeded recording's detail page with "Edit video"         | `bun run proof:run library`     | `01-library-list.png`, `02-recording-detail.png`, `video.webm`                |
+| `export`      | Editor, export sheet, "Ready to share" card after a real H.264 export           | `bun run proof:run export`      | `01-editor.png`, `02-export-sheet.png`, `03-ready-to-share.png`, `video.webm` |
+| `kaipu-black` | A plain launch at the default size, every main page at 1440×900, a rail tooltip | `bun run proof:run kaipu-black` | `00-plain-launch.png` … `06-sidebar-tooltip.png`, `video.webm`                |
 
 Not covered yet: recording itself (needs screen-capture permission), screenshot editor, settings, auth.
 Add a scenario when a PR's criterion lands there.
+
+## Before / after in the real app
+
+Run the **same scenario** on a worktree at the commit without the change: the commit before the
+first edit, or for a stacked PR the commit the stack's first PR starts from (the PR below already carries part of
+the change). A step whose UI does not exist on the old tree is skipped there, not failed, so one
+file runs on both sides (`kaipu-black.verify.ts` does this). Keep one shot at the window size the
+app opens with, before any `setSize`: a layout that breaks only at the launch size is invisible
+in shots taken at 1440×900. The browser harness is a layout check, not this evidence; when it is
+all there is, the proof row says so.
 
 ## How to add a scenario
 
