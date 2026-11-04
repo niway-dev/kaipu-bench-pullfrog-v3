@@ -22,6 +22,7 @@ import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { IPC_CHANNELS } from "@shared/types";
 import icon from "../../resources/icon.png?asset";
 import { CapturePanelWindow } from "./capture-panel-window";
+import { hasTitleBarOverlay, mainWindowChrome, titleBarOverlay } from "./window-chrome";
 import { devAppIdentity } from "./app-identity";
 import { appShutdown, installAppShutdown } from "./app-shutdown";
 import { createMainTranslator } from "@kaipu/i18n/main";
@@ -271,7 +272,9 @@ const BASE_MIN_HEIGHT = 560;
  * capped at 640px plus gutters); only the height needs raising.
  */
 const ONBOARDING_MIN_WIDTH = BASE_MIN_WIDTH;
-const ONBOARDING_MIN_HEIGHT = 700;
+// 700 used to exclude the native title bar; the 48 px bar is now inside the window, which
+// takes back 20 px of the step's room (NIW2-621).
+const ONBOARDING_MIN_HEIGHT = 720;
 
 /** Ask the renderer to cancel its export, then run `done` once it reports the export stopped
  *  (`exportActive: false`) or after 2 s, whichever comes first. */
@@ -313,6 +316,8 @@ function createWindow(showOnReady = true): void {
     minHeight: BASE_MIN_HEIGHT,
     show: false,
     autoHideMenuBar: true,
+    // Our own title bar: logo, name and workspace switcher in the chrome (NIW2-621).
+    ...mainWindowChrome(process.platform, getAppSettings().theme),
     ...(process.platform === "linux" ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
@@ -984,6 +989,14 @@ app.whenReady().then(async () => {
     },
   });
   onSettingsKeysChanged(["shortcuts"], () => applyGlobalShortcuts());
+  // Windows / Linux: the native caption buttons follow the theme the renderer paints.
+  if (hasTitleBarOverlay(process.platform)) {
+    onSettingsKeysChanged(["theme"], (settings) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setTitleBarOverlay(titleBarOverlay(settings.theme));
+      }
+    });
+  }
   // Rebuild the native tray menu when the language (or a shortcut it labels) changes.
   onSettingsKeysChanged(["locale", "shortcuts"], (settings) => rebuildTrayMenu(settings.locale));
 

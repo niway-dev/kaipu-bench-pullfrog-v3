@@ -14,30 +14,12 @@
   overflow: hidden;
 }
 
-/* Right of the rail: the workspace header above the page. */
+/* Right of the rail: the page. The workspace switcher lives in the title bar (AppRoot). */
 .column {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
-}
-
-.header {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 12px;
-  height: 46px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-app);
-}
-
-/* The right end of the header: a page that belongs to an item puts its "IN · Work ▾" chip here. */
-.headerEnd {
-  display: flex;
-  align-items: center;
-  margin-left: auto;
 }
 
 .content {
