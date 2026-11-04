@@ -506,8 +506,11 @@ export function Rail<T extends RailItem = RailItem>({
       ) : null}
 
       {tip ? (
+        // Visual only: it repeats the item's accessible name (or the toggle's label), so a
+        // tooltip role or aria-describedby would make a screen reader say it twice.
         <span
-          role="tooltip"
+          aria-hidden="true"
+          data-rail-tooltip=""
           className={stylex.props(styles.tooltip).className}
           style={{ top: tip.top, left: tip.left }}
         >
