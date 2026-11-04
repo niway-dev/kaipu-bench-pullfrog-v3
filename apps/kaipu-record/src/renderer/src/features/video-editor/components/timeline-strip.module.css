@@ -28,13 +28,13 @@
 }
 
 .laneLabel {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-4);
 }
 
 /* One grid cell per extra lane (see LaneRow). min-width: 0 stops a wide lane from

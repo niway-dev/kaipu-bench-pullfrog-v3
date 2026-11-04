@@ -110,9 +110,10 @@
 .eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-  letter-spacing: 0.16em;
-  color: var(--text-muted);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-4);
 }
 
 .idleHeading {
@@ -163,10 +164,10 @@
 .sectionLabel {
   margin: 0 0 8px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9.5px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-4);
 }
 
 .headingTitle {
