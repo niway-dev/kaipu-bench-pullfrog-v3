@@ -1,7 +1,28 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { SIDEBAR_MODES, type SidebarMode } from "@shared/types";
+import { WINDOW_PRESETS } from "@shared/window-size";
 import { useAppSettings } from "@renderer/pages/settings/use-app-settings";
 import { knownSidebarMode, rememberSidebarMode } from "./sidebar-mode-snapshot";
+
+/**
+ * Below this window width a saved `expanded-row` rail draws as `stacked`: the editor's minimum
+ * window (1180) was tuned for the 64px rail, and the 200px row would take 136px from its
+ * timeline. Measured from those numbers: 1180 + (200 - 64) = 1316. The saved setting is not
+ * touched, so widening the window brings the rows back.
+ */
+export const SIDEBAR_ROW_MIN_WINDOW_WIDTH = WINDOW_PRESETS.editor.minWidth + (200 - 64);
+
+function subscribeResize(onChange: () => void): () => void {
+  window.addEventListener("resize", onChange);
+  return () => window.removeEventListener("resize", onChange);
+}
+
+const isNarrowWindow = (): boolean => window.innerWidth < SIDEBAR_ROW_MIN_WINDOW_WIDTH;
+
+/** The mode the rail draws: the saved one, with rows stacked in a narrow window. */
+export function displayedSidebarMode(saved: SidebarMode, narrow: boolean): SidebarMode {
+  return saved === "expanded-row" && narrow ? "stacked" : saved;
+}
 
 /** The mode after `mode` in the toggle's cycle: expanded → stacked → collapsed → expanded. */
 export function nextSidebarMode(mode: SidebarMode): SidebarMode {
@@ -57,12 +78,15 @@ export function useSidebarMode(): {
   const { settings, update } = useAppSettings();
   const [startup] = useState(knownSidebarMode);
   const [chosen, setChosen] = useState<SidebarMode | null>(null);
-  const mode = chosen ?? settings?.sidebarMode ?? startup;
+  const saved = chosen ?? settings?.sidebarMode ?? startup;
+  const narrow = useSyncExternalStore(subscribeResize, isNarrowWindow);
+  const mode = saved ? displayedSidebarMode(saved, narrow) : null;
 
   useEffect(() => {
-    if (mode) rememberSidebarMode(mode);
-  }, [mode]);
+    if (saved) rememberSidebarMode(saved);
+  }, [saved]);
 
+  // Steps from what is on screen, so a press in a narrow window always changes something.
   const cycle = useCallback(() => {
     if (!mode) return;
     const next = nextSidebarMode(mode);

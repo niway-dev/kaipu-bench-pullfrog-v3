@@ -11,6 +11,7 @@ import {
 } from "@renderer/features/video-editor/export/ready-copies";
 import { Sidebar } from "./sidebar";
 import { __resetSidebarModeSnapshotForTests, rememberSidebarMode } from "./sidebar-mode-snapshot";
+import { SIDEBAR_ROW_MIN_WINDOW_WIDTH } from "./use-sidebar-mode";
 
 /** The runner's status, set by a test as if an export were encoding. */
 const runnerStatus = vi.hoisted(() => {
@@ -64,7 +65,11 @@ const libraryLink = (): HTMLElement => screen.getByRole("link", { name: /^Librar
 
 // The renderer root reads the settings before the first paint (I18nRoot) and leaves the mode
 // here; every test starts as a window whose settings said expanded-row.
-beforeEach(() => rememberSidebarMode("expanded-row"));
+// A 1440px window, wide enough for the row layout (jsdom's default is 1024).
+beforeEach(() => {
+  rememberSidebarMode("expanded-row");
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
+});
 
 afterEach(() => {
   __resetSidebarModeSnapshotForTests();
@@ -363,5 +368,47 @@ describe("Sidebar first paint (NIW2-626 review)", () => {
     vi.restoreAllMocks();
     expect(seen).not.toContain("expanded-row");
     expect(seen[0]).toBeNull();
+  });
+});
+
+describe("Sidebar in a narrow window (NIW2-626 review)", () => {
+  const nav = (): HTMLElement => screen.getByRole("navigation");
+  const startWidth = 1440;
+  const resizeTo = (width: number) =>
+    act(() => {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+      window.dispatchEvent(new Event("resize"));
+    });
+
+  afterEach(() => {
+    resizeTo(startWidth);
+    vi.restoreAllMocks();
+  });
+
+  it("draws a saved expanded-row rail stacked below the threshold, without saving anything", () => {
+    const update = vi.spyOn(window.electronAPI, "updateSettings");
+    resizeTo(SIDEBAR_ROW_MIN_WINDOW_WIDTH - 1);
+    renderAt("/");
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+    resizeTo(SIDEBAR_ROW_MIN_WINDOW_WIDTH);
+    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+    resizeTo(1180);
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("leaves collapsed and stacked as they are", () => {
+    resizeTo(1180);
+    rememberSidebarMode("collapsed");
+    renderAt("/");
+    expect(nav()).toHaveAttribute("data-mode", "collapsed");
+    cleanup();
+    rememberSidebarMode("stacked");
+    renderAt("/");
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
+  });
+
+  it("the threshold leaves the editor's minimum content width beside a 200px rail", () => {
+    expect(SIDEBAR_ROW_MIN_WINDOW_WIDTH).toBeGreaterThanOrEqual(1180 + (200 - 64));
   });
 });
