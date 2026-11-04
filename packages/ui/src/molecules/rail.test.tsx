@@ -185,7 +185,7 @@ describe("Rail", () => {
       expect(tip()).toBeNull();
     });
 
-    it("has no toggle of its own: the desktop's lives in its title bar", () => {
+    it("draws no buttons of its own, only links", () => {
       render(
         <Rail
           mode="collapsed"
@@ -197,25 +197,5 @@ describe("Rail", () => {
       expect(screen.queryByRole("button")).toBeNull();
       expect(screen.getByRole("link", { name: "Account" })).toBeInTheDocument();
     });
-  });
-
-  it("animates its width only when asked to (a user's change, never the first paint)", () => {
-    const { container, rerender } = render(
-      <Rail
-        mode="collapsed"
-        items={items}
-        renderLink={(item, props) => <a href={item.to} {...props} />}
-      />,
-    );
-    const still = container.querySelector("nav")!.className;
-    rerender(
-      <Rail
-        mode="collapsed"
-        animate
-        items={items}
-        renderLink={(item, props) => <a href={item.to} {...props} />}
-      />,
-    );
-    expect(container.querySelector("nav")!.className).not.toBe(still);
   });
 });

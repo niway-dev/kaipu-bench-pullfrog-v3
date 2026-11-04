@@ -83,7 +83,6 @@ describe("mergeSettings", () => {
         trayHintShown: true,
         diagnosticsEnabled: false,
         microphone: { deviceId: "yeti", label: "Yeti Nano" },
-        sidebarMode: "collapsed",
       }),
     ).toEqual({
       theme: "dark",
@@ -122,7 +121,6 @@ describe("mergeSettings", () => {
         duckSystemAudioWhileTalking: false,
       },
       microphone: { deviceId: "yeti", label: "Yeti Nano" },
-      sidebarMode: "collapsed",
     });
   });
 
@@ -258,18 +256,10 @@ describe("mergeSettings", () => {
     expect(mergeSettings({ showBarInRecording: "yes" as never }).showBarInRecording).toBe(false);
   });
 
-  it("keeps each sidebar mode (NIW2-626)", () => {
-    for (const mode of ["stacked", "collapsed"] as const) {
-      expect(mergeSettings({ sidebarMode: mode }).sidebarMode).toBe(mode);
-    }
-  });
-
-  it("defaults sidebarMode to stacked when absent or unknown", () => {
-    expect(mergeSettings({}).sidebarMode).toBe("stacked");
-    // "expanded-row" was a third mode for a few builds before the owner kept two (NIW2-626).
-    for (const invalid of ["expanded-row", "wide", "", null, 3, true]) {
-      expect(mergeSettings({ sidebarMode: invalid as never }).sidebarMode).toBe("stacked");
-    }
+  it("loads a file that still holds the retired sidebarMode, and drops it (NIW2-626)", () => {
+    const merged = mergeSettings({ sidebarMode: "collapsed", theme: "light" } as never);
+    expect(merged.theme).toBe("light");
+    expect(merged).not.toHaveProperty("sidebarMode");
   });
 
   it("keeps each offered countdown length (0, 3, 5)", () => {

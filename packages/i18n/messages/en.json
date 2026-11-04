@@ -89,9 +89,7 @@
     "account": "Account",
     "cloud": "Cloud",
     "editor": "Editor",
-    "export": "Export",
-    "sidebarCollapse": "Collapse sidebar",
-    "sidebarExpand": "Expand sidebar"
+    "export": "Export"
   },
   "editor": {
     "title": "Editor",

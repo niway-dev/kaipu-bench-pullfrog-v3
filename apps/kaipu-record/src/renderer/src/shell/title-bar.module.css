@@ -44,34 +44,6 @@
   margin: 0 4px;
 }
 
-/* The rail's collapse / expand button, beside the logo (NIW2-626). Not in any collapse rule. */
-.sidebarToggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-3);
-  cursor: pointer;
-  transition:
-    background-color var(--transition),
-    color var(--transition);
-}
-
-.sidebarToggle:hover {
-  background: var(--bg-hover);
-  color: var(--text-2);
-}
-
-.sidebarToggle:focus-visible {
-  outline: 2px solid var(--accent-ring);
-  outline-offset: 0;
-}
-
 /* Without this the OS takes the click and drags the window instead. */
 .interactive {
   display: flex;

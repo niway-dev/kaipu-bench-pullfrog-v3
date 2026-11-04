@@ -7,15 +7,13 @@ import type { StyleXStyles } from "@stylexjs/stylex";
 /**
  * The navigation rail: icon + label items whose active state is a soft accent
  * fill with an indicator bar on the rail's edge, and an optional account item
- * pinned to the footer. It has no mode toggle: a caller that offers one draws it
- * in its own chrome (the desktop's title bar).
+ * pinned to the footer.
  *
  * Two modes (NIW2-626), chosen by the caller:
- * - `stacked` ("expanded" in the app's words): the label under the icon, 64px
- *   wide, labels 11px/500. The default, so a caller that never picks a mode
- *   (the landing's mockup) keeps it.
- * - `collapsed`: icons only, 56px wide. Each label stays the link's accessible
- *   name, and a tooltip shows it on hover and on keyboard focus.
+ * - `stacked`: the label under the icon, 64px wide, labels 11px/500. The
+ *   default, so a caller that never picks a mode (the landing's mockup) keeps it.
+ * - `collapsed`: icons only, 56px wide; the desktop's rail. Each label stays the
+ *   link's accessible name, and a tooltip shows it on hover and on keyboard focus.
  *
  * The rail knows nothing about routing. Each item is handed to `renderLink`,
  * together with the className, style, title, handlers and children it must
@@ -40,12 +38,6 @@ const styles = stylex.create({
     borderRightWidth: "1px",
     borderRightStyle: "solid",
     borderRightColor: tokens.border,
-  },
-  // Only for a change the user made: the first paint must land at its width, not grow to it.
-  railAnimated: {
-    transitionProperty: "width",
-    transitionDuration: "150ms",
-    transitionTimingFunction: "ease",
   },
   railStacked: { width: "64px" },
   railCollapsed: { width: "56px" },
@@ -297,8 +289,6 @@ export interface RailProps<T extends RailItem = RailItem> {
   account?: T;
   /** Defaults to `stacked`. */
   mode?: RailMode;
-  /** Animate width changes. Off by default, so the first paint never animates. */
-  animate?: boolean;
   /** Consumer overrides, as StyleX styles rather than a className. */
   style?: StyleXStyles;
 }
@@ -316,7 +306,6 @@ export function Rail<T extends RailItem = RailItem>({
   renderLink,
   account,
   mode = "stacked",
-  animate = false,
   style,
 }: RailProps<T>) {
   const collapsed = mode === "collapsed";
@@ -337,12 +326,7 @@ export function Rail<T extends RailItem = RailItem>({
   return (
     <nav
       data-mode={mode}
-      {...stylex.props(
-        styles.rail,
-        collapsed ? styles.railCollapsed : styles.railStacked,
-        animate && styles.railAnimated,
-        style,
-      )}
+      {...stylex.props(styles.rail, collapsed ? styles.railCollapsed : styles.railStacked, style)}
     >
       {brand != null && (
         <div title={brandTitle} {...stylex.props(styles.brand)}>

@@ -42,7 +42,6 @@ const SETTINGS: AppSettings = {
     duckSystemAudioWhileTalking: false,
   },
   microphone: null,
-  sidebarMode: "stacked",
 };
 
 describe("useAppSettings", () => {
