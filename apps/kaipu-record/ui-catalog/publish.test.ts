@@ -80,10 +80,51 @@ describe("remote check", () => {
     }
   });
 
-  it("allows a local path or file:// remote for tests", () => {
-    expect(checkRemote("/tmp/catalog.git")).toEqual({ ok: true });
-    expect(checkRemote("file:///tmp/catalog.git")).toEqual({ ok: true });
-    expect(remoteOwnerAndRepo("file:///tmp/catalog.git")).toBeNull();
+  it("refuses the right owner/repo on the wrong host, or with a query or fragment", () => {
+    for (const bad of [
+      "git@gitlab.com:niway-dev/kaipu-ui-catalog.git",
+      "https://evil.example/niway-dev/kaipu-ui-catalog",
+      "ssh://git@github-pento/niway-dev/kaipu-ui-catalog.git",
+      "git@github-pento:niway-dev/kaipu-ui-catalog.git",
+      "https://github.com/niway-dev/kaipu-ui-catalog?x=/a/b",
+      "https://github.com/niway-dev/kaipu-ui-catalog#frag",
+      "git@github.com:niway-dev/kaipu-ui-catalog.git?x=/a/b",
+      "http://github.com/niway-dev/kaipu-ui-catalog",
+      "https://github.com:8443/niway-dev/kaipu-ui-catalog",
+      "https://github.com.evil.example/niway-dev/kaipu-ui-catalog",
+    ]) {
+      expect(checkRemote(bad).ok).toBe(false);
+    }
+  });
+
+  it("allows a bare local repository by path or file:// URL", () => {
+    const bare = bareRepo();
+    expect(checkRemote(bare)).toEqual({ ok: true });
+    expect(checkRemote(`file://${bare}`)).toEqual({ ok: true });
+    expect(remoteOwnerAndRepo(`file://${bare}`)).toBeNull();
+  });
+
+  it("refuses a local path that is not a repository, or a working repository", () => {
+    const work = mkdtempSync(path.join(tmpdir(), "ui-catalog-work-"));
+    expect(checkRemote(work).ok).toBe(false);
+    git(work, "init", "--quiet", "-b", "main");
+    expect(checkRemote(work)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/working/),
+    });
+    expect(checkRemote(`file://${work}`).ok).toBe(false);
+  });
+
+  it("refuses the monorepo's own repository, from any of its folders", () => {
+    const root = path.resolve(import.meta.dirname, "..", "..", "..");
+    expect(checkRemote(root)).toMatchObject({ ok: false });
+    expect(checkRemote(import.meta.dirname).ok).toBe(false);
+    // A bare repository that shares the common dir is the same repository.
+    const bare = bareRepo();
+    expect(checkRemote(bare, bare)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/monorepo/),
+    });
   });
 });
 
