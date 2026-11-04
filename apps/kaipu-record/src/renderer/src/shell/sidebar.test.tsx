@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ROUTES } from "@shared/routes";
 import type { AppSettings } from "@shared/types";
 import {
@@ -10,6 +10,7 @@ import {
   noteReadyCardsShown,
 } from "@renderer/features/video-editor/export/ready-copies";
 import { Sidebar } from "./sidebar";
+import { __resetSidebarModeSnapshotForTests, rememberSidebarMode } from "./sidebar-mode-snapshot";
 
 /** The runner's status, set by a test as if an export were encoding. */
 const runnerStatus = vi.hoisted(() => {
@@ -61,7 +62,12 @@ function renderAt(path: string) {
 
 const libraryLink = (): HTMLElement => screen.getByRole("link", { name: /^Library/ });
 
+// The renderer root reads the settings before the first paint (I18nRoot) and leaves the mode
+// here; every test starts as a window whose settings said expanded-row.
+beforeEach(() => rememberSidebarMode("expanded-row"));
+
 afterEach(() => {
+  __resetSidebarModeSnapshotForTests();
   __resetReadyCopiesForTests();
   runnerStatus.set("idle");
 });
@@ -273,7 +279,7 @@ describe("Sidebar modes (NIW2-626)", () => {
 
 describe("Sidebar shortcut leaves other handlers alone (NIW2-626 review)", () => {
   const nav = (): HTMLElement => screen.getByRole("navigation");
-  const press = (target: EventTarget, init: KeyboardEventInit = {}) =>
+  const press = (target: Element | Window, init: KeyboardEventInit = {}) =>
     fireEvent.keyDown(target, { key: "\\", code: "Backslash", metaKey: true, ...init });
 
   afterEach(() => {
@@ -326,5 +332,36 @@ describe("Sidebar shortcut leaves other handlers alone (NIW2-626 review)", () =>
     renderAt("/");
     press(extra(`<button data-target>x</button>`));
     expect(nav()).toHaveAttribute("data-mode", "stacked");
+  });
+});
+
+describe("Sidebar first paint (NIW2-626 review)", () => {
+  it("with a saved collapsed mode known at startup, the very first render is collapsed", () => {
+    rememberSidebarMode("collapsed");
+    renderAt("/");
+    expect(screen.getByRole("navigation")).toHaveAttribute("data-mode", "collapsed");
+  });
+
+  it("with the mode not known yet, draws no rail until the settings say which, never expanded-row", async () => {
+    __resetSidebarModeSnapshotForTests();
+    const original = window.electronAPI.getSettings;
+    vi.spyOn(window.electronAPI, "getSettings").mockImplementation(async () => ({
+      ...(await original()),
+      sidebarMode: "collapsed",
+    }));
+    const seen: (string | null)[] = [];
+    const observer = new MutationObserver(() => {
+      seen.push(document.querySelector("nav[data-mode]")?.getAttribute("data-mode") ?? null);
+    });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true });
+    renderAt("/");
+    seen.push(document.querySelector("nav[data-mode]")?.getAttribute("data-mode") ?? null);
+    await waitFor(() =>
+      expect(screen.getByRole("navigation")).toHaveAttribute("data-mode", "collapsed"),
+    );
+    observer.disconnect();
+    vi.restoreAllMocks();
+    expect(seen).not.toContain("expanded-row");
+    expect(seen[0]).toBeNull();
   });
 });

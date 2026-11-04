@@ -4,6 +4,7 @@ import es from "@kaipu/i18n/messages/es";
 import en from "@kaipu/i18n/messages/en";
 import { setRuntimeLocale } from "@renderer/lib/runtime-i18n";
 import { applyTheme } from "@renderer/lib/apply-theme";
+import { rememberSidebarMode } from "@renderer/shell/sidebar-mode-snapshot";
 
 /**
  * Wraps any renderer root in <I18nProvider>, resolving the initial locale from
@@ -26,6 +27,8 @@ export async function I18nRoot({ children }: { children: ReactNode }): Promise<R
   const settings = await window.electronAPI.getSettings();
   syncLocale(settings.locale);
   applyTheme(settings.theme);
+  // Read once here, before the first paint, so the rail mounts in the saved mode.
+  rememberSidebarMode(settings.sidebarMode);
 
   return (
     <I18nProvider

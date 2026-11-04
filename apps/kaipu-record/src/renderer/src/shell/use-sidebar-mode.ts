@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { DEFAULT_SIDEBAR_MODE, SIDEBAR_MODES, type SidebarMode } from "@shared/types";
+import { SIDEBAR_MODES, type SidebarMode } from "@shared/types";
 import { useAppSettings } from "@renderer/pages/settings/use-app-settings";
+import { knownSidebarMode, rememberSidebarMode } from "./sidebar-mode-snapshot";
 
 /** The mode after `mode` in the toggle's cycle: expanded → stacked → collapsed → expanded. */
 export function nextSidebarMode(mode: SidebarMode): SidebarMode {
@@ -42,15 +43,28 @@ export function sidebarToggleHint(platform: string): string {
 }
 
 /**
- * The rail's mode, persisted in the app settings so it survives a restart. A change shows at
- * once, before the settings write comes back, and two presses in a row each advance one step.
+ * The rail's mode, persisted in the app settings so it survives a restart. `null` while it is
+ * not known yet (no root left it and the settings have not arrived): the rail then draws
+ * nothing rather than the default and a jump. A change shows at once, before the settings
+ * write comes back, and two presses in a row each advance one step. `changed` turns true on
+ * the first change the user makes, so only those animate.
  */
-export function useSidebarMode(): { mode: SidebarMode; cycle: () => void } {
+export function useSidebarMode(): {
+  mode: SidebarMode | null;
+  changed: boolean;
+  cycle: () => void;
+} {
   const { settings, update } = useAppSettings();
+  const [startup] = useState(knownSidebarMode);
   const [chosen, setChosen] = useState<SidebarMode | null>(null);
-  const mode = chosen ?? settings?.sidebarMode ?? DEFAULT_SIDEBAR_MODE;
+  const mode = chosen ?? settings?.sidebarMode ?? startup;
+
+  useEffect(() => {
+    if (mode) rememberSidebarMode(mode);
+  }, [mode]);
 
   const cycle = useCallback(() => {
+    if (!mode) return;
     const next = nextSidebarMode(mode);
     setChosen(next);
     void update({ sidebarMode: next });
@@ -68,5 +82,5 @@ export function useSidebarMode(): { mode: SidebarMode; cycle: () => void } {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [cycle]);
 
-  return { mode, cycle };
+  return { mode, changed: chosen !== null, cycle };
 }

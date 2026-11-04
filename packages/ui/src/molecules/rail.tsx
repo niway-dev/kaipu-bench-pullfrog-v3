@@ -39,6 +39,9 @@ const styles = stylex.create({
     borderRightWidth: "1px",
     borderRightStyle: "solid",
     borderRightColor: tokens.border,
+  },
+  // Only for a change the user made: the first paint must land at its width, not grow to it.
+  railAnimated: {
     transitionProperty: "width",
     transitionDuration: "150ms",
     transitionTimingFunction: "ease",
@@ -347,6 +350,8 @@ export interface RailProps<T extends RailItem = RailItem> {
   account?: T;
   /** Defaults to `stacked`. */
   mode?: RailMode;
+  /** Animate width changes. Off by default, so the first paint never animates. */
+  animate?: boolean;
   /** A button in the footer that changes the mode; none when absent. */
   modeToggle?: RailModeToggle;
   /** Consumer overrides, as StyleX styles rather than a className. */
@@ -366,6 +371,7 @@ export function Rail<T extends RailItem = RailItem>({
   renderLink,
   account,
   mode = "stacked",
+  animate = false,
   modeToggle,
   style,
 }: RailProps<T>) {
@@ -397,6 +403,7 @@ export function Rail<T extends RailItem = RailItem>({
       {...stylex.props(
         styles.rail,
         row ? styles.railExpanded : collapsed ? styles.railCollapsed : styles.railStacked,
+        animate && styles.railAnimated,
         style,
       )}
     >

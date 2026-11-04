@@ -69,7 +69,7 @@ const NAV: NavItem[] = [
  * Its mode (rows, stacked or icons only) is the user's, kept in the app settings;
  * the button at the rail's foot and Cmd/Ctrl+\ step through the three.
  */
-export function Sidebar(): React.JSX.Element {
+export function Sidebar(): React.JSX.Element | null {
   const t = useTranslations("nav");
   const tExport = useTranslations("export");
   const { pathname } = useLocation();
@@ -80,9 +80,7 @@ export function Sidebar(): React.JSX.Element {
     matchPath({ path: to, end: end ?? false }, pathname) !== null ||
     (to === ROUTES.library && onExportPage);
   const exportBadge = useExportBadge(pathname);
-  const { mode, cycle } = useSidebarMode();
-  const next = nextSidebarMode(mode);
-  const ToggleIcon = MODE_TOGGLE_ICON[next];
+  const { mode, changed, cycle } = useSidebarMode();
 
   const items: LinkItem[] = NAV.map(({ to, labelKey, Icon, end }) => ({
     id: to,
@@ -104,12 +102,18 @@ export function Sidebar(): React.JSX.Element {
     active: isActive(ROUTES.cloud),
   };
 
+  // Not known yet: no rail rather than the default one jumping to the saved mode.
+  if (!mode) return null;
+  const next = nextSidebarMode(mode);
+  const ToggleIcon = MODE_TOGGLE_ICON[next];
+
   return (
     <Rail
       // No brand row: the logo and the name live in the title bar (NIW2-621).
       items={items}
       account={account}
       mode={mode}
+      animate={changed}
       modeToggle={{
         label: t("sidebarToggle", { next: t(MODE_LABEL_KEY[next]) }),
         hint: sidebarToggleHint(window.electronAPI.platform),

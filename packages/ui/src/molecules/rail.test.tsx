@@ -203,4 +203,24 @@ describe("Rail", () => {
       expect(screen.getByRole("tooltip")).toHaveTextContent("Expand sidebar ⌘\\");
     });
   });
+
+  it("animates its width only when asked to (a user's change, never the first paint)", () => {
+    const { container, rerender } = render(
+      <Rail
+        mode="collapsed"
+        items={items}
+        renderLink={(item, props) => <a href={item.to} {...props} />}
+      />,
+    );
+    const still = container.querySelector("nav")!.className;
+    rerender(
+      <Rail
+        mode="collapsed"
+        animate
+        items={items}
+        renderLink={(item, props) => <a href={item.to} {...props} />}
+      />,
+    );
+    expect(container.querySelector("nav")!.className).not.toBe(still);
+  });
 });
