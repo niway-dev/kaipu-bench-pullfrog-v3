@@ -139,6 +139,7 @@ export const capturePanel = catalog("capturePanel", {
   },
   "camera-on": {
     profile: "default",
+    embedsScreen: true,
     steps: [camera(true), show],
     demonstrates: ["capturePanel.camera:on"],
     gates: [
@@ -150,6 +151,7 @@ export const capturePanel = catalog("capturePanel", {
   },
   "camera-settings": {
     profile: "default",
+    embedsScreen: true,
     steps: [
       camera(true),
       show,

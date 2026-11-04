@@ -73,6 +73,7 @@ export const captureOverlay = catalog(
     },
     "record-frame-camera": {
       profile: "recording",
+      embedsScreen: true,
       steps: [
         { call: "updateRecordingSettings", args: [{ isCameraEnabled: true }], on: "main" },
         record("frame"),

@@ -24,6 +24,7 @@ const shape = (value: string): Step => ({
 export const cameraBubble = catalog("cameraBubble", {
   circle: {
     profile: "default",
+    embedsScreen: true,
     steps: [cameraOn, { waitFor: { window: "camera-bubble" } }],
     demonstrates: ["cameraBubble.root:circle", "cameraBubble.bubble:live"],
     gates: [{ setting: "cameraBubble", side: "circle" }],
@@ -32,6 +33,7 @@ export const cameraBubble = catalog("cameraBubble", {
   },
   square: {
     profile: "default",
+    embedsScreen: true,
     steps: [shape("rounded"), cameraOn, { waitFor: { window: "camera-bubble" } }],
     demonstrates: ["cameraBubble.root:square"],
     gates: [{ setting: "cameraBubble", side: "rounded" }],
@@ -40,6 +42,7 @@ export const cameraBubble = catalog("cameraBubble", {
   },
   portrait: {
     profile: "default",
+    embedsScreen: true,
     steps: [shape("rectangle"), cameraOn, { waitFor: { window: "camera-bubble" } }],
     demonstrates: ["cameraBubble.root:portrait"],
     gates: [{ setting: "cameraBubble", side: "rectangle" }],
@@ -48,6 +51,7 @@ export const cameraBubble = catalog("cameraBubble", {
   },
   placeholder: {
     profile: "default",
+    embedsScreen: true,
     steps: [cameraOn, { waitFor: { window: "camera-bubble" } }],
     demonstrates: ["cameraBubble.bubble:placeholder"],
     requires: { camera: false },

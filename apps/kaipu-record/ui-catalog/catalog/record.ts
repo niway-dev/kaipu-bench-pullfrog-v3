@@ -113,6 +113,7 @@ export const record = catalog(
     },
     "camera-on": {
       profile: "default",
+      embedsScreen: true,
       steps: [cameraOn],
       demonstrates: ["record.camera:on"],
       gates: [
@@ -124,6 +125,7 @@ export const record = catalog(
     },
     "camera-settings": {
       profile: "default",
+      embedsScreen: true,
       steps: [
         cameraOn,
         { click: { area: "record.camera", part: { role: "button", name: "Camera settings" } } },

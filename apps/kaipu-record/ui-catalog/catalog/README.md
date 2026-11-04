@@ -21,9 +21,12 @@ Read first: the spec `apps/documentation/src/content/docs/specs/2026-11-04-ui-st
    gate in `gates` with different `side`s, or `extras.oneSided` says why the other side has
    no look of its own. A side the runner cannot produce (a permission it grants) is still
    written as a state with `requires`; the run reports it as not capturable with the reason.
-4. **A state whose image shows real screen content sets `embedsScreen: true`** (a source
-   thumbnail, a capture's preview, a take). `ui-catalog:lint` lists those states for a look by eye
-   before `ui-catalog:publish`, because an image cannot be scanned for the deny-list.
+4. **`embedsScreen: true` on any state that can show live screen or camera content on some
+   runner** (a source thumbnail, a capture's preview, a take, a camera bubble or any state
+   with the camera on). The rule is what the state can show, not what the mini happened to
+   produce: a runner with a webcam draws a live frame into the same state the mini draws a
+   placeholder in. `ui-catalog:lint` lists those states for a look by eye before
+   `ui-catalog:publish`, because an image cannot be scanned for the deny-list.
 5. **A state demonstrates only what its image shows.** The run fails a state whose
    `demonstrates` names an area that is not on screen, so a claim cannot drift from the image.
 6. **Data, not code.** Steps are `navigate`, `click`/`hover`/`press`/`fill`/`scrollTo` on an
