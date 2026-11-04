@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import styles from "./settings-drawer.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 /** `panel`: the capture panel's compact drawer. `page`: the Record page's wide one. */
 export type SettingsDrawerVariant = "panel" | "page";
@@ -11,6 +12,8 @@ export interface SettingsDrawerProps {
   variant?: SettingsDrawerVariant;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
   children: ReactNode;
+  /** The catalog area this drawer is (`uiArea("…")`), put on its root. */
+  ui?: UiAreaProps;
 }
 
 /**
@@ -27,6 +30,7 @@ export function SettingsDrawer({
   variant = "panel",
   onKeyDown,
   children,
+  ui,
 }: SettingsDrawerProps): React.JSX.Element | null {
   const ref = useRef<HTMLDivElement>(null);
   // On the Record page a drawer opened low in the window would start below the fold: bring
@@ -37,6 +41,7 @@ export function SettingsDrawer({
   if (!open) return null;
   return (
     <div
+      {...ui}
       ref={ref}
       id={id}
       role="region"

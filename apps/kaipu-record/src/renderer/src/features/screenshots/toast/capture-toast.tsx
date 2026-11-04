@@ -10,6 +10,7 @@ import type { CaptureToastBridge } from "@shared/types/electron-api";
 import { previewCardSize } from "@shared/capture-preview-layout";
 import { detectKeyPlatform, type KeyPlatform } from "../overlay/overlay-keys";
 import styles from "./capture-toast.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 const MODE_KEY = {
   frame: "modeFrame",
@@ -75,8 +76,9 @@ export function CaptureToast({
   const fileApp = platform === "mac" ? "Finder" : "Explorer";
 
   return (
-    <div className={styles.frame}>
+    <div {...uiArea("captureToast.root")} className={styles.frame}>
       <div
+        {...uiArea("captureToast.card")}
         role="status"
         aria-label={t("toast.label")}
         className={styles.card}

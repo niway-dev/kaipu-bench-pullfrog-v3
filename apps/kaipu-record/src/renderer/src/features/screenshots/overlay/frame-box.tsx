@@ -31,6 +31,7 @@ import {
 import { workAreaInWindow, type OverlayQuery } from "./overlay-query";
 import { SelectionToolbar, type OverlayChrome } from "./selection-chrome";
 import styles from "./capture-overlay.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** How close (DIP) the pointer must be to a handle to grab it. */
 const HANDLE_HIT_DIP = 8;
@@ -294,6 +295,7 @@ export function FrameBox({
       <div
         role="group"
         aria-label={t("overlay.frame")}
+        {...uiArea("captureOverlay.frameBox")}
         data-testid="capture-frame"
         className={recording ? `${styles.frameBox} ${styles.frameBoxRecord}` : styles.frameBox}
         style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }}

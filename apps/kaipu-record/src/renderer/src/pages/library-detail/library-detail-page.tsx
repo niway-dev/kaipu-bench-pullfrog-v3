@@ -58,6 +58,7 @@ import { Badge } from "@kaipu/ui";
 import { useTranslations, type Messages } from "@kaipu/i18n";
 import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
 import styles from "./library-detail-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type LibraryMessageKey = keyof Messages["library"];
 
@@ -205,7 +206,7 @@ export function LibraryDetailPage(): React.JSX.Element {
 
   if (!video || !assetId) {
     return (
-      <div className={styles.centered}>
+      <div {...uiArea("libraryDetail.missing")} className={styles.centered}>
         <FileX2 size={40} strokeWidth={1.5} className={styles.missingIcon} />
         <h2 className={styles.missingTitle}>{t("fileNotFound")}</h2>
         <Button variant="ghost" onClick={back}>
@@ -289,7 +290,7 @@ export function LibraryDetailPage(): React.JSX.Element {
   };
 
   return (
-    <div className={styles.page}>
+    <div {...uiArea("libraryDetail.page")} className={styles.page}>
       {/* "IN · Work ▾": the item's workspace, and Move to (spec decision 13, ADR 0033). A
           cloud-only item has nothing local to move. */}
       <ItemWorkspaceChip assetId={video.id !== null ? video.assetId : null} closes="page" />
@@ -316,7 +317,7 @@ export function LibraryDetailPage(): React.JSX.Element {
         )}
       </div>
 
-      <div className={styles.details}>
+      <div {...uiArea("libraryDetail.details")} className={styles.details}>
         <div className={styles.meta}>
           <StorageMeta video={video} />
           <span className={styles.dot}>·</span>
@@ -426,6 +427,7 @@ export function LibraryDetailPage(): React.JSX.Element {
       {showInAppCard && (
         <StatusCardPortal>
           <PostRecordingCard
+            ui={uiArea("libraryDetail.postRecordingCard")}
             durationSeconds={probe?.durationSec ?? video.durationSeconds}
             dimensions={probe ? { width: probe.width, height: probe.height } : null}
             sizeBytes={video.fileSizeBytes}
@@ -440,7 +442,7 @@ export function LibraryDetailPage(): React.JSX.Element {
       )}
 
       {master && showSavedNotice && (
-        <div className={styles.savedNotice} role="status">
+        <div {...uiArea("libraryDetail.savedNotice")} className={styles.savedNotice} role="status">
           <span className={styles.savedIcon} aria-hidden>
             <Check size={11} strokeWidth={3} />
           </span>
@@ -465,7 +467,7 @@ export function LibraryDetailPage(): React.JSX.Element {
         localId && <GifViewer id={localId} />
       ) : (
         localId && (
-          <div className={styles.player}>
+          <div {...uiArea("libraryDetail.preview")} className={styles.player}>
             <RecordingPlayer
               id={localId}
               poster={video.thumbnailUrl}
@@ -482,7 +484,7 @@ export function LibraryDetailPage(): React.JSX.Element {
       )}
 
       {/* Buttons only: the row wraps when it grows, and nothing else lives in it. */}
-      <div className={styles.actions}>
+      <div {...uiArea("libraryDetail.actions")} className={styles.actions}>
         {/* Export a copy opens Prepare (NIW2-578) — the core action. While "Where is it
             going?" is showing, its cards are that action, so the button waits until it is
             gone. */}

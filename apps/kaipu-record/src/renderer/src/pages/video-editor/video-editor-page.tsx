@@ -184,6 +184,7 @@ import {
 } from "@renderer/features/video-editor/cursor/cursor-model";
 import { CursorLayer } from "@renderer/features/video-editor/cursor/cursor-layer";
 import { CursorInspector } from "@renderer/features/video-editor/components/inspector/cursor-inspector";
+import { uiArea } from "@renderer/lib/ui-area";
 
 export interface VideoEditorSource {
   capture?: RecordingCapture | null;
@@ -1372,13 +1373,14 @@ function VideoEditor({
   ]);
 
   return (
-    <div className={styles.page}>
+    <div {...uiArea("editorVideo.page")} className={styles.page}>
       <div className={styles.workspace}>
         <main className={styles.stage} ref={stageRef}>
           {/* Video region: 1fr grid row — centers PreviewStage and constrains its height
               so the transport bar below is never clipped regardless of video aspect ratio.
               In fullscreen mode the height cap is lifted via an inline style override. */}
           <div
+            {...uiArea("editorVideo.preview")}
             className={styles.videoRegion}
             style={isFullscreen ? { maxHeight: "none" } : undefined}
           >
@@ -1535,7 +1537,7 @@ function VideoEditor({
               visible even when the video fills the full available height. Three columns
               (see .transport): the play button stays optically centred however wide the
               side clusters get — v2 puts the zoom count on the right. */}
-          <div className={styles.transport}>
+          <div {...uiArea("editorVideo.transport")} className={styles.transport}>
             <div className={styles.transportSide}>
               <button
                 type="button"
@@ -1741,7 +1743,7 @@ function VideoEditor({
           </EditorInspector>
         </div>
       </div>
-      <footer className={styles.timeline}>
+      <footer {...uiArea("editorVideo.timeline")} className={styles.timeline}>
         <TimelineStrip
           layout={layout}
           playback={playback}

@@ -19,6 +19,7 @@ import { type LayoutEntry, layoutDuration } from "../timeline";
 import type { ZoomSegment } from "../zoom/zoom-model";
 import { fractionToTime, timeToFraction } from "./timeline-geometry";
 import styles from "./zoom-lane.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 export type EdgePhase = "start" | "move" | "end";
 
@@ -102,7 +103,12 @@ export function ZoomLane({
   };
 
   return (
-    <div ref={laneRef} className={styles.lane} data-testid="zoom-lane">
+    <div
+      ref={laneRef}
+      {...uiArea("editorVideo.zoomLane")}
+      className={styles.lane}
+      data-testid="zoom-lane"
+    >
       {segments.length === 0 && hasTrack && <p className={styles.empty}>{t("zoomEmptyState")}</p>}
       {segments.flatMap((segment, index) => {
         const blocks = sourceRangeToTimelineBlocks(layout, segment.start, segment.end);

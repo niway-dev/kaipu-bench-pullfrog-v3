@@ -6,6 +6,7 @@ import { groupOf } from "@renderer/features/prepare/destinations";
 import { DestinationLogo } from "@renderer/features/prepare/components/destination-logo";
 import { EXPORT_NAME, EXPORT_ORDER } from "./export-copy";
 import styles from "./destination-row.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** What the cards say about each copy; there is none before a video is picked. */
 export interface DestinationSizes {
@@ -44,7 +45,11 @@ export function DestinationRow({
   }, [selected]);
 
   return (
-    <section className={styles.panel} aria-labelledby="export-row-label">
+    <section
+      {...uiArea("export.destinationRow")}
+      className={styles.panel}
+      aria-labelledby="export-row-label"
+    >
       <div className={styles.head}>
         <span id="export-row-label" className={styles.label}>
           {t("rowLabel")}

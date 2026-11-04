@@ -4,6 +4,7 @@ import { SettingsDrawer, type SettingsDrawerVariant } from "../settings-controls
 import { useSettingsFocus } from "../settings-controls/use-settings-focus";
 import { CameraSettingsContent } from "./camera-settings-content";
 import type { CameraSettingsStore } from "./use-camera-settings";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 export interface CameraSettingsDrawerProps {
   id: string;
@@ -14,6 +15,7 @@ export interface CameraSettingsDrawerProps {
   cameraOn: boolean;
   isRecording: boolean;
   variant?: SettingsDrawerVariant;
+  ui?: UiAreaProps;
 }
 
 /** The camera settings, as an inline drawer under the row (capture panel and Record page). */
@@ -26,11 +28,19 @@ export function CameraSettingsDrawer({
   cameraOn,
   isRecording,
   variant = "panel",
+  ui,
 }: CameraSettingsDrawerProps): React.JSX.Element | null {
   const t = useTranslations("cameraSettings");
   const { firstRef, onKeyDown } = useSettingsFocus(open, chevronRef, onClose);
   return (
-    <SettingsDrawer id={id} label={t("title")} open={open} variant={variant} onKeyDown={onKeyDown}>
+    <SettingsDrawer
+      id={id}
+      label={t("title")}
+      open={open}
+      variant={variant}
+      onKeyDown={onKeyDown}
+      ui={ui}
+    >
       <CameraSettingsContent
         store={store}
         cameraOn={cameraOn}

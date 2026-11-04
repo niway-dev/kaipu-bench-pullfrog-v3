@@ -31,6 +31,7 @@ import {
 import { formatAccelerator } from "@renderer/features/shortcuts/keyboard-accelerator";
 import { isWindowsHost } from "@renderer/features/shortcuts/host-platform";
 import styles from "./editor-toolbar.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** Accepted image types for the "Add image" tool — matches SlideAssetStore's decode path. */
 const SLIDE_IMAGE_TYPES = "image/png,image/jpeg,image/webp";
@@ -511,7 +512,12 @@ export function EditorToolRail({
   };
 
   return (
-    <div className={styles.rail} role="toolbar" aria-orientation="vertical">
+    <div
+      {...uiArea("editorVideo.toolRail")}
+      className={styles.rail}
+      role="toolbar"
+      aria-orientation="vertical"
+    >
       <button
         type="button"
         data-tool-group="select"
@@ -615,7 +621,7 @@ export function EditorToolbar({
   const shortcuts = editShortcuts();
 
   return (
-    <div className={styles.toolbar}>
+    <div {...uiArea("editorVideo.toolbar")} className={styles.toolbar}>
       <div className={styles.actions}>
         <button
           type="button"

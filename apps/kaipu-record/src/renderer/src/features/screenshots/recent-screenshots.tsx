@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useLocale, useTranslations } from "@kaipu/i18n";
 import { useRecentScreenshots } from "./use-recent-screenshots";
 import styles from "./recent-screenshots.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** Strip of recent screenshots shown under the capture card. Hidden when empty.
  *  Each opens the library detail for that screenshot. */
@@ -30,7 +31,7 @@ export function RecentScreenshots(): React.JSX.Element | null {
   };
 
   return (
-    <section className={styles.section}>
+    <section {...uiArea("screenshots.recent")} className={styles.section}>
       <h2 className={styles.heading}>{t("recent")}</h2>
       <div className={styles.grid}>
         {shots.map((shot) => (

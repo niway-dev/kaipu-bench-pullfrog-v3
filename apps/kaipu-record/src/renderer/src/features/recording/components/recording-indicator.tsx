@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslations } from "@kaipu/i18n";
 import { formatElapsed } from "@renderer/features/recording/elapsed";
 import styles from "./recording-indicator.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 interface RecordingIndicatorProps {
   /** Pulsing red while recording, steady amber while paused. */
@@ -10,6 +11,7 @@ interface RecordingIndicatorProps {
   elapsedSeconds: number;
   /** `bar` is the Record page's full-width header; `banner` is the compact Capture Panel pill. */
   variant: "bar" | "banner";
+  ui?: UiAreaProps;
 }
 
 /**
@@ -21,10 +23,11 @@ export function RecordingIndicator({
   paused,
   elapsedSeconds,
   variant,
+  ui,
 }: RecordingIndicatorProps): React.JSX.Element {
   const t = useTranslations("record");
   return (
-    <div className={styles[variant]} data-paused={paused || undefined}>
+    <div {...ui} className={styles[variant]} data-paused={paused || undefined}>
       <span className={styles.dot} data-paused={paused || undefined} />
       <span className={styles.label}>{paused ? t("pausedState") : t("recordingState")}</span>
       <span className={styles.timer}>{formatElapsed(elapsedSeconds * 1000)}</span>

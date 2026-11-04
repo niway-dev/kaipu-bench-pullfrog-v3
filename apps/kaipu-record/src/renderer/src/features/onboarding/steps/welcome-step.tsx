@@ -3,6 +3,7 @@ import { useLocale, useSetLocale, useTranslations, type Locale } from "@kaipu/i1
 import { isWindowsHost } from "@renderer/features/shortcuts/host-platform";
 import { KaipuLogo } from "@kaipu/brand";
 import styles from "./welcome-step.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type FeatureLabelKey = "featScreen" | "featVoice" | "featAudio" | "featCamera";
 
@@ -54,7 +55,7 @@ function LanguagePicker(): React.JSX.Element {
 export function WelcomeStep(): React.JSX.Element {
   const t = useTranslations("onboarding");
   return (
-    <div className={styles.step}>
+    <div {...uiArea("onboarding.welcomeStep")} className={styles.step}>
       <div className={styles.mark}>
         <KaipuLogo use="app" size={96} />
       </div>

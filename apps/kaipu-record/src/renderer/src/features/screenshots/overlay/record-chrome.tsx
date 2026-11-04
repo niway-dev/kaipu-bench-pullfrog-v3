@@ -26,6 +26,7 @@ import {
   type OverlayChrome,
 } from "./selection-chrome";
 import styles from "./capture-overlay.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * The chrome of the overlay opened to RECORD (Claude Design "Kaipu Record Modes"): a ratio
@@ -270,6 +271,7 @@ export function RecordWidget({
       role="toolbar"
       aria-orientation="vertical"
       aria-label={t("overlay.recordWidget")}
+      {...uiArea("captureOverlay.recordWidget")}
       data-testid="record-widget"
       data-side={side}
       className={styles.recordWidget}
@@ -398,6 +400,7 @@ export function RatioBar({
     <div
       role="group"
       aria-label={t("overlay.ratios")}
+      {...uiArea("captureOverlay.ratioBar")}
       data-testid="ratio-bar"
       className={styles.ratioBar}
       style={{ left, top }}

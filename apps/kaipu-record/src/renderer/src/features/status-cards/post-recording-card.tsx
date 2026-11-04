@@ -11,6 +11,7 @@ import {
 import { DestinationLogo } from "@renderer/features/prepare/components/destination-logo";
 import { StatusCard, StatusCardActions, StatusCardButton, StatusCardText } from "./status-card";
 import styles from "./post-recording-card.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 /** The three places a fresh recording goes most; "More places" opens Prepare on none. */
 const CHIPS = [
@@ -42,6 +43,8 @@ export interface PostRecordingCardProps {
    * already sits on that page and Open would only be a second ✕.
    */
   onOpen?(): void;
+  /** The catalog area this card is (`uiArea("…")`), put on its root. */
+  ui?: UiAreaProps;
 }
 
 /**
@@ -59,6 +62,7 @@ export function PostRecordingCard({
   onEditFirst,
   onDismiss,
   onOpen,
+  ui,
 }: PostRecordingCardProps): React.JSX.Element {
   const t = useTranslations("postRecording");
   const subtitle = [
@@ -72,6 +76,7 @@ export function PostRecordingCard({
 
   return (
     <StatusCard
+      ui={ui}
       label={title}
       wide
       bareIcon

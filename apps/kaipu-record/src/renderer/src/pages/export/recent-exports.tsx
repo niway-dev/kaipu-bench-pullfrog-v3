@@ -8,6 +8,7 @@ import { useExportRunner } from "@renderer/features/video-editor/export/export-r
 import { formatMB } from "@renderer/features/video-editor/export/export-size";
 import { EXPORT_NAME } from "./export-copy";
 import styles from "./recent-exports.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** How many rows the strip shows. */
 const RECENT_COUNT = 3;
@@ -40,7 +41,11 @@ export function RecentExports({
   const done = recentCopies(videos, running ? RECENT_COUNT - 1 : RECENT_COUNT);
 
   return (
-    <section className={styles.panel} aria-labelledby="export-recent">
+    <section
+      {...uiArea("exportNew.recentExports")}
+      className={styles.panel}
+      aria-labelledby="export-recent"
+    >
       <h2 id="export-recent" className={styles.label}>
         {t("recentTitle")}
       </h2>

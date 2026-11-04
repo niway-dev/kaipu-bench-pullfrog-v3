@@ -24,6 +24,7 @@ import { markCopySeen } from "@renderer/features/video-editor/export/ready-copie
 import { setExportWidgetMinimized, useExportWidgetMinimized } from "./export-widget-state";
 import { StatusCard, StatusCardActions, StatusCardButton, StatusCardText } from "./status-card";
 import styles from "./export-status-cards.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * The background export's cards (NIW2-586), bottom right on every screen: the progress
@@ -104,6 +105,7 @@ export function ExportProgressCard({
     const name = tEditor(PRESET_NAME[job.presetId]);
     return (
       <StatusCard
+        ui={uiArea("shell.exportCard")}
         label={tEditor("exportError")}
         icon={<TriangleAlert size={18} strokeWidth={1.8} />}
         title={tEditor("exportError")}
@@ -142,6 +144,7 @@ export function ExportProgressCard({
 
   return (
     <StatusCard
+      ui={uiArea("shell.exportCard")}
       label={title}
       icon={<JobIcon job={job} />}
       bareIcon
@@ -242,6 +245,7 @@ export function ExportReadyCard({ ready }: { ready: ReadyExport }): React.JSX.El
 
   return (
     <StatusCard
+      ui={uiArea("shell.exportCard")}
       label={title}
       icon={<KaipuLogo use="done" size={36} />}
       bareIcon

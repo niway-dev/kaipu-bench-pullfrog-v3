@@ -19,6 +19,7 @@ import { isWindowsHost } from "@renderer/features/shortcuts/host-platform";
 import { FolderPath } from "./folder-path";
 import { relocateRefusalMessage } from "./relocate-copy";
 import styles from "./workspace-dialog.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type Created = Extract<WorkspaceCreateResult, { ok: true }>;
 type Saved = Extract<WorkspaceEditResult, { ok: true }>;
@@ -166,6 +167,7 @@ export function WorkspaceDialog({
   return (
     <ModalOverlay onCancel={onClose} labelledBy={`${id}-title`} size="wide">
       <form
+        {...uiArea("shell.workspaceDialog")}
         ref={formRef}
         className={styles.form}
         onSubmit={(event) => {

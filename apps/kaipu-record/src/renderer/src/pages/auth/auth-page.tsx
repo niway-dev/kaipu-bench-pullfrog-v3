@@ -10,6 +10,7 @@ import { tokens } from "@kaipu/tokens/kaipu.stylex";
 import type { AuthError } from "@shared/types/auth";
 import { useAuthStatus } from "@renderer/features/auth/use-auth-status";
 import styles from "./auth-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** The shared Button takes StyleX styles, not a className (its classes are atomic). */
 const sx = stylex.create({
@@ -100,14 +101,14 @@ export function AuthPage(): React.JSX.Element {
   const waiting = phase === "waiting";
 
   return (
-    <div className={styles.page}>
+    <div {...uiArea("signIn.page")} className={styles.page}>
       <div className={styles.top}>
         <button type="button" className={styles.back} onClick={() => navigate(from)}>
           <ArrowLeft size={17} strokeWidth={2} /> {t("back")}
         </button>
       </div>
       <div className={styles.stage}>
-        <div className={styles.card}>
+        <div {...uiArea("signIn.card")} className={styles.card}>
           <span className={styles.mark}>
             <KaipuLogo use="product" size={36} />
           </span>
@@ -125,7 +126,7 @@ export function AuthPage(): React.JSX.Element {
           </p>
 
           {error && (
-            <p className={styles.error} role="alert">
+            <p {...uiArea("signIn.error")} className={styles.error} role="alert">
               {t(errorCopyKey(error))}
             </p>
           )}
@@ -136,6 +137,7 @@ export function AuthPage(): React.JSX.Element {
                 {t("openBrowserAgain")}
               </Button>
               <form
+                {...uiArea("signIn.codeForm")}
                 className={styles.codeForm}
                 onSubmit={(e) => {
                   e.preventDefault();

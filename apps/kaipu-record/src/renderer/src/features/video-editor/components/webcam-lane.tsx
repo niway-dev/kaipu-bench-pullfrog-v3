@@ -19,6 +19,7 @@ import type { WebcamSegment } from "../webcam/webcam-model";
 import { fractionToTime, thumbnailsForRangeWithin, timeToFraction } from "./timeline-geometry";
 import type { EdgePhase } from "./zoom-lane";
 import styles from "./webcam-lane.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** Same density as the clips lane: one tile roughly every 72px of clip width. */
 const THUMBS_PER_BLOCK_PX = 72;
@@ -136,7 +137,12 @@ export function WebcamLane({
     ) : null;
 
   return (
-    <div ref={laneRef} className={styles.lane} data-testid="webcam-lane">
+    <div
+      ref={laneRef}
+      {...uiArea("editorVideo.webcamLane")}
+      className={styles.lane}
+      data-testid="webcam-lane"
+    >
       {filmstrip}
       {segments.flatMap((segment, index) => {
         const blocks = sourceRangeToTimelineBlocks(layout, segment.start, segment.end);

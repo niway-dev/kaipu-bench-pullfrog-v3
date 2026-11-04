@@ -2,6 +2,7 @@ import React, { type Ref } from "react";
 import { Camera, Lock } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { ToggleSplit } from "../settings-controls/toggle-split";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 export interface CameraToggleSplitProps {
   on: boolean;
@@ -17,6 +18,7 @@ export interface CameraToggleSplitProps {
   controlsId?: string;
   /** The chevron, so the settings can send focus back to it when they close. */
   chevronRef?: Ref<HTMLButtonElement>;
+  ui?: UiAreaProps;
 }
 
 /**

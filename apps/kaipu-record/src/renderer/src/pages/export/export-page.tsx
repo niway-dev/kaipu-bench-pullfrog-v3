@@ -49,6 +49,7 @@ import { ExportHeader, ExportHeaderEmpty } from "./export-header";
 import { DESTINATION_TITLE_ID, DestinationStage, NothingPicked } from "./export-stage";
 import { RecentExports } from "./recent-exports";
 import styles from "./export-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * Export: a copy of a recording for where it is going, on its own screen under Editor in the
@@ -107,7 +108,7 @@ export function ExportPage(): React.JSX.Element {
 
   if (!assetId) {
     return (
-      <div className={styles.screen}>
+      <div {...uiArea("exportNew.page")} className={styles.screen}>
         <ExportHeaderEmpty />
         <ExportDropZone
           active={drop.dragging}
@@ -123,11 +124,16 @@ export function ExportPage(): React.JSX.Element {
 
   // Only the first load: a re-list keeps the screen, and with it the destination, the
   // 1440p / 4K choice and Fill / Fit picked so far.
-  if (isLoading && !video) return <div className={styles.centered}>{tLib("loading")}</div>;
+  if (isLoading && !video)
+    return (
+      <div {...uiArea("export.page")} className={styles.centered}>
+        {tLib("loading")}
+      </div>
+    );
 
   if (!video) {
     return (
-      <div className={styles.centered}>
+      <div {...uiArea("export.page")} className={styles.centered}>
         <FileX2 size={40} strokeWidth={1.5} className={styles.mutedIcon} />
         <h2 className={styles.centeredTitle}>{tLib("fileNotFound")}</h2>
         <Button variant="ghost" onClick={() => navigate(ROUTES.exportNew)}>
@@ -139,7 +145,7 @@ export function ExportPage(): React.JSX.Element {
 
   if (!preparable) {
     return (
-      <div className={styles.centered}>
+      <div {...uiArea("export.page")} className={styles.centered}>
         <Film size={40} strokeWidth={1.5} className={styles.mutedIcon} />
         <h2 className={styles.centeredTitle}>{t("notExportableTitle")}</h2>
         <p className={styles.centeredBody}>{t("notExportableBody")}</p>
@@ -151,7 +157,11 @@ export function ExportPage(): React.JSX.Element {
   }
 
   if (probe.status !== "ready") {
-    return <div className={styles.centered}>{t("reading")}</div>;
+    return (
+      <div {...uiArea("export.page")} className={styles.centered}>
+        {t("reading")}
+      </div>
+    );
   }
 
   const badge = editBadge(video, lineage);
@@ -312,9 +322,13 @@ function ExportScreen({
   }, []);
 
   return (
-    <div className={styles.screen} data-dragging={drop.dragging}>
+    <div {...uiArea("export.page")} className={styles.screen} data-dragging={drop.dragging}>
       <ExportHeader video={video} probe={probe} videos={videos} onChangeVideo={onChangeVideo} />
-      <section className={styles.stage} aria-labelledby={plan ? DESTINATION_TITLE_ID : undefined}>
+      <section
+        {...uiArea("export.stage")}
+        className={styles.stage}
+        aria-labelledby={plan ? DESTINATION_TITLE_ID : undefined}
+      >
         <div className={styles.stageInner}>
           {plan ? (
             <DestinationStage

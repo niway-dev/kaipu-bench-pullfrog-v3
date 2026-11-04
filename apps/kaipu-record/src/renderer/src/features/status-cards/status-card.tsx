@@ -1,5 +1,6 @@
 import { Minus, X } from "lucide-react";
 import styles from "./status-card.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 export interface StatusCardProps {
   /** Accessible name of the card (its title, usually). */
@@ -28,6 +29,8 @@ export interface StatusCardProps {
   onMouseEnter?(): void;
   onMouseLeave?(): void;
   children?: React.ReactNode;
+  /** The catalog area this card is (`uiArea("…")`), put on its root. */
+  ui?: UiAreaProps;
 }
 
 /**
@@ -51,9 +54,11 @@ export function StatusCard({
   onMouseEnter,
   onMouseLeave,
   children,
+  ui,
 }: StatusCardProps): React.JSX.Element {
   return (
     <section
+      {...ui}
       className={styles.card}
       data-wide={wide}
       aria-label={label}

@@ -15,6 +15,7 @@ import { cx } from "@renderer/ui/cx";
 import { ScopeDot, ScopeLegend, ScopeSelector } from "./scope/scope-controls";
 import { SettingsScopeProvider } from "./scope/settings-scope";
 import styles from "./settings-layout.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type SettingsNavKey =
   | "general"
@@ -66,7 +67,7 @@ function SettingsLayoutBody(): React.JSX.Element {
   const t = useTranslations("settings");
   return (
     <div className={styles.layout}>
-      <nav className={styles.nav} aria-label={t("title")}>
+      <nav {...uiArea("shell.settingsNav")} className={styles.nav} aria-label={t("title")}>
         <ScopeSelector />
         <ul className={styles.navList}>
           {NAV.map(({ to, labelKey, Icon, perWorkspace }) => (

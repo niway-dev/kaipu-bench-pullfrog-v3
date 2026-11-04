@@ -60,6 +60,7 @@ export default defineConfig({
             "src/main/**/*.{test,spec}.ts",
             "src/shared/**/*.{test,spec}.ts",
             "e2e/helpers/**/*.{test,spec}.ts",
+            "ui-catalog/**/*.test.ts",
           ],
         },
       },

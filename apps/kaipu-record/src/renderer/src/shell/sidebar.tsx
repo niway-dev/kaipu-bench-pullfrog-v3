@@ -22,6 +22,7 @@ import {
   retireReadyCards,
   useReadyCopies,
 } from "@renderer/features/video-editor/export/ready-copies";
+import { uiArea } from "@renderer/lib/ui-area";
 
 interface NavItem {
   to: string;
@@ -90,16 +91,20 @@ export function Sidebar(): React.JSX.Element {
     active: isActive(ROUTES.cloud),
   };
 
+  // `Rail` (@kaipu/ui) forwards no props to its DOM, so the area root is this wrapper;
+  // `display: contents` keeps it out of the layout (the catalog crops its `nav` child).
   return (
-    <Rail
-      // No brand row: the logo and the name live in the title bar (NIW2-621).
-      items={items}
-      account={account}
-      // Always icons only, the label in a tooltip on hover and focus (owner decision, NIW2-626).
-      mode="collapsed"
-      // Link, not NavLink: the rail already computed `active`.
-      renderLink={(item, props) => <Link to={item.to} {...props} />}
-    />
+    <div {...uiArea("shell.sidebar")} style={{ display: "contents" }}>
+      <Rail
+        // No brand row: the logo and the name live in the title bar (NIW2-621).
+        items={items}
+        account={account}
+        // Always icons only, the label in a tooltip on hover and focus (owner decision, NIW2-626).
+        mode="collapsed"
+        // Link, not NavLink: the rail already computed `active`.
+        renderLink={(item, props) => <Link to={item.to} {...props} />}
+      />
+    </div>
   );
 }
 

@@ -3,6 +3,7 @@ import { isWindowsHost } from "@renderer/features/shortcuts/host-platform";
 import { KaipuLogo } from "@kaipu/brand";
 import { useShortcutLabels } from "@renderer/features/shortcuts/use-shortcut-labels";
 import styles from "./done-step.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 export function DoneStep(): React.JSX.Element {
   const t = useTranslations("onboarding");
@@ -11,7 +12,7 @@ export function DoneStep(): React.JSX.Element {
   // shortcut ever matched.)
   const shortcuts = useShortcutLabels();
   return (
-    <div className={styles.step}>
+    <div {...uiArea("onboarding.doneStep")} className={styles.step}>
       <span className={styles.mark}>
         <KaipuLogo use="done" size={96} />
       </span>

@@ -7,6 +7,7 @@ import { formatMB } from "@renderer/features/video-editor/export/export-size";
 import type { SourceProbe } from "@renderer/features/video-editor/export/probe-source";
 import { VideoPicker } from "./video-picker";
 import styles from "./export-header.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 interface ExportHeaderProps {
   video: LibraryVideo;
@@ -29,7 +30,7 @@ export function ExportHeader({
 }: ExportHeaderProps): React.JSX.Element {
   const t = useTranslations("export");
   return (
-    <header className={styles.header}>
+    <header {...uiArea("export.header")} className={styles.header}>
       <span className={styles.thumb}>
         {video.thumbnailUrl ? (
           <img src={video.thumbnailUrl} alt="" />
@@ -73,7 +74,7 @@ export function ExportHeader({
 export function ExportHeaderEmpty(): React.JSX.Element {
   const t = useTranslations("export");
   return (
-    <header className={styles.header}>
+    <header {...uiArea("exportNew.header")} className={styles.header}>
       <h1 className={styles.title}>{t("pageTitle")}</h1>
     </header>
   );

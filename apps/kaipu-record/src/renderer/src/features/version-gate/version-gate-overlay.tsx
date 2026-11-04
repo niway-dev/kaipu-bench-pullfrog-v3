@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslations } from "@kaipu/i18n";
 import styles from "./version-gate-overlay.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 interface Props {
   message: string;
@@ -11,7 +12,12 @@ interface Props {
 export function VersionGateOverlay({ message, downloadUrl }: Props): React.JSX.Element {
   const t = useTranslations("updates");
   return (
-    <div className={styles.overlay} role="alertdialog" aria-modal="true">
+    <div
+      {...uiArea("shell.versionOverlay")}
+      className={styles.overlay}
+      role="alertdialog"
+      aria-modal="true"
+    >
       <div className={styles.card}>
         <h1 className={styles.title}>{t("updateRequired")}</h1>
         <p className={styles.message}>{message}</p>

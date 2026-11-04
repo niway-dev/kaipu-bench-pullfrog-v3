@@ -35,6 +35,7 @@ import { ReconcileBanner } from "@renderer/features/library/reconcile/reconcile-
 import { useOptionalWorkspaces } from "@renderer/features/workspaces/workspaces-context";
 import { WorkspaceNotConnectedNotice } from "@renderer/features/workspaces/not-connected-notice";
 import styles from "./record-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** Navigation state main's requests leave on the Record page (see AppRoot). */
 interface RecordNavState {
@@ -157,6 +158,7 @@ export function RecordPage(): React.JSX.Element {
         onToggleCamera={setup.toggleCamera}
         micSlot={
           <MicToggleSplit
+            ui={uiArea("record.mic")}
             control={mic}
             on={setup.isMicrophoneEnabled}
             onToggle={setup.toggleMicrophone}
@@ -164,6 +166,7 @@ export function RecordPage(): React.JSX.Element {
         }
         audioSlot={
           <SystemAudioToggleSplit
+            ui={uiArea("record.audio")}
             control={systemAudio}
             on={setup.isSystemAudioEnabled}
             onToggle={setup.toggleSystemAudio}
@@ -172,6 +175,7 @@ export function RecordPage(): React.JSX.Element {
         }
         cameraSlot={
           <CameraPanelTile
+            ui={uiArea("record.camera")}
             compact={false}
             control={camera}
             on={setup.isCameraEnabled}
@@ -180,6 +184,7 @@ export function RecordPage(): React.JSX.Element {
         }
       />
       <MicPanelDrawer
+        ui={uiArea("record.micSettings")}
         variant="page"
         control={mic}
         on={setup.isMicrophoneEnabled}
@@ -189,11 +194,13 @@ export function RecordPage(): React.JSX.Element {
         onSelectMicrophone={setup.selectMicrophone}
       />
       <SystemAudioPanelDrawer
+        ui={uiArea("record.audioSettings")}
         variant="page"
         control={systemAudio}
         micOn={setup.isMicrophoneEnabled}
       />
       <CameraPanelDrawer
+        ui={uiArea("record.cameraSettings")}
         variant="page"
         control={camera}
         on={setup.isCameraEnabled}
@@ -206,6 +213,7 @@ export function RecordPage(): React.JSX.Element {
     <>
       {setup.isMicrophoneEnabled && isMicrophoneDenied && (
         <PermissionNotice
+          ui={uiArea("record.permissionNotice")}
           label={t("micAccessOff")}
           onOpenSettings={() => void openPermissionSettings("microphone")}
         />
@@ -213,6 +221,7 @@ export function RecordPage(): React.JSX.Element {
 
       {setup.isCameraEnabled && isCameraDenied && (
         <PermissionNotice
+          ui={uiArea("record.permissionNotice")}
           label={t("cameraAccessOff")}
           onOpenSettings={() => void openPermissionSettings("camera")}
         />
@@ -245,7 +254,11 @@ export function RecordPage(): React.JSX.Element {
       />
 
       {(setup.countdown !== null || isStarting) && (
-        <CountdownOverlay value={setup.countdown} onCancel={setup.stopRecording} />
+        <CountdownOverlay
+          ui={uiArea("record.countdown")}
+          value={setup.countdown}
+          onCancel={setup.stopRecording}
+        />
       )}
     </>
   );
@@ -254,8 +267,8 @@ export function RecordPage(): React.JSX.Element {
     // Design "Kaipu Record Modes": what to record is picked in the selector (the capture
     // overlay), so the page is Start, the last used mode, and the sound and camera inputs.
     return (
-      <div className={styles.idlePage}>
-        <WorkspaceNotConnectedNotice />
+      <div {...uiArea("record.page")} className={styles.idlePage}>
+        <WorkspaceNotConnectedNotice ui={uiArea("record.workspaceNotice")} />
         <div className={styles.idleHeading}>
           <h1 className={styles.idleTitle}>
             {t("recordingTo", { name: workspaces?.active?.name ?? "…" })}
@@ -271,13 +284,15 @@ export function RecordPage(): React.JSX.Element {
           )}
         </div>
         <p className={styles.subtitle}>{t("subtitle")}</p>
-        <ReconcileBanner />
+        <ReconcileBanner ui={uiArea("record.reconcileBanner")} />
 
         <RecordModeButtons
           variant="page"
           mode={recordingMode.mode}
           area={recordingMode.area}
           shortcut={shortcuts?.startRecording}
+          startUi={uiArea("record.startButton")}
+          modesUi={uiArea("record.modePicker")}
           onStart={() => openSelector()}
           onPick={openSelector}
         >
@@ -295,8 +310,9 @@ export function RecordPage(): React.JSX.Element {
   }
 
   return (
-    <div className={styles.page}>
+    <div {...uiArea("record.page")} className={styles.page}>
       <RecordingIndicator
+        ui={uiArea("record.recordingIndicator")}
         variant="bar"
         paused={isPaused}
         elapsedSeconds={activity.elapsedSeconds}
@@ -310,7 +326,7 @@ export function RecordPage(): React.JSX.Element {
         {inputNotices}
       </div>
 
-      <div className={styles.recordingControls}>
+      <div {...uiArea("record.recordingControls")} className={styles.recordingControls}>
         {isPaused ? (
           <button className={styles.pauseButton} type="button" onClick={setup.resumeRecording}>
             <Play size={15} fill="currentColor" />

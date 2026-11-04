@@ -4,6 +4,7 @@ import { useTranslations } from "@kaipu/i18n";
 import { isWindowsHost } from "@renderer/features/shortcuts/host-platform";
 import styles from "./screenshot-viewer.module.css";
 import { mediaUrl } from "@renderer/lib/media-url";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * GIF viewer for the library detail page (NIW2-217). An `<img>` plays and loops the file
@@ -15,7 +16,7 @@ export function GifViewer({ id }: { id: string }): React.JSX.Element {
   const [failed, setFailed] = useState(false);
 
   return (
-    <div className={styles.viewer}>
+    <div {...uiArea("libraryDetail.preview")} className={styles.viewer}>
       {!failed ? (
         <img
           src={mediaUrl("recording", id)}

@@ -7,6 +7,7 @@ import { actionForKey } from "./overlay-keys";
 import { workAreaInWindow, type OverlayQuery } from "./overlay-query";
 import { CHROME_GAP_DIP, SelectionToolbar, type OverlayChrome } from "./selection-chrome";
 import styles from "./capture-overlay.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** Room the title label needs above the highlight before it moves inside. */
 const LABEL_ROOM_DIP = 30;
@@ -178,6 +179,7 @@ export function WindowPicker({
 
   return (
     <div
+      {...uiArea("captureOverlay.windowPicker")}
       className={`${styles.sheet} ${hovered ? styles.clear : ""} ${styles.windowSheet}`}
       data-testid="window-picker"
       onPointerMove={track}

@@ -6,6 +6,7 @@ import { cx } from "@renderer/ui/cx";
 import type { RecordingTick } from "@shared/types/ipc";
 import type { CaptureMode } from "@shared/types/screenshot-capture";
 import styles from "./control-bar.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 interface ControlBarProps {
   tick: RecordingTick;
@@ -43,7 +44,7 @@ export function ControlBar({
   const tCamera = useTranslations("cameraSettings");
   if (tick.status === "saving") {
     return (
-      <div className={styles.bar}>
+      <div {...uiArea("controlBar.bar")} className={styles.bar}>
         <Loader2 size={16} className={styles.spinner} />
         <span className={styles.savingLabel}>{t("saving")}</span>
       </div>
@@ -54,7 +55,7 @@ export function ControlBar({
     // The streams are still being acquired: nothing is recorded yet, so no timer, no level
     // and no pause. Stop stays, and cancels the pending start.
     return (
-      <div className={styles.bar}>
+      <div {...uiArea("controlBar.bar")} className={styles.bar}>
         <span className={styles.dot} data-starting />
         <span className={styles.savingLabel}>{t("starting")}</span>
         {modeChip && <ModeChip chip={modeChip} label={modeName(modeChip.mode, tModes)} />}
@@ -67,7 +68,7 @@ export function ControlBar({
 
   const paused = tick.status === "paused";
   return (
-    <div className={styles.bar} data-paused={paused || undefined}>
+    <div {...uiArea("controlBar.bar")} className={styles.bar} data-paused={paused || undefined}>
       <span className={styles.dot} data-paused={paused || undefined} />
       {paused && <span className={styles.pausedLabel}>{t("paused")}</span>}
       <span className={styles.time}>{formatElapsed(tick.elapsedSeconds * 1000)}</span>
@@ -130,7 +131,7 @@ function ModeChip({
 }): React.JSX.Element {
   const Icon = MODE_ICON[chip.mode];
   return (
-    <span className={styles.modeChip} data-testid="control-bar-mode">
+    <span {...uiArea("controlBar.mode")} className={styles.modeChip} data-testid="control-bar-mode">
       <Icon size={12} aria-hidden />
       {chip.ratio ?? label}
     </span>

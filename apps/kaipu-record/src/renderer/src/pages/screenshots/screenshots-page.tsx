@@ -11,6 +11,7 @@ import { CaptureModeButtons } from "@renderer/features/screenshots/capture-mode-
 import { RecentScreenshots } from "@renderer/features/screenshots/recent-screenshots";
 import { useShortcutLabels } from "@renderer/features/shortcuts/use-shortcut-labels";
 import styles from "./screenshots-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 export function ScreenshotsPage(): React.JSX.Element {
   const t = useTranslations("screenshots");
@@ -25,9 +26,11 @@ export function ScreenshotsPage(): React.JSX.Element {
       ? { elapsedSeconds: activity.elapsedSeconds }
       : null;
   return (
-    <div className={styles.page}>
+    <div {...uiArea("screenshots.page")} className={styles.page}>
       <h1 className={styles.title}>{t("pageTitle")}</h1>
       <CaptureModeButtons
+        captureUi={uiArea("screenshots.captureButton")}
+        modesUi={uiArea("screenshots.modeChips")}
         variant="page"
         onCapture={(mode) => void capture(mode)}
         shortcuts={labels}

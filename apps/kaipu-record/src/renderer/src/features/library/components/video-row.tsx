@@ -12,6 +12,7 @@ import { EditBadge } from "./edit-badge";
 import { cx } from "@renderer/ui/cx";
 import { SelectCheck, type ItemSelection } from "./select-check";
 import styles from "./video-row.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 interface VideoRowProps {
   video: LibraryVideo;
@@ -33,6 +34,8 @@ interface VideoRowProps {
   moveMenu?: React.ReactNode;
   /** Select mode: a click toggles the checkbox instead of opening the item. */
   selection?: ItemSelection;
+  /** The catalog area this row is (`uiArea("…")`), put on its root. */
+  ui?: UiAreaProps;
 }
 
 const ROW_TAGS_SHOWN = 4;
@@ -50,6 +53,7 @@ export function VideoRow({
   tags = [],
   moveMenu,
   selection,
+  ui,
 }: VideoRowProps): React.JSX.Element {
   const t = useTranslations("library");
   const rowTags = tags.slice(0, ROW_TAGS_SHOWN);
@@ -60,6 +64,7 @@ export function VideoRow({
 
   return (
     <div
+      {...ui}
       className={cx(styles.row, !isLast && styles.divided)}
       data-selected={selected || selection?.checked}
       aria-pressed={selection ? selection.checked : undefined}

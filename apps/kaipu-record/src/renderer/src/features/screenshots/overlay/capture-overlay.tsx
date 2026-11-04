@@ -26,6 +26,7 @@ import { ScreenCard } from "./screen-card";
 import type { OverlayChrome } from "./selection-chrome";
 import { WindowPicker } from "./window-picker";
 import styles from "./capture-overlay.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** How long the hide ack waits for an animation frame before answering anyway. */
 export const HIDDEN_ACK_FALLBACK_MS = 50;
@@ -341,7 +342,11 @@ function HintPill({
         ? t("overlay.hintFrame", { copyKey, keys })
         : t("overlay.hintPick", { copyKey, keys });
   return (
-    <span className={styles.hintPill} data-testid="hint-pill">
+    <span
+      {...uiArea("captureOverlay.hintPill")}
+      className={styles.hintPill}
+      data-testid="hint-pill"
+    >
       {text}
     </span>
   );

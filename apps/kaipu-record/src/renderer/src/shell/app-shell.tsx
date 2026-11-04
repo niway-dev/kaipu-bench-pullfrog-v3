@@ -12,6 +12,7 @@ import { EnvBadge } from "./env-badge";
 import { ReconcileDialogHost } from "@renderer/features/library/reconcile/reconcile-dialog";
 import { PendingSettingsHost } from "@renderer/pages/settings/scope/scope-controls";
 import styles from "./app-shell.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * action → `shortcuts` namespace status-word keys for the status bar. The live
@@ -67,7 +68,7 @@ export function AppShell(): React.JSX.Element {
           </main>
         </div>
       </div>
-      <div className={styles.statusBar}>
+      <div {...uiArea("shell.statusBar")} className={styles.statusBar}>
         <EnvBadge className={styles.statusEnv} />
         {shortcuts &&
           STATUS_BAR_DEFINITIONS.map((def, i) => (

@@ -10,6 +10,7 @@ import { Badge } from "@kaipu/ui";
 import { barSegments, type CapacityView } from "@kaipu/domain/capacity";
 import { formatBytesDecimal, MAX_VIDEO_BYTES } from "@kaipu/domain/constants";
 import styles from "./storage-cloud-settings.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type Translate = Translator<"storageCloud">;
 
@@ -240,7 +241,11 @@ function UsageBody({
   const reserved = formatBytesDecimal(usage.reservedBytes);
   const capacity = formatBytesDecimal(usage.capacityBytes);
   return (
-    <div className={styles.usage} data-stale={view.staleSince !== null || undefined}>
+    <div
+      {...uiArea("cloud.usage")}
+      className={styles.usage}
+      data-stale={view.staleSince !== null || undefined}
+    >
       {view.staleSince !== null && (
         <div className={styles.staleRow}>
           <Badge variant="warning">{t("staleBadge")}</Badge>

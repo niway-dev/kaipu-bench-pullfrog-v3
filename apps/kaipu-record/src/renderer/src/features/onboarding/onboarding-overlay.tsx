@@ -7,6 +7,7 @@ import { WelcomeStep } from "./steps/welcome-step";
 import { PermissionsStep } from "./steps/permissions-step";
 import { DoneStep } from "./steps/done-step";
 import styles from "./onboarding-overlay.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type StepId = "welcome" | "permissions" | "done";
 
@@ -76,6 +77,7 @@ export function OnboardingOverlay({ onClose }: OnboardingOverlayProps): React.JS
 
   return (
     <div
+      {...uiArea("onboarding.root")}
       className={styles.overlay}
       role="dialog"
       aria-modal="true"

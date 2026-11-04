@@ -14,6 +14,7 @@ import {
 import type { CaptureMode } from "@shared/types/screenshot-capture";
 import { defaultShortcutsFor } from "@shared/shortcut-defaults";
 import styles from "./shortcuts-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** action → `shortcuts` namespace keys (labels/descriptions live in i18n, not the shared defs). */
 const LABEL_KEY = {
@@ -154,13 +155,13 @@ export function ShortcutsPage({
   };
 
   return (
-    <div className={styles.page}>
+    <div {...uiArea("shortcuts.page")} className={styles.page}>
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>{t("title")}</h1>
         <p className={styles.pageSubtitle}>{t("subtitle")}</p>
       </div>
 
-      <div className={styles.sections}>
+      <div {...uiArea("shortcuts.list")} className={styles.sections}>
         {GROUPS.map(({ key, title }) => (
           <Section key={key} title={title}>
             {shortcutsInGroup(key, enabledModes).map(renderRow)}

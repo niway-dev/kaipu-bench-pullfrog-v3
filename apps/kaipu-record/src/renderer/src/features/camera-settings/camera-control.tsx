@@ -4,6 +4,7 @@ import type { SettingsDrawerVariant } from "../settings-controls/settings-drawer
 import { CameraSettingsDrawer } from "./camera-settings-drawer";
 import { useSettingsDisclosure } from "../settings-controls/use-settings-disclosure";
 import { useCameraSettings, type CameraSettingsStore } from "./use-camera-settings";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 export interface CameraControl {
   store: CameraSettingsStore;
@@ -38,9 +39,11 @@ export function CameraPanelTile({
   on,
   onToggle,
   compact = true,
+  ui,
 }: Omit<CameraControlProps, "isRecording"> & {
   control: CameraControl;
   compact?: boolean;
+  ui?: UiAreaProps;
 }): React.JSX.Element {
   return (
     <CameraToggleSplit
@@ -52,6 +55,7 @@ export function CameraPanelTile({
       onOpenChange={control.setOpen}
       controlsId={control.settingsId}
       chevronRef={control.chevronRef}
+      ui={ui}
     />
   );
 }
@@ -61,9 +65,11 @@ export function CameraPanelDrawer({
   on,
   isRecording,
   variant = "panel",
+  ui,
 }: Omit<CameraControlProps, "onToggle"> & {
   control: CameraControl;
   variant?: SettingsDrawerVariant;
+  ui?: UiAreaProps;
 }): React.JSX.Element | null {
   return (
     <CameraSettingsDrawer
@@ -75,6 +81,7 @@ export function CameraPanelDrawer({
       cameraOn={on}
       isRecording={isRecording}
       variant={variant}
+      ui={ui}
     />
   );
 }

@@ -33,6 +33,7 @@ import {
   type ReconcileRun,
 } from "./reconcile-store";
 import styles from "./reconcile.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type LibraryT = Translator<"library">;
 
@@ -546,7 +547,7 @@ export function ReconcileDialogHost(): React.JSX.Element | null {
       labelledBy="reconcile-dialog-title"
       size="wide"
     >
-      <div className={styles.sheet}>
+      <div {...uiArea("shell.reconcileDialog")} className={styles.sheet}>
         {/* Icon beside the title, as in the design: the list gets the height instead. */}
         <header className={styles.header}>
           <ModalIcon tone="accent">

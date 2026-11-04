@@ -19,6 +19,7 @@ import {
 import { copyKeyLabel, recordKeyLabel, type KeyPlatform } from "./overlay-keys";
 import type { OverlayToggles } from "./record-chrome";
 import styles from "./capture-overlay.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** Gap between the selection and the toolbar attached to it. */
 export const CHROME_GAP_DIP = 10;
@@ -149,6 +150,7 @@ export function SelectionToolbar({
     <div
       role="toolbar"
       aria-label={t("overlay.capture")}
+      {...uiArea("captureOverlay.selectionToolbar")}
       data-testid="selection-toolbar"
       data-side={side}
       className={styles.toolbar}

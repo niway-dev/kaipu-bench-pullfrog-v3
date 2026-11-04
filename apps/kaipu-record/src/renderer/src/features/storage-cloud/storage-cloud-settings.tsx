@@ -13,6 +13,7 @@ import {
 import { UploadModePicker } from "./upload-mode-picker";
 import { useStorageUsage } from "./use-storage-usage";
 import styles from "./storage-cloud-settings.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 export interface StorageCloudSettingsProps {
   uploadMode: UploadMode | null;
@@ -56,7 +57,7 @@ export function StorageCloudSettings({
         <p className={styles.groupDescription}>{t("description")}</p>
       </div>
 
-      <div className={styles.block}>
+      <div {...uiArea("cloud.saveMode")} className={styles.block}>
         <h3 className={styles.blockTitle}>{t("saveMode")}</h3>
         {loading ? (
           <div className={styles.modeList} aria-hidden>
@@ -85,7 +86,7 @@ export function StorageCloudSettings({
         )}
       </div>
 
-      <div className={styles.block}>
+      <div {...uiArea("cloud.account")} className={styles.block}>
         <h3 className={styles.blockTitle}>{t("accountAndCapacity")}</h3>
         <div className={styles.sectionBody}>
           {loading ? (

@@ -29,6 +29,7 @@ import { PanelHeader } from "./components/panel-header";
 import { PanelTabs, type PanelTab } from "./components/panel-tabs";
 import type { CaptureMode } from "@shared/types/screenshot-capture";
 import styles from "./capture-panel.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 // Compact composition of the recording controls, shown from the menu-bar tray.
 // Reuses the same dumb components + useRecordingSetup hook as the Record page.
@@ -88,6 +89,7 @@ export function CapturePanel(): React.JSX.Element {
 
   const micSlot = (
     <MicToggleSplit
+      ui={uiArea("capturePanel.mic")}
       compact
       control={mic}
       on={setup.isMicrophoneEnabled}
@@ -96,6 +98,7 @@ export function CapturePanel(): React.JSX.Element {
   );
   const audioSlot = (
     <SystemAudioToggleSplit
+      ui={uiArea("capturePanel.audio")}
       compact
       control={systemAudio}
       on={setup.isSystemAudioEnabled}
@@ -104,12 +107,18 @@ export function CapturePanel(): React.JSX.Element {
     />
   );
   const cameraSlot = (
-    <CameraPanelTile control={camera} on={setup.isCameraEnabled} onToggle={setup.toggleCamera} />
+    <CameraPanelTile
+      ui={uiArea("capturePanel.camera")}
+      control={camera}
+      on={setup.isCameraEnabled}
+      onToggle={setup.toggleCamera}
+    />
   );
   // The drawers grow the panel downward; the ResizeObserver above follows them.
   const drawers = (
     <>
       <MicPanelDrawer
+        ui={uiArea("capturePanel.micSettings")}
         control={mic}
         on={setup.isMicrophoneEnabled}
         isRecording={isBusy}
@@ -117,8 +126,17 @@ export function CapturePanel(): React.JSX.Element {
         selectedMicrophone={setup.selectedMicrophone}
         onSelectMicrophone={setup.selectMicrophone}
       />
-      <SystemAudioPanelDrawer control={systemAudio} micOn={setup.isMicrophoneEnabled} />
-      <CameraPanelDrawer control={camera} on={setup.isCameraEnabled} isRecording={isBusy} />
+      <SystemAudioPanelDrawer
+        ui={uiArea("capturePanel.audioSettings")}
+        control={systemAudio}
+        micOn={setup.isMicrophoneEnabled}
+      />
+      <CameraPanelDrawer
+        ui={uiArea("capturePanel.cameraSettings")}
+        control={camera}
+        on={setup.isCameraEnabled}
+        isRecording={isBusy}
+      />
     </>
   );
 
@@ -136,7 +154,12 @@ export function CapturePanel(): React.JSX.Element {
     window.electronAPI?.requestCaptureScreenshot(mode);
 
   return (
-    <div ref={rootRef} className={styles.panel} data-testid="capture-panel">
+    <div
+      {...uiArea("capturePanel.root")}
+      ref={rootRef}
+      className={styles.panel}
+      data-testid="capture-panel"
+    >
       <PanelHeader onOpenMainWindow={openMain} />
 
       {/* Two modes: recording controls and the screenshot action. Locked to Record
@@ -149,6 +172,8 @@ export function CapturePanel(): React.JSX.Element {
           mode={recordingMode.mode}
           area={recordingMode.area}
           shortcut={shortcuts?.startRecording}
+          startUi={uiArea("capturePanel.startButton")}
+          modesUi={uiArea("capturePanel.modePicker")}
           onStart={() => openSelector()}
           onPick={openSelector}
         >
@@ -172,6 +197,7 @@ export function CapturePanel(): React.JSX.Element {
         <>
           {activity.active && (
             <RecordingIndicator
+              ui={uiArea("capturePanel.recordingIndicator")}
               variant="banner"
               paused={activity.status === "paused"}
               elapsedSeconds={activity.elapsedSeconds}
@@ -223,6 +249,7 @@ export function CapturePanel(): React.JSX.Element {
         // each handed off to main. `recording` stays wired for the day the tab lock above
         // lifts; today a recording forces the Record tab, so it is null here in practice.
         <CaptureModeButtons
+          ui={uiArea("capturePanel.captureButtons")}
           variant="panel"
           onCapture={requestCapture}
           shortcuts={shortcuts}
