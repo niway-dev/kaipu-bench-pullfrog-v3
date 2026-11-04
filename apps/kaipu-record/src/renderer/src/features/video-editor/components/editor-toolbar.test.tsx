@@ -501,7 +501,7 @@ describe("EditorToolRail — press and hold, right-click (Photoshop convention)"
     vi.useFakeTimers();
     const props = renderRail({ tool: "select" });
     const button = screen.getByRole("button", { name: "Box" });
-    fireEvent.pointerDown(button, { button: 0 });
+    fireEvent.pointerDown(button, { button: 0, pointerType: "mouse" });
     expect(screen.queryByRole("menu")).toBeNull();
     act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
     expect(screen.getByRole("menu", { name: "Annotate" })).toBeInTheDocument();
@@ -516,7 +516,7 @@ describe("EditorToolRail — press and hold, right-click (Photoshop convention)"
     vi.useFakeTimers();
     renderRail({ tool: "box" });
     const button = screen.getByRole("button", { name: "Box" });
-    fireEvent.pointerDown(button, { button: 0 });
+    fireEvent.pointerDown(button, { button: 0, pointerType: "mouse" });
     act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
     fireEvent.pointerUp(button);
     fireEvent.click(button);
@@ -527,7 +527,7 @@ describe("EditorToolRail — press and hold, right-click (Photoshop convention)"
     vi.useFakeTimers();
     const props = renderRail({ tool: "select" });
     const button = screen.getByRole("button", { name: "Box" });
-    fireEvent.pointerDown(button, { button: 0 });
+    fireEvent.pointerDown(button, { button: 0, pointerType: "mouse" });
     act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS - 50));
     fireEvent.pointerUp(button);
     fireEvent.click(button);
@@ -541,22 +541,63 @@ describe("EditorToolRail — press and hold, right-click (Photoshop convention)"
     vi.useFakeTimers();
     const props = renderRail({ tool: "select" });
     const button = screen.getByRole("button", { name: "Blur" });
-    fireEvent.pointerDown(button, { button: 0 });
+    fireEvent.pointerDown(button, { button: 0, pointerType: "mouse" });
     act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
     fireEvent.pointerLeave(button);
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("menu")).toBeNull();
-    fireEvent.pointerDown(button, { button: 0 });
+    fireEvent.pointerDown(button, { button: 0, pointerType: "mouse" });
     fireEvent.pointerUp(button);
     fireEvent.click(button);
     expect(props.onToolChange).toHaveBeenCalledWith("blur");
+  });
+
+  it("an abandoned hold (pointercancel) does not swallow the next keyboard activation", () => {
+    vi.useFakeTimers();
+    const props = renderRail({ tool: "select" });
+    const button = screen.getByRole("button", { name: "Box" });
+    fireEvent.pointerDown(button, { button: 0, pointerType: "mouse" });
+    act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
+    fireEvent.pointerCancel(button);
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+    // Enter and Space send no pointerdown: keydown, then the click.
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.click(button);
+    expect(props.onToolChange).toHaveBeenCalledWith("box");
+  });
+
+  it("a keyboard activation right after a completed hold is not swallowed either", () => {
+    vi.useFakeTimers();
+    const props = renderRail({ tool: "select" });
+    const button = screen.getByRole("button", { name: "Box" });
+    fireEvent.pointerDown(button, { button: 0, pointerType: "mouse" });
+    act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
+    // No release click arrives (the pointer was released elsewhere); then Enter.
+    fireEvent.pointerDown(document.body);
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.click(button);
+    expect(props.onToolChange).toHaveBeenCalledWith("box");
+  });
+
+  it("a touch held for 400 ms does not open the flyout, a pen does", () => {
+    vi.useFakeTimers();
+    renderRail({ tool: "select" });
+    const button = screen.getByRole("button", { name: "Box" });
+    fireEvent.pointerDown(button, { button: 0, pointerType: "touch" });
+    act(() => void vi.advanceTimersByTime(400));
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.pointerUp(button);
+    fireEvent.pointerDown(button, { button: 0, pointerType: "pen" });
+    act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
+    expect(screen.getByRole("menu", { name: "Annotate" })).toBeInTheDocument();
   });
 
   it("a hold on Audio opens its flyout and stays open after the release", () => {
     vi.useFakeTimers();
     renderRail();
     const button = screen.getByRole("button", { name: "Audio" });
-    fireEvent.pointerDown(button, { button: 0 });
+    fireEvent.pointerDown(button, { button: 0, pointerType: "mouse" });
     act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
     fireEvent.click(button);
     expect(screen.getByRole("menu", { name: "Audio" })).toBeInTheDocument();

@@ -380,13 +380,22 @@ export function EditorToolRail({
     if (holdTimer.current !== null) clearTimeout(holdTimer.current);
     holdTimer.current = null;
   }, []);
+  // A gesture that ends without a click (pointer cancelled, or left the button) must
+  // not leave the suppression armed for whatever activates the button next.
+  const abandonHold = useCallback(() => {
+    clearHold();
+    held.current = false;
+  }, [clearHold]);
   useEffect(() => clearHold, [clearHold]);
   /** Pointer handlers shared by every button that owns a flyout. */
   const flyoutTriggers = (key: ToolGroup | "audio", disabled = false) => ({
     onPointerDown: (event: React.PointerEvent): void => {
       held.current = false;
       clearHold();
+      // Touch has no hover, so a still finger is a press, not a hold; it keeps tap and
+      // long-press to the platform. A trackpad reports as a mouse.
       if (disabled || event.button !== 0) return;
+      if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
       holdTimer.current = setTimeout(() => {
         holdTimer.current = null;
         held.current = true;
@@ -394,8 +403,10 @@ export function EditorToolRail({
       }, HOLD_OPEN_MS);
     },
     onPointerUp: clearHold,
-    onPointerLeave: clearHold,
-    onPointerCancel: clearHold,
+    onPointerLeave: abandonHold,
+    onPointerCancel: abandonHold,
+    // Enter and Space send no pointerdown: a keyboard activation is never the tail of a hold.
+    onKeyDown: abandonHold,
     onContextMenu: (event: React.MouseEvent): void => {
       event.preventDefault();
       clearHold();
