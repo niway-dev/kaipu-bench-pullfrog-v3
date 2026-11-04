@@ -28,7 +28,7 @@
     --kl-bg: #060607; /* page — Kaipu Black canvas (NIW2-617) */
     --kl-bg-2: #0b0b0d; /* "Your files" — the surface shift that says the page changed subject */
     --kl-card: #0e0e10;
-    --kl-card-2: #17171a; /* active nav pill */
+    --kl-card-2: #17171a; /* active nav pill — Kaipu Black hover step, on purpose */
 
     /* ---- Lines ------------------------------------------------------- */
     --kl-bd: rgb(255 255 255 / 0.08); /* soft borders */
@@ -72,12 +72,12 @@
      * themes. Copied rather than imported because the landing's contract is
      * that it uses only `--kl-*` inside `[data-kl]` and never reaches for an
      * app token — so the mapping is written down here instead, and a change to
-     * `packages/tokens/css/tokens.css` is a change to make here too.
+     * `packages/tokens/src/themes/dark.ts` is a change to make here too.
      */
-    --kl-mock-bg: #060607; /* tokens --bg-app: the window body */
-    --kl-mock-chrome: #0e0e10; /* tokens --bg-card: cards and floating panels */
-    --kl-mock-stage: #17171a; /* tokens --bg-card-hover: the editor's stage */
-    --kl-mock-deep: #0e0e10; /* tokens --bg-input: recessed strips and tags */
+    --kl-mock-bg: #060607; /* tokens --bg-canvas: the window body */
+    --kl-mock-chrome: #0e0e10; /* tokens --bg-raised: cards and floating panels */
+    --kl-mock-stage: #17171a; /* tokens --bg-hover: the editor's stage */
+    --kl-mock-deep: #0e0e10; /* tokens --bg-input, same as chrome in Kaipu Black: strips and tags */
     --kl-glass: rgb(11 11 13 / 0.72); /* nav, rail, pickers */
     --kl-glass-blur: 14px;
 
