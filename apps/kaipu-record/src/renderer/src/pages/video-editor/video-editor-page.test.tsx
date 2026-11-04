@@ -877,6 +877,29 @@ describe("VideoEditorPage — tool shortcuts end to end", () => {
     });
   });
 
+  it("Shift+R cycles Annotate to its next variant; Shift+B on Select arms the next after Blur", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    await pressUntil("r", () => {
+      expect(screen.getByRole("button", { name: "Box" }).className).toMatch(/toolActive/);
+    });
+    fireEvent.keyDown(window, { key: "R", shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Arrow" }).className).toMatch(/toolActive/);
+    });
+    fireEvent.keyDown(window, { key: "R", shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Text" }).className).toMatch(/toolActive/);
+    });
+
+    // From another group's tool, Shift+B starts from Blur and lands on Cover.
+    fireEvent.keyDown(window, { key: "B", shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Cover" }).className).toMatch(/toolActive/);
+    });
+  });
+
   it("V hands the tool back to select after R armed Box", async () => {
     renderEditor();
     await waitForEditorLoaded();

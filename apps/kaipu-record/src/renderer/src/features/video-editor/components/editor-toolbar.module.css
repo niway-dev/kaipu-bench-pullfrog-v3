@@ -42,7 +42,7 @@
 }
 
 /* A group with variants: a small corner mark, bottom right, says the button holds more
-   than the tool it shows. */
+   than the tool it shows. A static glyph: it ignores the pointer and never animates. */
 .rail .tool[data-variants]::after {
   content: "";
   position: absolute;
@@ -52,6 +52,7 @@
   border-width: 0 0 5px 5px;
   border-color: transparent transparent currentColor transparent;
   opacity: 0.6;
+  pointer-events: none;
 }
 
 /* The flyout: every option of a group, to the left of the rail. Portalled to the body
@@ -156,12 +157,21 @@
     color var(--transition);
 }
 
-.tool:hover {
+/* Hover and press fill the WHOLE button, flat: no scale, no ripple, nothing that
+   starts at the corner mark. */
+.tool:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-primary);
+}
+
+.tool:active:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
   color: var(--text-primary);
 }
 
 .toolActive,
-.toolActive:hover {
+.toolActive:hover:not(:disabled),
+.toolActive:active:not(:disabled) {
   background: var(--accent-primary);
   color: #fff;
 }

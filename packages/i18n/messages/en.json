@@ -1275,7 +1275,7 @@
     "hintArrow": "Drag on the preview to draw an arrow.",
     "hintText": "Click on the preview to place text.",
     "hintZoom": "Add a zoom at the playhead, or drag the camera box to re-aim it.",
-    "toolMoreOptions": "Click again for all options",
+    "toolMoreOptions": "Hold or right-click for more",
     "toolAudio": "Audio",
     "toolAnnotate": "Annotate",
     "toolPrivacy": "Privacy",

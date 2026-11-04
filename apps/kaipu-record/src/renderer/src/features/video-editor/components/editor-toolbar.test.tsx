@@ -1,10 +1,14 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EditorToolbar,
   EditorToolRail,
   groupClickAction,
+  HOLD_OPEN_MS,
+  nextToolInGroup,
   type EditorToolbarProps,
   type EditorToolRailProps,
 } from "./editor-toolbar";
@@ -193,12 +197,12 @@ describe("EditorToolbar — v2 tooltip shortcuts (PR 10 polish)", () => {
     // A group with variants names the next one after the shortcut.
     expect(screen.getByRole("button", { name: "Box" })).toHaveAttribute(
       "title",
-      "Box (R) · Click again for all options",
+      "Box (R) · Hold or right-click for more",
     );
     expect(screen.getByRole("button", { name: "Zoom" }).getAttribute("title")).toMatch(/\(Z\)$/);
     expect(screen.getByRole("button", { name: "Blur" })).toHaveAttribute(
       "title",
-      "Blur (B) · Click again for all options",
+      "Blur (B) · Hold or right-click for more",
     );
     expect(screen.getByRole("button", { name: "Undo" })).toHaveAttribute("title", "Undo (⌘Z)");
     expect(screen.getByRole("button", { name: "Redo" })).toHaveAttribute("title", "Redo (⇧⌘Z)");
@@ -483,5 +487,122 @@ describe("EditorToolRail — recorded cursor", () => {
     expect(screen.getByRole("button", { name: "Select" }).className).not.toMatch(/toolActive/);
     fireEvent.click(cursor);
     expect(onOpenCursor).toHaveBeenCalledOnce();
+  });
+});
+
+describe("EditorToolRail — press and hold, right-click (Photoshop convention)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("holds for 300 ms", () => {
+    expect(HOLD_OPEN_MS).toBe(300);
+  });
+
+  it("holding an inactive group opens its flyout without arming it, and the release does not click", () => {
+    vi.useFakeTimers();
+    const props = renderRail({ tool: "select" });
+    const button = screen.getByRole("button", { name: "Box" });
+    fireEvent.pointerDown(button, { button: 0 });
+    expect(screen.queryByRole("menu")).toBeNull();
+    act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
+    expect(screen.getByRole("menu", { name: "Annotate" })).toBeInTheDocument();
+    fireEvent.pointerUp(button);
+    fireEvent.click(button);
+    expect(props.onToolChange).not.toHaveBeenCalled();
+    // The release did not toggle it shut either.
+    expect(screen.getByRole("menu", { name: "Annotate" })).toBeInTheDocument();
+  });
+
+  it("holding the active group opens the flyout once and the release does not close it", () => {
+    vi.useFakeTimers();
+    renderRail({ tool: "box" });
+    const button = screen.getByRole("button", { name: "Box" });
+    fireEvent.pointerDown(button, { button: 0 });
+    act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
+    fireEvent.pointerUp(button);
+    fireEvent.click(button);
+    expect(screen.getByRole("menu", { name: "Annotate" })).toBeInTheDocument();
+  });
+
+  it("a release before the threshold is a normal click: it arms and opens nothing", () => {
+    vi.useFakeTimers();
+    const props = renderRail({ tool: "select" });
+    const button = screen.getByRole("button", { name: "Box" });
+    fireEvent.pointerDown(button, { button: 0 });
+    act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS - 50));
+    fireEvent.pointerUp(button);
+    fireEvent.click(button);
+    act(() => void vi.advanceTimersByTime(1000));
+    expect(props.onToolChange).toHaveBeenCalledOnce();
+    expect(props.onToolChange).toHaveBeenCalledWith("box");
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("a click after an abandoned hold (pointer left, no click) is not swallowed", () => {
+    vi.useFakeTimers();
+    const props = renderRail({ tool: "select" });
+    const button = screen.getByRole("button", { name: "Blur" });
+    fireEvent.pointerDown(button, { button: 0 });
+    act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
+    fireEvent.pointerLeave(button);
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.pointerDown(button, { button: 0 });
+    fireEvent.pointerUp(button);
+    fireEvent.click(button);
+    expect(props.onToolChange).toHaveBeenCalledWith("blur");
+  });
+
+  it("a hold on Audio opens its flyout and stays open after the release", () => {
+    vi.useFakeTimers();
+    renderRail();
+    const button = screen.getByRole("button", { name: "Audio" });
+    fireEvent.pointerDown(button, { button: 0 });
+    act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS));
+    fireEvent.click(button);
+    expect(screen.getByRole("menu", { name: "Audio" })).toBeInTheDocument();
+  });
+
+  it("only the primary button holds: a right-button press arms no timer", () => {
+    vi.useFakeTimers();
+    renderRail({ tool: "select" });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Box" }), { button: 2 });
+    act(() => void vi.advanceTimersByTime(HOLD_OPEN_MS * 2));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("right-click opens the flyout and suppresses the native context menu", () => {
+    const props = renderRail({ tool: "select" });
+    const button = screen.getByRole("button", { name: "Blur" });
+    const notPrevented = fireEvent.contextMenu(button);
+    expect(notPrevented).toBe(false);
+    expect(screen.getByRole("menu", { name: "Privacy" })).toBeInTheDocument();
+    expect(props.onToolChange).not.toHaveBeenCalled();
+  });
+
+  it("right-click opens Audio's flyout too", () => {
+    renderRail();
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Audio" }));
+    expect(screen.getByRole("menu", { name: "Audio" })).toBeInTheDocument();
+  });
+
+  it("a group's button has no ripple: no :active transform or radial fill in its stylesheet", () => {
+    const css = readFileSync(resolve(__dirname, "editor-toolbar.module.css"), "utf8");
+    expect(css).not.toMatch(/radial-gradient/);
+    expect(css).not.toMatch(/:active[^{]*\{[^}]*(transform|scale)/);
+    expect(css).not.toMatch(/\.tool\[data-variants\]::before/);
+  });
+});
+
+describe("nextToolInGroup", () => {
+  it("cycles forward through the group and wraps", () => {
+    expect(nextToolInGroup("box")).toBe("arrow");
+    expect(nextToolInGroup("arrow")).toBe("text");
+    expect(nextToolInGroup("text")).toBe("box");
+    expect(nextToolInGroup("blur")).toBe("cover");
+    expect(nextToolInGroup("cover")).toBe("blur");
+  });
+
+  it("has no group for Select", () => {
+    expect(nextToolInGroup("select")).toBeNull();
   });
 });

@@ -91,6 +91,7 @@ function variantsOf(group: ToolGroup): readonly EditorTool[] {
  * flyout. A click on the group that IS active opens the flyout with every variant.
  * The corner mark is only a glyph that says "has variants"; it is not a hit target.
  * Audio has no armed variant (both are actions), so its button always opens the flyout.
+ * Any group's flyout also opens on press-and-hold or right-click (HOLD_OPEN_MS).
  * Pure and exported so the policy is testable on its own.
  */
 export function groupClickAction(
@@ -99,6 +100,23 @@ export function groupClickAction(
   remembered: EditorTool,
 ): { kind: "arm"; tool: EditorTool } | { kind: "open" } {
   return variantsOf(group).includes(current) ? { kind: "open" } : { kind: "arm", tool: remembered };
+}
+
+/** Press-and-hold on a group's button opens its flyout after this long (Photoshop's
+ *  "click and hold"). Shorter than a deliberate press, longer than any click. */
+export const HOLD_OPEN_MS = 300;
+
+/**
+ * The next variant of the group `tool` belongs to, wrapping — Shift+<shortcut> on the
+ * keyboard. Null for a tool outside every group (Select). Pure and exported so the
+ * page's key handler and the tests share it.
+ */
+export function nextToolInGroup(tool: EditorTool): EditorTool | null {
+  for (const variants of Object.values(TOOL_GROUPS) as (readonly EditorTool[])[]) {
+    const at = variants.indexOf(tool);
+    if (at >= 0) return variants[(at + 1) % variants.length] ?? null;
+  }
+  return null;
 }
 
 /** One row of a flyout. */
@@ -354,6 +372,42 @@ export function EditorToolRail({
   const [open, setOpen] = useState<ToolGroup | "audio" | null>(null);
   const buttons = useRef<Partial<Record<ToolGroup | "audio", HTMLButtonElement | null>>>({});
   const closeFlyout = useCallback(() => setOpen(null), []);
+  // Press-and-hold: the timer that opens a flyout, and whether it already did, so the
+  // click the release then fires is swallowed instead of arming a tool or toggling shut.
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const held = useRef(false);
+  const clearHold = useCallback(() => {
+    if (holdTimer.current !== null) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+  }, []);
+  useEffect(() => clearHold, [clearHold]);
+  /** Pointer handlers shared by every button that owns a flyout. */
+  const flyoutTriggers = (key: ToolGroup | "audio", disabled = false) => ({
+    onPointerDown: (event: React.PointerEvent): void => {
+      held.current = false;
+      clearHold();
+      if (disabled || event.button !== 0) return;
+      holdTimer.current = setTimeout(() => {
+        holdTimer.current = null;
+        held.current = true;
+        setOpen(key);
+      }, HOLD_OPEN_MS);
+    },
+    onPointerUp: clearHold,
+    onPointerLeave: clearHold,
+    onPointerCancel: clearHold,
+    onContextMenu: (event: React.MouseEvent): void => {
+      event.preventDefault();
+      clearHold();
+      if (!disabled) setOpen(key);
+    },
+  });
+  /** True when this click is the tail of a hold that already opened the flyout. */
+  const swallowHeldClick = (): boolean => {
+    if (!held.current) return false;
+    held.current = false;
+    return true;
+  };
   // A flyout cannot hang from a disabled button (Privacy over a slide).
   useEffect(() => {
     if (open === "privacy" && privacyDisabled) setOpen(null);
@@ -428,7 +482,9 @@ export function EditorToolRail({
           aria-expanded={open === group}
           disabled={disabled}
           className={`${styles.tool} ${active ? styles.toolActive : ""}`}
+          {...flyoutTriggers(group, disabled)}
           onClick={() => {
+            if (swallowHeldClick()) return;
             const action = groupClickAction(group, tool, remembered[group]);
             if (action.kind === "arm") {
               setOpen(null);
@@ -484,7 +540,11 @@ export function EditorToolRail({
         aria-haspopup="menu"
         aria-expanded={open === "audio"}
         className={`${styles.tool} ${audioMuted ? styles.toolActive : ""}`}
-        onClick={() => setOpen(open === "audio" ? null : "audio")}
+        {...flyoutTriggers("audio")}
+        onClick={() => {
+          if (swallowHeldClick()) return;
+          setOpen(open === "audio" ? null : "audio");
+        }}
       >
         {audioMuted ? <VolumeOff size={19} /> : <Volume2 size={19} />}
       </button>

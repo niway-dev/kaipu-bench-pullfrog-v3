@@ -141,6 +141,8 @@ import { VideoAnnotationLayer } from "@renderer/features/video-editor/annotation
 import {
   EditorToolbar,
   EditorToolRail,
+  nextToolInGroup,
+  TOOL_GROUPS,
 } from "@renderer/features/video-editor/components/editor-toolbar";
 import { ExportDialog } from "@renderer/features/video-editor/components/export-dialog";
 import { PreviewStage } from "@renderer/features/video-editor/components/preview-stage";
@@ -244,6 +246,15 @@ export function toolForShortcut(key: string, opts: { onSlide: boolean }): Editor
   if (!tool) return null;
   if (PRIVACY_SHORTCUT_TOOLS.has(tool) && opts.onSlide) return null;
   return tool;
+}
+
+/** Both tools belong to one rail group (Annotate, Privacy). */
+function sameGroup(a: EditorTool, b: EditorTool): boolean {
+  return Object.values(TOOL_GROUPS).some(
+    (variants) =>
+      (variants as readonly EditorTool[]).includes(a) &&
+      (variants as readonly EditorTool[]).includes(b),
+  );
 }
 
 /** Target is a text field or a dropdown — don't hijack its keys (Space, letters that pick
@@ -1290,7 +1301,13 @@ function VideoEditor({
       // drawing mode. Matches EditorToolbar's own tooltips (V R A T / Z / B C).
       const key = e.key.toLowerCase();
       if (!isMod && TOOL_SHORTCUT_KEYS.has(key)) {
-        const next = toolForShortcut(key, { onSlide });
+        // Shift+<variant letter> cycles that variant's group (Photoshop's Shift+key):
+        // from the tool in use when it belongs to the group, else from the pressed one.
+        const pressed = toolForShortcut(key, { onSlide });
+        const next =
+          pressed && e.shiftKey
+            ? nextToolInGroup(sameGroup(videoTools.tool, pressed) ? videoTools.tool : pressed)
+            : pressed;
         // Through handleToolChange, not videoTools.setTool: the toolbar path clears
         // the selection before arming a privacy tool, and the keyboard must match —
         // otherwise B with a zoom selected leaves the RegionDrawer stacked over the
