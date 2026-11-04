@@ -198,6 +198,12 @@ export interface CatalogState<S extends ScreenId> {
    * look by eye before publishing (spec failure 7).
    */
   readonly embedsScreen?: boolean;
+  /**
+   * The state is shot locally but never published: the reason. Its images show content that
+   * belongs to the runner (real open windows), so `ui-catalog:publish` does not copy them and
+   * the published README says "Not published" instead of linking them.
+   */
+  readonly unpublished?: string;
   /** Per-state budget for steps + ready, ms. Default 20 s. */
   readonly timeoutMs?: number;
 }

@@ -60,6 +60,8 @@ export interface ManifestState {
   readonly demonstrates: readonly string[];
   /** The image embeds real screen content: `ui-catalog:lint` lists it for a look by eye. */
   readonly embedsScreen?: boolean;
+  /** Shot locally, never published: why. `publish` skips its images and the README links none. */
+  readonly unpublished?: string;
   /** README sentence: the `how` text or the steps, described. */
   readonly how: string;
   readonly gates: readonly { readonly label: string; readonly side: string }[];

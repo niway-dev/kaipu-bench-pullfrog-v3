@@ -169,6 +169,7 @@ export const record = catalog(
     "source-picker-windows": {
       profile: "recording",
       embedsScreen: true,
+      unpublished: "shows the runner's real open windows",
       steps: [
         { call: "requestChooseSource" },
         { waitFor: { area: "record.sourcePicker" } },

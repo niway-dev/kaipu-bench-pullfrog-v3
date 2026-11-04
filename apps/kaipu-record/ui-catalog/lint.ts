@@ -141,9 +141,19 @@ export function sourceFiles(uiCatalogDir: string = UI_CATALOG_DIR): string[] {
   ].filter((file) => existsSync(file));
 }
 
+/** The shot states that are never published, as `id`, sorted. */
+export function unpublishedStates(manifest: Pick<Manifest, "states">): string[] {
+  return manifest.states
+    .filter((state) => state.unpublished && state.status === "shot")
+    .map((state) => state.id)
+    .sort();
+}
+
 export interface LintResult {
   readonly hits: readonly Hit[];
   readonly reviewByEye: readonly string[];
+  /** Shot but excluded from publishing: listed, not reviewed. */
+  readonly unpublished: readonly string[];
   readonly scanned: readonly string[];
   readonly errors: readonly string[];
 }
@@ -153,6 +163,8 @@ export interface LintOptions {
   readonly sources?: readonly string[];
   /** Used when the manifest predates `embedsScreen` (a run made before the field existed). */
   readonly fallbackReview?: readonly string[];
+  /** The catalog source's `unpublished` ids: also honoured, for a manifest from before the field. */
+  readonly fallbackUnpublished?: readonly string[];
 }
 
 export function lintOutputDir(outDir: string, options: LintOptions = {}): LintResult {
@@ -177,17 +189,27 @@ export function lintOutputDir(outDir: string, options: LintOptions = {}): LintRe
   }
 
   let review: readonly string[] = [];
+  let unpublished: readonly string[] = [];
   try {
     const manifest = JSON.parse(
       readFileSync(path.join(outDir, "manifest.json"), "utf8"),
     ) as Manifest;
     const flagged = reviewByEye(manifest);
     const known = manifest.states.some((state) => "embedsScreen" in state);
-    review = known ? flagged : (options.fallbackReview ?? []);
+    // The manifest's own flags plus the catalog source's: a run that predates the field is
+    // still kept private, and a flag in either place is enough.
+    unpublished = [
+      ...new Set([...unpublishedStates(manifest), ...(options.fallbackUnpublished ?? [])]),
+    ]
+      .filter((id) => manifest.states.some((s) => s.id === id && s.status === "shot"))
+      .sort();
+    review = (known ? flagged : (options.fallbackReview ?? [])).filter(
+      (id) => !unpublished.includes(id),
+    );
   } catch {
     errors.push(`${outDir}: manifest.json cannot be read`);
   }
-  return { hits, reviewByEye: review, scanned, errors };
+  return { hits, reviewByEye: review, unpublished, scanned, errors };
 }
 
 /** The output folder with the newest manifest under `<repo root>/.evidence/ui-catalog/`. */
@@ -219,6 +241,12 @@ export function printLint(result: LintResult, outDir: string): void {
     );
     for (const id of result.reviewByEye) console.log(`  - ${id}`);
   }
+  if (result.unpublished.length > 0) {
+    console.log(
+      `[ui-catalog:lint] unpublished (shot locally, excluded from publishing, not reviewed, ${result.unpublished.length}):`,
+    );
+    for (const id of result.unpublished) console.log(`  - ${id}`);
+  }
 }
 
 export function lintFailed(result: LintResult): boolean {
@@ -235,8 +263,21 @@ async function catalogReview(): Promise<string[]> {
     .sort();
 }
 
+/** Catalog states flagged `unpublished`, for a manifest that does not carry the field. */
+async function catalogUnpublished(): Promise<string[]> {
+  const { CATALOGS } = await import("./catalog");
+  const { flattenCatalog } = await import("./types");
+  return flattenCatalog(CATALOGS)
+    .filter((entry) => Boolean(entry.spec.unpublished))
+    .map((entry) => entry.id)
+    .sort();
+}
+
 export async function lintDir(outDir: string): Promise<LintResult> {
-  return lintOutputDir(outDir, { fallbackReview: await catalogReview() });
+  return lintOutputDir(outDir, {
+    fallbackReview: await catalogReview(),
+    fallbackUnpublished: await catalogUnpublished(),
+  });
 }
 
 async function main(): Promise<number> {

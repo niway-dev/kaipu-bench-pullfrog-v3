@@ -49,7 +49,11 @@ function stateRows(
         s.gates.length > 0
           ? ` Gate: ${s.gates.map((g) => `${g.label} = ${g.side}`).join(", ")}.`
           : "";
-      if (s.status === "shot") {
+      if (s.status === "shot" && s.unpublished) {
+        rows.push(
+          `| \`${mapState}\` | ${cell(s.how + gate)} | ${cell(`Not published: ${s.unpublished}`)} | — |`,
+        );
+      } else if (s.status === "shot") {
         rows.push(
           `| \`${mapState}\` | ${cell(s.how + gate)} | ${image(s.window?.file)} | ${image(crop)} |`,
         );

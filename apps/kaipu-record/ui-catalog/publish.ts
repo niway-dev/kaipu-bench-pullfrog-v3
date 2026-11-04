@@ -13,6 +13,7 @@ import {
 } from "./catalog-repo";
 import {
   type LintResult,
+  unpublishedStates,
   lintDir,
   lintFailed,
   newestOutputDir,
@@ -215,6 +216,15 @@ export async function publish(options: PublishOptions): Promise<PublishResult> {
   for (const item of PUBLISHED) {
     rmSync(path.join(cloneDir, item), { recursive: true, force: true });
     cpSync(path.join(outDir, item), path.join(cloneDir, item), { recursive: true });
+  }
+  // Unpublished states are shot locally and never leave this machine: drop their images.
+  const unpublishedIds = new Set([...linted.unpublished, ...unpublishedStates(manifest)]);
+  for (const state of manifest.states) {
+    if (!unpublishedIds.has(state.id)) continue;
+    const files = [state.window?.file, ...state.areasFound.map((a) => a.file)];
+    for (const file of files) {
+      if (file) rmSync(path.join(cloneDir, file), { force: true });
+    }
   }
   git(cloneDir, ["add", "--", ...PUBLISHED]);
   if (git(cloneDir, ["status", "--porcelain"]) === "") return { status: "unchanged", cloneDir };

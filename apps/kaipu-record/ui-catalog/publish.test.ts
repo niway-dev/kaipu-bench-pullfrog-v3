@@ -27,6 +27,7 @@ const IDENTITY = { name: "Test Author", email: "author@example.test" };
 const cleanLint = async (): Promise<LintResult> => ({
   hits: [],
   reviewByEye: [],
+  unpublished: [],
   scanned: [],
   errors: [],
 });
@@ -269,6 +270,45 @@ describe("publish", { timeout: 30_000 }, () => {
     expect(git(remote, "log", "-1", "--format=%s", "main")).toBe(result.message);
   });
 
+  it("never copies the images of an unpublished state", async () => {
+    const manifest = {
+      ...manifestOf("11111111", "2026-11-04T10:00:00Z"),
+      states: [
+        {
+          id: "record/page",
+          status: "shot",
+          window: { file: "screens/record/page.png" },
+          areasFound: [{ id: "record.mic", file: "areas/record/mic.png" }],
+        },
+        {
+          id: "record/windows",
+          status: "shot",
+          unpublished: "shows the runner's real open windows",
+          window: { file: "screens/record/windows.png" },
+          areasFound: [{ id: "record.sourcePicker", file: "areas/record/picker.png" }],
+        },
+      ],
+    } as unknown as Manifest;
+    const out = outputFolder(manifest);
+    writeFileSync(path.join(out, "screens", "record", "windows.png"), "real windows");
+    writeFileSync(path.join(out, "areas", "record", "picker.png"), "real windows");
+    const result = await publish({
+      isAncestor: () => true,
+      outDir: out,
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(result.status).toBe("published");
+    const files = git(remote, "ls-tree", "-r", "--name-only", "main").split("\n");
+    expect(files).toContain("screens/record/page.png");
+    expect(files).toContain("areas/record/mic.png");
+    expect(files).not.toContain("screens/record/windows.png");
+    expect(files).not.toContain("areas/record/picker.png");
+  });
+
   it("replaces the previous images and reports an identical republish as unchanged", async () => {
     const first = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"));
     await publish({
@@ -369,6 +409,7 @@ describe("publish", { timeout: 30_000 }, () => {
     const dirty = async (): Promise<LintResult> => ({
       hits: [{ file: "<output>/README.md", line: 1, entry: "Cricut" }],
       reviewByEye: [],
+      unpublished: [],
       scanned: [],
       errors: [],
     });

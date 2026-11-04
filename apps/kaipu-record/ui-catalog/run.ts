@@ -845,6 +845,7 @@ async function shoot(
     profile: run.name,
     demonstrates: spec.demonstrates,
     embedsScreen: spec.embedsScreen === true,
+    ...(spec.unpublished ? { unpublished: spec.unpublished } : {}),
     how: howOf(entry),
     gates: (spec.gates ?? []).map((g) => ({ label: gateLabel(g), side: g.side })),
   };

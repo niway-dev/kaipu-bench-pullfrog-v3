@@ -137,6 +137,20 @@ describe("README generator", () => {
     expect(readme).toContain("Other side of the gate: with 0 s there is no countdown.");
   });
 
+  it("says an unpublished state is not published, and links neither image", () => {
+    const base = manifest.states[0] as Manifest["states"][number];
+    const withFlag: Manifest = {
+      ...manifest,
+      states: [{ ...base, unpublished: "shows the runner's real open windows" }],
+    };
+    const text = renderReadme(withFlag);
+    expect(text).toContain(
+      "| `on` | Open the app. Gate: recording setting isMicrophoneEnabled = on. | Not published: shows the runner's real open windows | — |",
+    );
+    expect(text).not.toContain("screens/record/idle.png");
+    expect(text).not.toContain("areas/record/mic/idle.png");
+  });
+
   it("ends with the native flows", () => {
     expect(readme).toMatch(
       /## Not capturable\n\n.*\n\n- \*\*Permission dialogs\*\* — macOS draws them\.\n/,

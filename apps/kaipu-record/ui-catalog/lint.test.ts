@@ -12,6 +12,7 @@ import {
   reviewByEye,
   scanText,
   sourceFiles,
+  unpublishedStates,
 } from "./lint";
 
 describe("deny-list parsing", () => {
@@ -74,6 +75,39 @@ describe("review by eye", () => {
       { id: "record/d", status: "notCapturable", embedsScreen: true },
     ] as never;
     expect(reviewByEye({ states })).toEqual(["record/a", "record/b"]);
+  });
+});
+
+describe("unpublished states", () => {
+  it("lists shot states with a reason, sorted, apart from the review list", () => {
+    const states = [
+      { id: "record/b", status: "shot", embedsScreen: true, unpublished: "real windows" },
+      { id: "record/a", status: "shot", unpublished: "real windows" },
+      { id: "record/c", status: "shot", embedsScreen: true },
+    ] as never;
+    expect(unpublishedStates({ states })).toEqual(["record/a", "record/b"]);
+  });
+
+  it("takes them out of the review list, and honours the catalog fallback", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "ui-catalog-lint-test-"));
+    writeFileSync(path.join(dir, "README.md"), "# Catalog");
+    writeFileSync(
+      path.join(dir, "manifest.json"),
+      JSON.stringify({
+        states: [
+          { id: "record/a", status: "shot", embedsScreen: true, unpublished: "real windows" },
+          { id: "record/b", status: "shot", embedsScreen: true },
+          { id: "record/c", status: "shot", embedsScreen: true },
+        ],
+      }),
+    );
+    const result = lintOutputDir(dir, {
+      entries: [],
+      sources: [],
+      fallbackUnpublished: ["record/c"],
+    });
+    expect(result.unpublished).toEqual(["record/a", "record/c"]);
+    expect(result.reviewByEye).toEqual(["record/b"]);
   });
 });
 
