@@ -60,17 +60,23 @@
   flex-shrink: 0;
 }
 
+/* 18 px: the smallest hit target we allow on the rail; it covers the button's corner. */
 .variantSwitch {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
   border-radius: 0 0 6px 0;
   background: transparent;
   cursor: pointer;
+}
+
+.variantSwitch:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
 }
 
 .variantSwitch:hover {

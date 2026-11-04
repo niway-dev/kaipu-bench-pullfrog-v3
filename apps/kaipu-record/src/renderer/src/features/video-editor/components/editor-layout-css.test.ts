@@ -37,6 +37,14 @@ describe("tool rail and picture", () => {
     expect(rule(css("editor-toolbar.module.css"), ".rail")).toMatch(/(?:^|\s)width:\s*44px;/);
   });
 
+  it("the Audio variant switch is an 18px hit target with a visible focus ring", () => {
+    const toolbar = css("editor-toolbar.module.css");
+    const sw = rule(toolbar, ".variantSwitch");
+    expect(sw).toMatch(/(?:^|\s)width:\s*18px;/);
+    expect(sw).toMatch(/(?:^|\s)height:\s*18px;/);
+    expect(rule(toolbar, ".variantSwitch:focus-visible")).toMatch(/outline:\s*2px solid/);
+  });
+
   it("the picture sits on the left with a 12px margin", () => {
     const region = rule(
       css("../../../pages/video-editor/video-editor-page.module.css"),
