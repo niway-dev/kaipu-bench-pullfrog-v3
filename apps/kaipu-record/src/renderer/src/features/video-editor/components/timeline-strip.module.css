@@ -18,7 +18,7 @@
   /* Label column (UI spec § 6) + the lanes column. Every lane lives in column 2, so all
      lanes share one horizontal extent. The width is declared ONCE, here: the grid
      template and .playheadLayer's offset both read it and must never drift apart. */
-  --lane-label-w: 80px;
+  --lane-label-w: 112px;
   grid-template-columns: var(--lane-label-w) 1fr;
   align-items: center;
   column-gap: var(--space-sm);
@@ -29,6 +29,9 @@
 }
 
 .laneLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   white-space: nowrap;
   overflow: hidden;
   font-family: var(--font-family);
@@ -39,6 +42,10 @@
   color: var(--text-4);
 }
 
+.laneIcon {
+  flex-shrink: 0;
+}
+
 /* One grid cell per extra lane (see LaneRow). min-width: 0 stops a wide lane from
    growing the column past its 1fr share. */
 .laneCell {
@@ -47,7 +54,7 @@
 
 /* Covers the lanes column across every row; the playhead's left % is relative to it,
    i.e. to the lanes' width, exactly like each lane's own blocks. --lane-label-w is
-   inherited from .timelineBody, so the 80 px lives in exactly one place. */
+   inherited from .timelineBody, so the 112 px lives in exactly one place. */
 .playheadLayer {
   position: absolute;
   top: 0;
@@ -58,29 +65,53 @@
   z-index: 3;
 }
 
+/* The scrub bar. It reads as a ruler — a raised band, ticks on its bottom edge, the
+   labels above them — so it looks like something to grab, not a row of loose text. */
 .ruler {
   position: relative;
-  height: 20px;
+  height: 24px;
+  font-family: var(--font-mono);
   font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  /* Scrubber affordance: pointer cursor signals click-to-seek; touch-action none
-     lets pointer capture handle touch drags without browser scroll intervention;
-     user-select none prevents text selection during drag. */
+  color: var(--text-4);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+  border-radius: 3px 3px 0 0;
+  /* Pointer cursor signals click-to-seek; touch-action none lets pointer capture handle
+     touch drags without browser scroll intervention; user-select none prevents text
+     selection during drag. */
   cursor: pointer;
   touch-action: none;
   user-select: none;
-  border-radius: var(--radius-sm);
-  transition: background 0.12s;
+  transition:
+    background var(--transition),
+    color var(--transition);
 }
 
 .ruler:hover {
-  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 5%, var(--bg-raised));
+  color: var(--text-muted);
 }
 
+/* A labelled tick: an 8 px line on the bottom edge, its time just right of it. */
 .tick {
   position: absolute;
-  transform: translateX(-50%);
-  user-select: none;
+  bottom: 0;
+  height: 100%;
+  padding-left: 4px;
+  border-left: 1px solid currentColor;
+  /* The line only reaches 8 px up; the label sits in the top of the band. */
+  border-image: linear-gradient(to top, currentColor 8px, transparent 8px) 1;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.minorTick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 4px;
+  background: currentColor;
+  opacity: 0.6;
 }
 
 .track {
@@ -165,6 +196,37 @@
   z-index: 2;
 }
 
+/* Hover preview: where a click on the ruler would seek. Hidden until the pointer is on
+   the ruler (data-visible, set by TimelineStrip); faint, so the playhead stays the one
+   loud line. */
+.hoverLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--text-primary) 35%, transparent);
+  visibility: hidden;
+}
+
+.hoverLine[data-visible] {
+  visibility: visible;
+}
+
+.hoverTime {
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: 16px;
+  color: var(--text-primary);
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
 .playhead {
   /* Positioned in .timelineBody (not .track) so it spans ruler → overlay lane → track
      as one unbroken vertical line — the user sees a single scrub indicator. */
@@ -176,4 +238,17 @@
   pointer-events: none;
   /* Above trim handles (z-index 2) and selected blocks (z-index 1). */
   z-index: 3;
+}
+
+/* The playhead's head on the ruler: something to grab, not just a line. */
+.playhead::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -5px;
+  width: 12px;
+  height: 14px;
+  background: var(--accent-primary);
+  clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
+  border-radius: 2px 2px 0 0;
 }

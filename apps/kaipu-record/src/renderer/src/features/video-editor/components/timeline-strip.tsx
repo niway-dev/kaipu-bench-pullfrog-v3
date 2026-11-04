@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type ReactElement } from "react";
-import { ImagePlus } from "lucide-react";
+import { Film, ImagePlus, PenLine, type LucideIcon } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { PreviewPlayback } from "../use-preview-playback";
 import type { LayoutEntry } from "../timeline";
@@ -8,7 +8,9 @@ import type { VideoOverlay } from "../scene";
 import type { SourceThumbnail } from "../use-source-thumbnails";
 import { OverlayLane, type WindowChangePhase } from "./overlay-lane";
 import {
+  formatScrubTime,
   fractionToTime,
+  rulerMinorTicks,
   rulerTicks,
   thumbnailsForRange,
   timeToFraction,
@@ -17,11 +19,17 @@ import styles from "./timeline-strip.module.css";
 
 const THUMBS_PER_BLOCK_PX = 72; // one thumbnail tile roughly every 72px of block width
 
+// A labelled tick this close to the right edge keeps its line but drops its label, which
+// would otherwise hang past the end of the ruler.
+const LAST_LABEL_FRACTION = 0.96;
+
 /** A lane stacked under the main track (Activity, Zooms, Privacy — video-editor v2). */
 export interface ExtraLane {
   key: string;
-  /** Short uppercase label for the label column. */
+  /** Lane name for the label column. */
   label: string;
+  /** Drawn before the name; the name stays the label's accessible text. */
+  icon: LucideIcon;
   /** A SINGLE element, not a ReactNode: .timelineBody is a two-column grid and
    *  auto-places one child per cell, so a lane rendering a fragment with two roots
    *  would push every following label and lane one cell along. LaneRow also wraps it
@@ -73,6 +81,8 @@ export function TimelineStrip({
   const t = useTranslations("videoEditor");
   const trackRef = useRef<HTMLDivElement | null>(null);
   const playheadRef = useRef<HTMLDivElement | null>(null);
+  const hoverRef = useRef<HTMLDivElement | null>(null);
+  const hoverLabelRef = useRef<HTMLSpanElement | null>(null);
   const duration = layoutDuration(layout);
 
   // Playhead follows playback at rAF frequency via direct style mutation —
@@ -123,12 +133,33 @@ export function TimelineStrip({
     [playback, timeFromPointerOnElement],
   );
 
+  // The hover preview: a faint line and the time under the pointer, so the ruler shows
+  // where a click would seek before anyone clicks. Moved by direct DOM mutation for the
+  // same reason as the playhead — a re-render per pointermove would rebuild every lane.
+  const showHoverAt = useCallback(
+    (time: number) => {
+      const el = hoverRef.current;
+      const label = hoverLabelRef.current;
+      if (!el || !label) return;
+      el.style.left = `${timeToFraction(time, duration) * 100}%`;
+      el.dataset.visible = "true";
+      label.textContent = formatScrubTime(time);
+    },
+    [duration],
+  );
+
+  const hideHover = useCallback(() => {
+    if (hoverRef.current) delete hoverRef.current.dataset.visible;
+  }, []);
+
   const onRulerPointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      const time = timeFromPointerOnElement(event.clientX, event.currentTarget);
+      showHoverAt(time);
       if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-      playback.seek(timeFromPointerOnElement(event.clientX, event.currentTarget));
+      playback.seek(time);
     },
-    [playback, timeFromPointerOnElement],
+    [playback, timeFromPointerOnElement, showHoverAt],
   );
 
   // The track background also handles scrub for clicks that land on empty track area
@@ -163,26 +194,26 @@ export function TimelineStrip({
           className={styles.ruler}
           onPointerDown={onRulerPointerDown}
           onPointerMove={onRulerPointerMove}
+          onPointerLeave={hideHover}
         >
-          {rulerTicks(duration).map((tick) => (
+          {rulerMinorTicks(duration).map((time) => (
             <span
-              key={tick.time}
-              className={styles.tick}
-              style={{ left: `${timeToFraction(tick.time, duration) * 100}%` }}
-            >
-              {tick.label}
-            </span>
+              key={time}
+              className={styles.minorTick}
+              style={{ left: `${timeToFraction(time, duration) * 100}%` }}
+            />
           ))}
+          {rulerTicks(duration).map((tick) => {
+            const fraction = timeToFraction(tick.time, duration);
+            return (
+              <span key={tick.time} className={styles.tick} style={{ left: `${fraction * 100}%` }}>
+                {fraction < LAST_LABEL_FRACTION && tick.label}
+              </span>
+            );
+          })}
         </div>
-        <span className={styles.laneLabel}>{t("laneAnnotations")}</span>
-        <OverlayLane
-          overlays={overlays}
-          duration={duration}
-          selectedOverlayId={selectedOverlayId}
-          onSelectOverlay={onSelectOverlay}
-          onWindowChange={(id, start, end, phase) => onWindowChange?.(id, start, end, phase)}
-        />
-        <span className={styles.laneLabel}>{t("laneClips")}</span>
+        {/* Clips lead: the recording is what every other lane edits. */}
+        <LaneLabel icon={Film} label={t("laneClips")} />
         <div
           ref={trackRef}
           className={styles.track}
@@ -204,14 +235,30 @@ export function TimelineStrip({
             />
           ))}
         </div>
+        {/* Annotations are made with the drawing tools on the preview, never on this lane,
+            so an empty lane would only be a blank row: it appears with the first one. */}
+        {overlays.length > 0 && (
+          <LaneRow icon={PenLine} label={t("laneAnnotations")}>
+            <OverlayLane
+              overlays={overlays}
+              duration={duration}
+              selectedOverlayId={selectedOverlayId}
+              onSelectOverlay={onSelectOverlay}
+              onWindowChange={(id, start, end, phase) => onWindowChange?.(id, start, end, phase)}
+            />
+          </LaneRow>
+        )}
         {extraLanes.map((lane) => (
-          <LaneRow key={lane.key} label={lane.label}>
+          <LaneRow key={lane.key} icon={lane.icon} label={lane.label}>
             {lane.node}
           </LaneRow>
         ))}
         {/* Positioned via direct DOM mutation in the subscribeTime callback (avoid React
             re-renders at 60fps). The layer spans every row of the lanes column. */}
         <div className={styles.playheadLayer}>
+          <div ref={hoverRef} className={styles.hoverLine}>
+            <span ref={hoverLabelRef} className={styles.hoverTime} />
+          </div>
           <div ref={playheadRef} className={styles.playhead} />
         </div>
       </div>
@@ -219,16 +266,27 @@ export function TimelineStrip({
   );
 }
 
+function LaneLabel({ icon: Icon, label }: { icon: LucideIcon; label: string }): React.JSX.Element {
+  return (
+    <span className={styles.laneLabel}>
+      <Icon size={14} aria-hidden className={styles.laneIcon} />
+      {label}
+    </span>
+  );
+}
+
 function LaneRow({
+  icon,
   label,
   children,
 }: {
+  icon: LucideIcon;
   label: string;
   children: ReactElement;
 }): React.JSX.Element {
   return (
     <>
-      <span className={styles.laneLabel}>{label}</span>
+      <LaneLabel icon={icon} label={label} />
       {/* Exactly one grid cell, whatever the lane renders — the label/lane pairing of
           every row below this one depends on it. */}
       <div className={styles.laneCell}>{children}</div>

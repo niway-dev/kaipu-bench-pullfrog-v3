@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { SourceThumbnail } from "../use-source-thumbnails";
 import {
   fractionToTime,
+  formatScrubTime,
+  rulerMinorTicks,
   rulerTicks,
   thumbnailsForRange,
   thumbnailsForRangeWithin,
@@ -35,6 +37,37 @@ describe("rulerTicks", () => {
       expect(ticks.length).toBeLessThanOrEqual(11);
     },
   );
+});
+
+describe("rulerMinorTicks", () => {
+  it("fills each labelled step with evenly spaced unlabelled ticks", () => {
+    // 6 s → labelled every 1 s, minor every 0.25 s.
+    const minor = rulerMinorTicks(6);
+    expect(minor.slice(0, 4)).toEqual([0.25, 0.5, 0.75, 1.25]);
+    expect(minor).toHaveLength(6 * 3);
+  });
+
+  it("never lands on a labelled tick", () => {
+    for (const duration of [6, 29, 90, 601]) {
+      const labelled = new Set(rulerTicks(duration).map((tick) => tick.time));
+      for (const time of rulerMinorTicks(duration)) expect(labelled.has(time)).toBe(false);
+    }
+  });
+
+  it("stays inside the duration", () => {
+    expect(Math.max(...rulerMinorTicks(29))).toBeLessThanOrEqual(29);
+  });
+});
+
+describe("formatScrubTime", () => {
+  it.each([
+    [0, "0:00.0"],
+    [7.46, "0:07.4"],
+    [65.99, "1:05.9"],
+    [-1, "0:00.0"],
+  ])("%s s → %s", (seconds, label) => {
+    expect(formatScrubTime(seconds)).toBe(label);
+  });
 });
 
 describe("thumbnailsForRange", () => {

@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { generatePath, Navigate, useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "@shared/routes";
 import {
+  AudioLines,
   Maximize2,
   Minimize2,
+  MousePointerClick,
   Pause,
   Play,
   Shield,
@@ -11,6 +13,8 @@ import {
   TriangleAlert,
   Volume2,
   VolumeX,
+  Webcam,
+  ZoomIn,
 } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { parseCursorTrack, type CursorTrack } from "@shared/cursor-track";
@@ -1757,6 +1761,7 @@ function VideoEditor({
                   {
                     key: "activity",
                     label: t("laneActivity"),
+                    icon: MousePointerClick,
                     node: <ActivityLane marks={activity} layout={layout} />,
                   },
                 ]
@@ -1764,6 +1769,7 @@ function VideoEditor({
             {
               key: "zooms",
               label: t("laneZooms"),
+              icon: ZoomIn,
               node: (
                 <ZoomLane
                   segments={zooms.visibleZooms}
@@ -1780,6 +1786,7 @@ function VideoEditor({
                   {
                     key: "webcam",
                     label: t("laneWebcam"),
+                    icon: Webcam,
                     node: (
                       <WebcamLane
                         segments={webcamEdits.visibleSegments}
@@ -1799,6 +1806,7 @@ function VideoEditor({
             {
               key: "privacy",
               label: t("lanePrivacy"),
+              icon: Shield,
               node: (
                 <PrivacyLane
                   redactions={redactionEdits.visibleRedactions}
@@ -1817,6 +1825,7 @@ function VideoEditor({
             {
               key: "audio",
               label: t("laneAudio"),
+              icon: AudioLines,
               node: (
                 <AudioLane
                   ranges={mutes.mutedRanges}
