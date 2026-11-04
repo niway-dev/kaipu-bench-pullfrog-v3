@@ -76,18 +76,23 @@ gates nothing.
 Round 3 (2026-11-04) answered the three questions of round 2. What was checked on the mini,
 not assumed:
 
-1. **Recording-in-progress states: blocked until the owner grants Screen Recording.** A probe
-   run of the Electron binary Playwright launches
-   (`apps/kaipu-record/node_modules/electron/dist/Electron.app`, Electron 39.8.10) reported
-   `screen: denied`, `camera: not-determined`, `microphone: not-determined`,
-   `accessibility: false`, and `desktopCapturer.getSources` failed. The owner grants Screen
-   Recording (and Accessibility, for the click-zoom gate) to that binary once in System
-   Settings → Privacy & Security on the mini; the grant is per binary path, so an Electron bump
-   needs a new one. Until then, those states are `notCapturable` with the reason in the README.
-   The mini also has **no camera and no audio input device**. Camera and microphone states use
-   Chromium's synthetic devices (`--use-fake-device-for-media-stream`, appended by the catalog
-   launch only), which the README labels as a synthetic feed; whether the app's device checks
-   accept them is verified in step 1, else those states are `notCapturable`.
+1. **Recording-in-progress states: reachable, verified on the mini on 2026-11-04.** macOS
+   attributes a privacy permission to the _responsible process_, not to Electron. Launched
+   straight from the SSH session, the responsible process is `/usr/libexec/sshd-keygen-wrapper`,
+   and Screen Recording stays `denied` even with Electron granted. Launched as a `launchd` job
+   (`launchctl submit`), the responsible process is the job's `node`, which the owner granted
+   Screen Recording. A probe run that way through Playwright's `_electron.launch` reported
+   `screen: granted`, a real screen thumbnail, and the synthetic devices `fake_device_0` and
+   `Fake Default Audio Input` (Chromium's `--use-fake-device-for-media-stream`, because the mini
+   has no camera and no audio input). So:
+   - `ui-catalog:remote` submits the run as a `launchd` job, waits for it, reads its log and
+     removes the job. It never runs Playwright directly in the SSH session.
+   - The grants are tied to exact binary paths: mise's
+     `~/.local/share/mise/installs/node/24.21.0/bin/node` (Screen Recording) and Electron's
+     ad-hoc cdhash. A Node or Electron upgrade needs a new grant. The run starts with a
+     preflight that prints each permission's status and stops with the missing grant named.
+   - Accessibility for that `node` was still denied at the last check. Until it is granted,
+     the click-zoom gate is shot on its "not granted" side only, and the README says so.
 2. **Account states: fully offline (owner decision).** The catalog never runs the API. It
    shoots `signed-out` (no `auth.enc`) and `unknown` (stored session, API unreachable). States
    that need a live server (`signedIn`, `cloud`, `sessionExpired`) are `notCapturable` with the
