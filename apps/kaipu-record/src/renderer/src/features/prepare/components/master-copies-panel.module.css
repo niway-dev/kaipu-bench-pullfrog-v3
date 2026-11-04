@@ -54,9 +54,9 @@
   gap: 10px;
   min-height: 50px;
   padding: 9px 11px;
-  border-radius: 9px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
 }
 
 /* The logo, name, facts and Ready go to the copy's page; Drag sits beside the link. */
