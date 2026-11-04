@@ -12,6 +12,13 @@
   height: 100%;
 }
 
+/* Wraps the "ORIGINAL UNTOUCHED" badge so the title bar can hide it (data-collapse);
+   the Badge itself takes no attributes. Not an inline style: that would beat the
+   title bar's display: none. */
+.badgeSlot {
+  display: contents;
+}
+
 /* "ORIGINAL UNTOUCHED" — a reminder, not a control (v2 PR 10 polish, W12). */
 .saveState {
   background: none;

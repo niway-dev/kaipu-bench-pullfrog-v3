@@ -4,6 +4,8 @@
  * is that tall.
  */
 .bar {
+  /* Queried by the collapse rules at the end of this file. */
+  container: titlebar / inline-size;
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -55,6 +57,12 @@
   margin-left: auto;
 }
 
+/* A page's actions may shrink (the editor's toolbar clips its icon group, never Export). */
+.actions {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
 /* With actions showing they take the free space; the chip follows them. */
 .actions:not(:empty) + .end {
   margin-left: 0;
@@ -64,4 +72,48 @@
 .actions:empty,
 .end:empty {
   display: none;
+}
+
+/*
+ * A crowded bar degrades instead of overflowing (NIW2-619). Only while a page's actions
+ * are in it (the video editor): pieces collapse lowest priority first as the window
+ * narrows toward its 720 px minimum. Each piece marks itself with data-collapse:
+ *
+ *   badge      ORIGINAL UNTOUCHED (video-editor-page.tsx)
+ *   location   the switcher's "This Mac" (workspace-switcher.tsx)
+ *   save       the save state, unless it failed and offers a retry (video-editor-page.tsx)
+ *   .name      "Kaipu Record" and its separator (here)
+ *   chip-name  the item chip's "In" and name; its tile and chevron stay (item-workspace-chip.tsx)
+ *
+ * Export is last and never shrinks (editor-toolbar.module.css).
+ */
+@container titlebar (max-width: 1260px) {
+  .bar:has(.actions:not(:empty)) [data-collapse~="badge"] {
+    display: none;
+  }
+}
+
+@container titlebar (max-width: 1120px) {
+  .bar:has(.actions:not(:empty)) [data-collapse~="location"] {
+    display: none;
+  }
+}
+
+@container titlebar (max-width: 1020px) {
+  .bar:has(.actions:not(:empty)) [data-collapse~="save"]:not([data-state="failed"]) {
+    display: none;
+  }
+}
+
+@container titlebar (max-width: 940px) {
+  .bar:has(.actions:not(:empty)) .name,
+  .bar:has(.actions:not(:empty)) .separator {
+    display: none;
+  }
+}
+
+@container titlebar (max-width: 840px) {
+  .bar:has(.actions:not(:empty)) [data-collapse~="chip-name"] {
+    display: none;
+  }
 }

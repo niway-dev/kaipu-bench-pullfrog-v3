@@ -86,9 +86,15 @@ function Chip({
         aria-label={t("chipLabel", { name: active.name })}
         onClick={() => setOpen(!open)}
       >
-        <span className={styles.chipIn}>{t("chipIn")}</span>
+        {/* data-collapse: a crowded title bar keeps the tile and the chevron only
+            (title-bar.module.css); the accessible name still says it all. */}
+        <span className={styles.chipIn} data-collapse="chip-name">
+          {t("chipIn")}
+        </span>
         <WorkspaceTile workspace={active} size={18} />
-        <span className={styles.chipName}>{active.name}</span>
+        <span className={styles.chipName} data-collapse="chip-name">
+          {active.name}
+        </span>
         <span className={styles.chipChevron} aria-hidden>
           {lock ? <Lock size={11} /> : <ChevronDown size={12} />}
         </span>

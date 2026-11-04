@@ -89,6 +89,11 @@
   background: var(--border-light);
 }
 
+/* The divider sits inside, so hiding the location (data-collapse) takes it along. */
+.barLocation .barDivider {
+  margin-right: 5px;
+}
+
 .barLocation {
   display: inline-flex;
   align-items: center;

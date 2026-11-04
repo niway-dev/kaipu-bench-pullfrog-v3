@@ -126,10 +126,13 @@
   color: #fff;
 }
 
+/* The first thing to give way in a narrow title bar: clipped, never wrapped. */
 .actions {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* The original-untouched pill and the autosave state, on the title bar's one line. */
@@ -182,7 +185,9 @@
 
 /* Primary export CTA — filled accent button (vs. the ghost .iconBtn group), so it
    reads as the toolbar's main action rather than another utility icon. */
+/* Always last and always whole: it never shrinks, the icon group gives way instead. */
 .exportBtn {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;

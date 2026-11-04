@@ -322,9 +322,11 @@ describe("VideoEditorPage — actions in the title bar (NIW2-619)", () => {
       expect(headerActions.contains(button)).toBe(true);
       expect(side.contains(button)).toBe(false);
     }
-    expect(
-      within(headerActions).getByText("ORIGINAL UNTOUCHED", { exact: false }),
-    ).toBeInTheDocument();
+    const badge = within(headerActions).getByText("ORIGINAL UNTOUCHED", { exact: false });
+    // The badge is the first thing a crowded title bar hides; Export stays, last.
+    expect(badge.closest("[data-collapse]")).toHaveAttribute("data-collapse", "badge");
+    const buttons = within(headerActions).getAllByRole("button");
+    expect(buttons[buttons.length - 1]).toHaveAccessibleName("Export");
   });
 });
 

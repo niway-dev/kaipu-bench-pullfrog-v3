@@ -125,7 +125,10 @@ describe("IN · Work ▾ (the editor chip)", () => {
   it("says where the item belongs and what a move to each workspace costs", async () => {
     setup(state());
     renderChip();
-    fireEvent.click(await screen.findByRole("button", { name: /In Work/ }));
+    const chip = await screen.findByRole("button", { name: /In Work/ });
+    // A crowded title bar keeps only the tile and the chevron (title-bar.module.css).
+    expect(chip.querySelectorAll('[data-collapse="chip-name"]')).toHaveLength(2);
+    fireEvent.click(chip);
     const menu = screen.getByRole("menu");
     expect(menu).toHaveTextContent("Belongs here");
     expect(screen.getByRole("menuitem", { name: /Personal/ })).toHaveTextContent(
