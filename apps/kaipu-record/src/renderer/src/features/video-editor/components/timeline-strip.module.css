@@ -45,7 +45,7 @@
 
 /* Covers the lanes column across every row; the playhead's left % is relative to it,
    i.e. to the lanes' width, exactly like each lane's own blocks. --lane-label-w is
-   inherited from .timelineBody, so the 62 px lives in exactly one place. */
+   inherited from .timelineBody, so the 80 px lives in exactly one place. */
 .playheadLayer {
   position: absolute;
   top: 0;
