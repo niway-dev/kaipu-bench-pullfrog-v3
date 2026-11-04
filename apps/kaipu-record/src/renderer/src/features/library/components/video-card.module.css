@@ -31,7 +31,8 @@
 .poster {
   position: relative;
   aspect-ratio: 16 / 10;
-  background-color: var(--bg-raised);
+  /* Thumbnail well: dark in both themes, like the player (the stripes are white-on-dark). */
+  background-color: #101013;
   background-image: repeating-linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.03) 0 12px,
