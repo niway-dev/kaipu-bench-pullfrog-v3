@@ -33,6 +33,7 @@ import {
   ModalTitle,
 } from "@kaipu/ui";
 import * as stylex from "@stylexjs/stylex";
+import { tokens } from "@kaipu/tokens/kaipu.stylex";
 import { Badge, Button } from "@kaipu/ui";
 import {
   boundaryIndexAt,
@@ -152,7 +153,13 @@ import styles from "./video-editor-page.module.css";
 const sxEditor = stylex.create({
   originalPill: {
     flexShrink: 0,
-    letterSpacing: "0.04em",
+    // Kaipu Black badge (NIW2-616): mono caps, accent text on the soft accent fill.
+    backgroundColor: tokens.accentSoft,
+    color: tokens.accent,
+    fontFamily: tokens.fontMono,
+    fontSize: "9.5px",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
   },
 });
 import { useMuteEditing } from "@renderer/features/video-editor/use-mute-editing";
