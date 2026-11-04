@@ -199,8 +199,11 @@ export interface RailLinkProps {
 }
 
 export interface RailProps<T extends RailItem = RailItem> {
-  /** The mark at the top, sized by the caller. */
-  brand: ReactNode;
+  /**
+   * The mark at the top, sized by the caller. Omit it where the window chrome already
+   * shows the brand (the desktop's title bar): the rail then starts with its items.
+   */
+  brand?: ReactNode;
   brandTitle?: string;
   items: readonly T[];
   /**
@@ -224,9 +227,11 @@ export function Rail<T extends RailItem = RailItem>({
 }: RailProps<T>) {
   return (
     <nav {...stylex.props(styles.rail, style)}>
-      <div title={brandTitle} {...stylex.props(styles.brand)}>
-        {brand}
-      </div>
+      {brand != null && (
+        <div title={brandTitle} {...stylex.props(styles.brand)}>
+          {brand}
+        </div>
+      )}
 
       <div {...stylex.props(styles.sections)}>
         {items.map((item) => {
