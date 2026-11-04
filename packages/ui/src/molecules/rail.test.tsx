@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { Rail, type RailItem } from "./rail";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { Rail, type RailItem, type RailLinkProps } from "./rail";
 
 interface LinkItem extends RailItem {
   to: string;
@@ -124,5 +124,83 @@ describe("Rail", () => {
       />,
     );
     expect(screen.getByRole("link")).toHaveTextContent(/^Library$/);
+  });
+
+  describe("modes (NIW2-626)", () => {
+    const link = (item: LinkItem, props: RailLinkProps) => <a href={item.to} {...props} />;
+
+    it("is stacked when no mode is given, so the landing mockup keeps its look", () => {
+      const { container } = render(<Rail items={items} renderLink={link} />);
+      expect(container.querySelector("nav")).toHaveAttribute("data-mode", "stacked");
+    });
+
+    it.each(["expanded-row", "stacked"] as const)(
+      "%s shows every label as text and names each link by it",
+      (mode) => {
+        const { container } = render(<Rail mode={mode} items={items} renderLink={link} />);
+        expect(container.querySelector("nav")).toHaveAttribute("data-mode", mode);
+        expect(screen.getByRole("link", { name: "Library" })).toHaveTextContent("Library");
+        expect(screen.queryByRole("tooltip")).toBeNull();
+      },
+    );
+
+    it("collapsed keeps each link's accessible name with the label hidden", () => {
+      const { container } = render(<Rail mode="collapsed" items={items} renderLink={link} />);
+      expect(container.querySelector("nav")).toHaveAttribute("data-mode", "collapsed");
+      const library = screen.getByRole("link", { name: "Library" });
+      // No native title: the rail's own tooltip replaces it, so the two never stack.
+      expect(library).not.toHaveAttribute("title");
+    });
+
+    it("collapsed shows a tooltip on hover and hides it on leave", () => {
+      render(<Rail mode="collapsed" items={items} renderLink={link} />);
+      const library = screen.getByRole("link", { name: "Library" });
+      fireEvent.mouseEnter(library);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Library");
+      fireEvent.mouseLeave(library);
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    });
+
+    it("collapsed shows the tooltip on keyboard focus too, and hides it on blur", () => {
+      render(<Rail mode="collapsed" items={items} renderLink={link} />);
+      const record = screen.getByRole("link", { name: "Record" });
+      fireEvent.focus(record);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Record");
+      fireEvent.blur(record);
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    });
+
+    it("draws the mode toggle in the footer and calls it on click", () => {
+      let toggled = 0;
+      render(
+        <Rail
+          mode="expanded-row"
+          items={items}
+          renderLink={link}
+          modeToggle={{
+            label: "Sidebar: expanded. Switch to stacked",
+            hint: "⌘\\",
+            icon: <i />,
+            onToggle: () => toggled++,
+          }}
+        />,
+      );
+      const toggle = screen.getByRole("button", { name: "Sidebar: expanded. Switch to stacked" });
+      fireEvent.click(toggle);
+      expect(toggled).toBe(1);
+    });
+
+    it("the collapsed toggle has a tooltip with its shortcut", () => {
+      render(
+        <Rail
+          mode="collapsed"
+          items={items}
+          renderLink={link}
+          modeToggle={{ label: "Expand sidebar", hint: "⌘\\", icon: <i />, onToggle: () => {} }}
+        />,
+      );
+      fireEvent.focus(screen.getByRole("button", { name: "Expand sidebar" }));
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Expand sidebar ⌘\\");
+    });
   });
 });
