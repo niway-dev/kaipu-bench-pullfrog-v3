@@ -18,6 +18,7 @@ import {
   describeStatus,
   parseStatusArgs,
   readRemoteManifest,
+  statusCloneEnv,
   versionOfTag,
 } from "./status";
 import type { Manifest } from "./manifest";
@@ -424,8 +425,8 @@ describe("status", () => {
 
   it("reads main of a bare repository, and says null for an empty or missing one", async () => {
     const remote = bareRepo();
-    expect(readRemoteManifest(remote)).toBeNull();
-    expect(readRemoteManifest(path.join(remote, "nowhere"))).toBeNull();
+    expect(await readRemoteManifest(remote)).toBeNull();
+    expect(await readRemoteManifest(path.join(remote, "nowhere"))).toBeNull();
 
     const manifest = manifestOf("11111111", "2026-11-04T10:00:00Z");
     await publish({
@@ -437,10 +438,39 @@ describe("status", () => {
       identity: IDENTITY,
       lint: cleanLint,
     });
-    expect(readRemoteManifest(remote)?.app.shortSha).toBe("11111111");
+    expect((await readRemoteManifest(remote))?.app.shortSha).toBe("11111111");
     expect(
       JSON.parse(readFileSync(path.join(outputFolder(manifest), "manifest.json"), "utf8")).app
         .version,
     ).toBe("0.16.0");
+  });
+
+  it("clones without any prompt: BatchMode ssh, appended to an existing GIT_SSH_COMMAND", () => {
+    expect(statusCloneEnv({})).toMatchObject({
+      GIT_TERMINAL_PROMPT: "0",
+      GIT_SSH_COMMAND: "ssh -o BatchMode=yes -o ConnectTimeout=5",
+    });
+    expect(statusCloneEnv({ GIT_SSH_COMMAND: "ssh -i /k" }).GIT_SSH_COMMAND).toBe(
+      "ssh -i /k -o BatchMode=yes -o ConnectTimeout=5",
+    );
+  });
+
+  it("kills the whole process tree of a clone that times out", async () => {
+    const bin = mkdtempSync(path.join(tmpdir(), "ui-catalog-fakegit-"));
+    const pidFile = path.join(bin, "pid");
+    // A fake git that starts a long-lived grandchild, like git starting ssh.
+    writeFileSync(path.join(bin, "git"), `#!/bin/sh\nsleep 30 &\necho $! > "${pidFile}"\nwait\n`, {
+      mode: 0o755,
+    });
+    const started = Date.now();
+    const result = await readRemoteManifest("/nowhere", {
+      timeoutMs: 400,
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    });
+    expect(result).toBeNull();
+    expect(Date.now() - started).toBeLessThan(5000);
+    const grandchild = Number(readFileSync(pidFile, "utf8").trim());
+    await new Promise((r) => setTimeout(r, 200));
+    expect(() => process.kill(grandchild, 0)).toThrow();
   });
 });

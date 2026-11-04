@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,21 +77,75 @@ export function newestDesktopTag(repoRoot: string): string | null {
   }
 }
 
+const BATCH_SSH = "ssh -o BatchMode=yes -o ConnectTimeout=5";
+
+/**
+ * The environment of the status clone: no prompt of any kind (git's own, or ssh's host-key
+ * and passphrase questions), and a short connect timeout. An existing `GIT_SSH_COMMAND` is
+ * kept and the options are appended, because a later `-o` does not override an earlier one
+ * and the caller's command may already pick a key.
+ */
+export function statusCloneEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const existing = base.GIT_SSH_COMMAND?.trim();
+  return {
+    ...base,
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_SSH_COMMAND: existing ? `${existing} -o BatchMode=yes -o ConnectTimeout=5` : BATCH_SSH,
+  };
+}
+
+/**
+ * Runs `git clone` bounded in time. The child leads its own process group so a timeout kills
+ * git and the ssh it started, not just git: a stuck ssh must not outlive `bun run setup`.
+ */
+function boundedClone(
+  remote: string,
+  dir: string,
+  timeoutMs: number,
+  env: NodeJS.ProcessEnv,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn(
+      "git",
+      ["clone", "--quiet", "--depth", "1", "--branch", CATALOG_BRANCH, remote, dir],
+      { stdio: "ignore", detached: true, env: statusCloneEnv(env) },
+    );
+    const killGroup = (): void => {
+      try {
+        if (child.pid) process.kill(-child.pid, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
+    };
+    const timer = setTimeout(() => {
+      killGroup();
+      resolve(false);
+    }, timeoutMs);
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      // Whatever the exit, nothing of the group may remain (an ssh that outlived git).
+      killGroup();
+      resolve(code === 0);
+    });
+  });
+}
+
 /** `main` of the catalog repository, shallow, into a temp folder; null when it cannot be read. */
-export function readRemoteManifest(remote: string): Manifest | null {
+export async function readRemoteManifest(
+  remote: string,
+  options: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {},
+): Promise<Manifest | null> {
   const dir = makeTempDir("ui-catalog-status-");
   try {
     // A bounded clone: an unreachable host must not hold `bun run setup` up.
-    execFileSync(
-      "git",
-      ["clone", "--quiet", "--depth", "1", "--branch", CATALOG_BRANCH, remote, dir],
-      {
-        stdio: "ignore",
-        timeout: Number(process.env.UI_CATALOG_STATUS_TIMEOUT_MS) || 15_000,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-      },
-    );
-    return readCatalogManifest(dir);
+    const timeoutMs =
+      options.timeoutMs ?? (Number(process.env.UI_CATALOG_STATUS_TIMEOUT_MS) || 15_000);
+    const ok = await boundedClone(remote, dir, timeoutMs, options.env ?? process.env);
+    return ok ? readCatalogManifest(dir) : null;
   } catch {
     return null;
   } finally {
@@ -99,7 +153,7 @@ export function readRemoteManifest(remote: string): Manifest | null {
   }
 }
 
-function main(): number {
+async function main(): Promise<number> {
   const args = parseStatusArgs(process.argv.slice(2));
   if ("error" in args) {
     console.error(`${args.error}\n\nUsage: bun run ui-catalog:status [--remote <url>]`);
@@ -110,7 +164,7 @@ function main(): number {
     console.error(`[ui-catalog:status] ${check.reason}`);
     return 1;
   }
-  const manifest = readRemoteManifest(args.remote);
+  const manifest = await readRemoteManifest(args.remote);
   if (!manifest) {
     console.log(
       "[ui-catalog:status] the catalog repository is unreachable, empty, or has no manifest.json on main; nothing to compare",
@@ -122,5 +176,5 @@ function main(): number {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exit(main());
+  void main().then((code) => process.exit(code));
 }
