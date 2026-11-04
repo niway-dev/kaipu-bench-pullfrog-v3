@@ -521,4 +521,28 @@ describe("TimelineStrip ruler hover", () => {
     fireEvent.pointerLeave(ruler);
     expect(container.querySelector("[data-visible]")).toBeNull();
   });
+
+  it("puts the readout left of the line near the right edge, so it is not clipped", () => {
+    const { getByTestId, container } = render(
+      <TimelineStrip
+        layout={twoClipLayout}
+        playback={makePlayback()}
+        thumbnails={[]}
+        selectedItemId={null}
+        onSelectItem={vi.fn()}
+        overlays={[]}
+        selectedOverlayId={null}
+        onSelectOverlay={vi.fn()}
+      />,
+    );
+    const ruler = getByTestId("ruler");
+    ruler.getBoundingClientRect = vi.fn(() => ({ left: 0, width: 1000 }) as DOMRect);
+    ruler.hasPointerCapture = vi.fn(() => false);
+
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: 980 });
+    expect(container.querySelector("[data-visible]")).toHaveAttribute("data-flip");
+
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: 500 });
+    expect(container.querySelector("[data-visible]")).not.toHaveAttribute("data-flip");
+  });
 });

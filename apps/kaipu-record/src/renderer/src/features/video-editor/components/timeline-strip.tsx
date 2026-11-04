@@ -19,6 +19,10 @@ import styles from "./timeline-strip.module.css";
 
 const THUMBS_PER_BLOCK_PX = 72; // one thumbnail tile roughly every 72px of block width
 
+// Past this fraction the hover readout sits LEFT of its line: on the right it would hang
+// past the end of the ruler and get clipped at the window edge.
+const HOVER_FLIP_FRACTION = 0.9;
+
 // A labelled tick this close to the right edge keeps its line but drops its label, which
 // would otherwise hang past the end of the ruler.
 const LAST_LABEL_FRACTION = 0.96;
@@ -141,8 +145,11 @@ export function TimelineStrip({
       const el = hoverRef.current;
       const label = hoverLabelRef.current;
       if (!el || !label) return;
-      el.style.left = `${timeToFraction(time, duration) * 100}%`;
+      const fraction = timeToFraction(time, duration);
+      el.style.left = `${fraction * 100}%`;
       el.dataset.visible = "true";
+      if (fraction > HOVER_FLIP_FRACTION) el.dataset.flip = "true";
+      else delete el.dataset.flip;
       label.textContent = formatScrubTime(time);
     },
     [duration],

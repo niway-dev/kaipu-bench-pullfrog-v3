@@ -227,6 +227,11 @@
   white-space: nowrap;
 }
 
+.hoverLine[data-flip] .hoverTime {
+  left: auto;
+  right: 5px;
+}
+
 .playhead {
   /* Positioned in .timelineBody (not .track) so it spans ruler → overlay lane → track
      as one unbroken vertical line — the user sees a single scrub indicator. */
