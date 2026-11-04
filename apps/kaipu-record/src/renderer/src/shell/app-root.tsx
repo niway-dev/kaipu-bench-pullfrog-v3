@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, matchPath, useLocation, useNavigate } from "react-router-dom";
 import { subscribeRecordingComplete } from "@renderer/features/recording/recorder-store";
 import {
   useVersionGate,
@@ -13,6 +13,8 @@ import { useRecordingReadyHandOffs } from "@renderer/features/recording-ready/us
 import { StatusStackProvider } from "@renderer/features/status-cards/status-stack";
 import { cancelVideoExport } from "@renderer/features/video-editor/export/export-runner";
 import { useOptionalWorkspaces } from "@renderer/features/workspaces/workspaces-context";
+import { ROUTES } from "@shared/routes";
+import { TitleBar } from "./title-bar";
 import styles from "./app-root.module.css";
 
 /**
@@ -23,6 +25,7 @@ import styles from "./app-root.module.css";
  */
 export function AppRoot(): React.JSX.Element {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const gate = useVersionGate();
   const update = useUpdateStatus();
   const { capture } = useScreenshotCapture();
@@ -93,6 +96,9 @@ export function AppRoot(): React.JSX.Element {
 
   return (
     <div className={styles.root}>
+      {/* The window's own title bar, on every route: the OS draws its controls over it.
+          Above the banners, so a banner never slides under the traffic lights. */}
+      <TitleBar workspace={matchPath(ROUTES.signIn, pathname) === null} />
       {gate.kind === "soft" && (
         <VersionGateBanner message={gate.message} downloadUrl={gate.downloadUrl} />
       )}

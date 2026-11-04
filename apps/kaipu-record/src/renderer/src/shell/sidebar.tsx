@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { Link, matchPath, useLocation } from "react-router-dom";
 import { Video, Library, Camera, Keyboard, Settings, User, Cloud, PenLine } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
-import { KaipuLogo } from "@kaipu/brand";
 import { Rail, type RailItem } from "@kaipu/ui";
 import { ROUTES } from "@shared/routes";
 import { useExportRunner } from "@renderer/features/video-editor/export/export-runner";
@@ -75,8 +74,7 @@ export function Sidebar(): React.JSX.Element {
 
   return (
     <Rail
-      brand={<KaipuLogo use="product" size={30} style={{ borderRadius: 8 }} />}
-      brandTitle="Kaipu Record"
+      // No brand row: the logo and the name live in the title bar (NIW2-621).
       items={items}
       account={account}
       // Link, not NavLink: NavLink decides aria-current from the link's own target, and the
