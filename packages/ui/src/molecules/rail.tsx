@@ -80,8 +80,8 @@ const styles = stylex.create({
   // Listed after `item`, so it replaces the hover colours as well: an active
   // item does not change on hover.
   itemActive: {
-    backgroundColor: "rgba(246, 5, 92, 0.12)",
-    color: tokens.accentPrimary,
+    backgroundColor: tokens.accentSoft,
+    color: tokens.accent,
   },
   label: {
     fontFamily: tokens.fontMono,
@@ -95,10 +95,10 @@ const styles = stylex.create({
     left: "-8px",
     top: "50%",
     transform: "translateY(-50%) scaleY(0)",
-    width: "3px",
+    width: "2px",
     height: "26px",
-    borderRadius: "0 3px 3px 0",
-    backgroundColor: tokens.accentPrimary,
+    borderRadius: "0 2px 2px 0",
+    backgroundColor: tokens.accent,
     transitionProperty: "transform",
     transitionDuration: "150ms",
     transitionTimingFunction: "ease",
