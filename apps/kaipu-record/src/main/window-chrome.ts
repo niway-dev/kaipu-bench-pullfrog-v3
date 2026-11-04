@@ -13,10 +13,10 @@ import type { Theme } from "@shared/types";
  * The renderer's bar (`shell/title-bar.tsx`) is `TITLE_BAR_HEIGHT` tall and leaves the
  * controls' side empty.
  */
-export const TITLE_BAR_HEIGHT = 40;
+export const TITLE_BAR_HEIGHT = 48;
 
 /** The traffic lights are 12 px tall: this centres them in the bar, 16 px from the edge. */
-const TRAFFIC_LIGHTS = { x: 16, y: (TITLE_BAR_HEIGHT - 12) / 2 } as const;
+const TRAFFIC_LIGHTS = { x: 20, y: (TITLE_BAR_HEIGHT - 12) / 2 } as const;
 
 /** `--bg-sidebar` and `--text-secondary` of each theme (packages/tokens/css/tokens.css). */
 const OVERLAY_COLORS: Record<Theme, { color: string; symbolColor: string }> = {

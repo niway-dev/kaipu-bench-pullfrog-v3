@@ -1,6 +1,6 @@
 /* Below the 40 px title bar the error screen draws (route-error.tsx). */
 .screen {
-  min-height: calc(100vh - 40px);
+  min-height: calc(100vh - 48px);
   display: flex;
   align-items: center;
   justify-content: center;

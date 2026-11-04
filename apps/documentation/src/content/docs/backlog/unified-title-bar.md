@@ -14,7 +14,7 @@ description: "The main window draws its own title bar: Kaipu logo, name and work
 
 The main window used to keep the default native frame. The workspace switcher sat on its
 own row under it, and the rail repeated the Kaipu logo at its top. Now both move into the
-window chrome, one 40 px bar:
+window chrome, one 48 px bar:
 
 | Platform        | Left to right                                                               |
 | --------------- | --------------------------------------------------------------------------- |
@@ -33,7 +33,7 @@ starts with its items.
   overlay when the theme changes.
 - `src/renderer/src/shell/title-bar.tsx` draws the bar on every route (AppRoot, and the
   router's error screen, which replaces AppRoot). It leaves the controls' side empty: a fixed
-  84 px on macOS, `env(titlebar-area-*)` under the Windows overlay.
+  104 px on macOS, `env(titlebar-area-*)` under the Windows overlay.
 
 ## Invariants
 
@@ -43,4 +43,4 @@ starts with its items.
   buttons own that corner there.
 - A full-window takeover (onboarding) starts below the bar, so the traffic lights never sit
   on its content and the window stays draggable. The switcher hides while it is open.
-- The bar's height is `TITLE_BAR_HEIGHT` in main and `40px` in CSS; change both.
+- The bar's height is `TITLE_BAR_HEIGHT` in main and `48px` in CSS; change both.

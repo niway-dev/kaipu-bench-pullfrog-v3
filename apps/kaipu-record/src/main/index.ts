@@ -272,9 +272,9 @@ const BASE_MIN_HEIGHT = 560;
  * capped at 640px plus gutters); only the height needs raising.
  */
 const ONBOARDING_MIN_WIDTH = BASE_MIN_WIDTH;
-// 700 used to exclude the native title bar; the 40 px bar is now inside the window, which
-// takes back 12 px of the step's room (NIW2-621).
-const ONBOARDING_MIN_HEIGHT = 712;
+// 700 used to exclude the native title bar; the 48 px bar is now inside the window, which
+// takes back 20 px of the step's room (NIW2-621).
+const ONBOARDING_MIN_HEIGHT = 720;
 
 /** Ask the renderer to cancel its export, then run `done` once it reports the export stopped
  *  (`exportActive: false`) or after 2 s, whichever comes first. */

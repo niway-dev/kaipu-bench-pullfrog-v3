@@ -7,13 +7,13 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 8px;
-  height: 40px;
+  gap: 12px;
+  height: 48px;
   /* Windows / Linux: the overlay reports where the caption buttons are not. Outside a
      window-controls overlay (macOS, a test) the fallbacks leave the right side free. */
-  padding-left: max(14px, env(titlebar-area-x, 14px));
+  padding-left: max(16px, env(titlebar-area-x, 16px));
   padding-right: calc(
-    100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 14px))
+    100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 16px))
   );
   border-bottom: 1px solid var(--border);
   background: var(--bg-sidebar);
@@ -21,9 +21,10 @@
   user-select: none;
 }
 
-/* The traffic lights: 16 px from the edge, three 12 px buttons 8 px apart, then air. */
+/* The traffic lights: 20 px from the edge, three 12 px buttons 8 px apart (about 74 px),
+   then 30 px of air before the logo. */
 .bar[data-platform="darwin"] {
-  padding-left: 84px;
+  padding-left: 104px;
 }
 
 .name {
@@ -38,7 +39,7 @@
   color: var(--text-muted);
   opacity: 0.6;
   font-size: 15px;
-  margin: 0 2px;
+  margin: 0 4px;
 }
 
 /* Without this the OS takes the click and drags the window instead. */

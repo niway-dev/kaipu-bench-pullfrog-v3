@@ -22,7 +22,7 @@ describe("mainWindowChrome", () => {
   it("keeps the traffic lights on macOS, centred in the bar", () => {
     expect(mainWindowChrome("darwin", "dark")).toEqual({
       titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 16, y: 14 },
+      trafficLightPosition: { x: 20, y: 18 },
     });
   });
 
