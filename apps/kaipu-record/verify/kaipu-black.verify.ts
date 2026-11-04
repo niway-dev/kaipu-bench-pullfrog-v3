@@ -43,18 +43,14 @@ test("kaipu black: pages and sidebar modes at 1440x900", async () => {
     const gotIt = page.getByRole("button", { name: "Got it" });
     if (await gotIt.isVisible().catch(() => false)) await gotIt.click();
 
-    // A plain launch, before anything resizes the window: it opens at the main preset and,
-    // on a build with the rail modes, the rows show.
+    // A plain launch, before anything resizes the window: on a build with the rail modes the
+    // rail opens expanded (the label under each icon).
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
     const plainNav = page.locator("nav[data-mode]");
     if ((await plainNav.count()) > 0)
-      await expect(plainNav).toHaveAttribute("data-mode", "expanded-row");
-    console.log(
-      `[verify] ${NAME}: plain launch window`,
-      await page.evaluate(() => [innerWidth, innerHeight]),
-    );
+      await expect(plainNav).toHaveAttribute("data-mode", "stacked");
     await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(OUT_DIR, "11-plain-launch.png") });
+    await page.screenshot({ path: path.join(OUT_DIR, "00-plain-launch.png") });
 
     await go("#/");
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
@@ -79,7 +75,7 @@ test("kaipu black: pages and sidebar modes at 1440x900", async () => {
     await shot("05-editor");
 
     // The rail modes exist only after NIW2-626.
-    const toggle = page.getByRole("button", { name: /Change sidebar layout/ });
+    const toggle = page.getByRole("button", { name: /(Collapse|Expand) sidebar/ });
     await go("#/library");
     await expect(page.getByText("E2E Sample", { exact: true }).first()).toBeVisible();
     if ((await toggle.count()) === 0) {
@@ -87,48 +83,19 @@ test("kaipu black: pages and sidebar modes at 1440x900", async () => {
       return;
     }
     const nav = page.locator("nav[data-mode]");
-    await expect(nav).toHaveAttribute("data-mode", "expanded-row");
-    await shot("06-sidebar-expanded-row");
-
-    await toggle.click();
     await expect(nav).toHaveAttribute("data-mode", "stacked");
-    await page.mouse.move(WIDTH / 2, HEIGHT / 2);
-    await shot("07-sidebar-stacked");
+    await shot("06-sidebar-expanded");
 
-    // The keyboard path: Cmd+\ steps to icons only. Focus an item so its tooltip shows.
+    // The keyboard path: Cmd+\ collapses to icons. Focus an item so its tooltip shows.
     await page.keyboard.press("Meta+Backslash");
     await expect(nav).toHaveAttribute("data-mode", "collapsed");
     await page.getByRole("link", { name: "Library" }).focus();
     await expect(page.locator("[data-rail-tooltip]")).toHaveText("Library");
-    await shot("08-sidebar-collapsed");
+    await shot("07-sidebar-collapsed");
 
-    // Back to the saved rows, then the editor at its minimum window: the rail draws stacked
-    // there (below 1316px) and the saved setting stays expanded-row.
-    await page.keyboard.press("Meta+Backslash");
-    await expect(nav).toHaveAttribute("data-mode", "expanded-row");
-    await go(`#/library/${RECORDING_ASSET_ID}`);
-    await page.getByRole("button", { name: "Edit video" }).click();
-    await page.waitForFunction(() => location.hash.startsWith("#/editor/video/"));
-    await page.waitForSelector("video");
-    // Entering the editor grows the window to its preset a moment later; size it after that,
-    // or the preset lands on top of the 1180 and the shot is of a 1440 window.
-    await page.waitForFunction(() => window.innerWidth >= 1440);
-    await page.waitForTimeout(1000);
-    await sizeWindow(app, page, [1180, 760]);
-    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1180);
+    // And the button expands it again.
+    await page.getByRole("button", { name: "Expand sidebar" }).click();
     await expect(nav).toHaveAttribute("data-mode", "stacked");
-    await shot("09-editor-1180", [1180, 760]);
-    await sizeWindow(app, page);
-    await expect(nav).toHaveAttribute("data-mode", "expanded-row");
-
-    // A sidebar page in the main window's own size keeps the rows: its floor is 1036px.
-    await go("#/");
-    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
-    await page.waitForTimeout(1000);
-    await sizeWindow(app, page, [1040, 720]);
-    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1040);
-    await expect(nav).toHaveAttribute("data-mode", "expanded-row");
-    await shot("10-record-1040", [1040, 720]);
   } finally {
     try {
       await teardown();
