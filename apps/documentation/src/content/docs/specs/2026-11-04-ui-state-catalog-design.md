@@ -73,22 +73,30 @@ gates nothing.
 
 ## Open questions
 
-1. **Are the recording-in-progress states reachable on the mini?** The control bar, the shade's
-   countdown and border, and the Record page while recording need a real take, so Screen
-   Recording (and for mic/camera states, Microphone and Camera) must be granted on the mini to
-   the Electron binary that Playwright launches (`node_modules/electron/dist/Electron.app`),
-   and the grant is per binary path, so an Electron bump needs a new grant. Step 1 of the
-   implementation checks this; until it holds, those states are `notCapturable` with the
-   reason in the README.
-2. **Signed-in and Cloud states.** The session is `userData/auth.enc`, encrypted with
-   `safeStorage` (the mini's keychain) and verified against the API at launch; the mini's build
-   points at `http://localhost:3000`. Options: run the API on the mini with a catalog account
-   (real `signed-in`), or seed only `signed-out` and the offline `unknown` state (last-known
-   entitlements, no server). Recommendation: first catalog ships `signed-out` and `unknown`;
-   `signed-in`/`cloud` wait for a decision on running the API there.
-3. **The mini's display scale.** `page.screenshot` renders at the window's device scale factor.
-   If the mini runs headless or on a 1x display, images are 1x; the manifest records the
-   factor. To be confirmed in step 1; not a blocker.
+Round 3 (2026-11-04) answered the three questions of round 2. What was checked on the mini,
+not assumed:
+
+1. **Recording-in-progress states: blocked until the owner grants Screen Recording.** A probe
+   run of the Electron binary Playwright launches
+   (`apps/kaipu-record/node_modules/electron/dist/Electron.app`, Electron 39.8.10) reported
+   `screen: denied`, `camera: not-determined`, `microphone: not-determined`,
+   `accessibility: false`, and `desktopCapturer.getSources` failed. The owner grants Screen
+   Recording (and Accessibility, for the click-zoom gate) to that binary once in System
+   Settings → Privacy & Security on the mini; the grant is per binary path, so an Electron bump
+   needs a new one. Until then, those states are `notCapturable` with the reason in the README.
+   The mini also has **no camera and no audio input device**. Camera and microphone states use
+   Chromium's synthetic devices (`--use-fake-device-for-media-stream`, appended by the catalog
+   launch only), which the README labels as a synthetic feed; whether the app's device checks
+   accept them is verified in step 1, else those states are `notCapturable`.
+2. **Account states: fully offline (owner decision).** The catalog never runs the API. It
+   shoots `signed-out` (no `auth.enc`) and `unknown` (stored session, API unreachable). States
+   that need a live server (`signedIn`, `cloud`, `sessionExpired`) are `notCapturable` with the
+   reason "needs the API; the catalog runs offline".
+3. **Scale factor: 1x.** The mini's only display is 1920×1080 at 1x (`system_profiler`), so the
+   images are 1x, not @2x. The manifest records it. A Retina display or a 2x virtual display on
+   the mini would raise it; not needed for the first catalog.
+
+No question is open.
 
 ## Out of scope
 
@@ -470,7 +478,7 @@ Recording grant (or the take did not start)" instead of failing the run.
   the runner cannot produce them. Both sides of a permission gate therefore need the mini to be
   in one grant state per run; the README says which side the run could show.
 - **Account.** `signed-out`: no `auth.enc`. `unknown`: the app's own stored session with the
-  API unreachable. `signed-in`/`cloud`: open question 2.
+  API unreachable. `signed-in`/`cloud`: `notCapturable` (the catalog runs offline; open question 2).
 
 ### Fixtures
 
