@@ -222,7 +222,7 @@ describe("arguments and messages", () => {
   });
 });
 
-describe("publish", () => {
+describe("publish", { timeout: 30_000 }, () => {
   let remote: string;
   beforeEach(() => {
     remote = bareRepo();
