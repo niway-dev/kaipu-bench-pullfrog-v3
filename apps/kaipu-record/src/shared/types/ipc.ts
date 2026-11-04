@@ -239,15 +239,15 @@ export function sanitizeCountdownSeconds(value: unknown): RecordingCountdownSeco
 }
 
 /**
- * How the main window's navigation rail lays itself out (NIW2-626): icon and label on one row,
- * the label under the icon, or icons only. Literals on purpose: this module is shared with the
- * preload bundle. They match `RailMode` in @kaipu/ui; the sidebar passes one as the other, so
- * a drift is a type error there.
+ * How the main window's navigation rail lays itself out (NIW2-626): expanded (`stacked`, the
+ * label under the icon) or collapsed (icons only). Literals on purpose: this module is shared
+ * with the preload bundle. They match `RailMode` in @kaipu/ui; the sidebar passes one as the
+ * other, so a drift is a type error there. A third mode, `expanded-row`, shipped in early
+ * builds of this branch; the owner kept two, and a stored `expanded-row` reads as `stacked`.
  */
-export const SIDEBAR_MODES = ["expanded-row", "stacked", "collapsed"] as const;
+export const SIDEBAR_MODES = ["stacked", "collapsed"] as const;
 export type SidebarMode = (typeof SIDEBAR_MODES)[number];
-/** The owner wants to try the Linear-like row first. */
-export const DEFAULT_SIDEBAR_MODE: SidebarMode = "expanded-row";
+export const DEFAULT_SIDEBAR_MODE: SidebarMode = "stacked";
 
 export function sanitizeSidebarMode(value: unknown): SidebarMode {
   return SIDEBAR_MODES.find((mode) => mode === value) ?? DEFAULT_SIDEBAR_MODE;

@@ -5,10 +5,9 @@ const key = (init: KeyboardEventInit) =>
   new KeyboardEvent("keydown", { key: "\\", code: "Backslash", ...init });
 
 describe("sidebar mode toggle", () => {
-  it("cycles expanded → stacked → collapsed → expanded", () => {
-    expect(nextSidebarMode("expanded-row")).toBe("stacked");
+  it("switches between expanded (stacked) and collapsed", () => {
     expect(nextSidebarMode("stacked")).toBe("collapsed");
-    expect(nextSidebarMode("collapsed")).toBe("expanded-row");
+    expect(nextSidebarMode("collapsed")).toBe("stacked");
   });
 
   it("is Cmd+\\ on macOS and Ctrl+\\ on Windows", () => {

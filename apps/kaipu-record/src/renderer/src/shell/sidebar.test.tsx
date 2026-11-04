@@ -11,7 +11,6 @@ import {
 } from "@renderer/features/video-editor/export/ready-copies";
 import { Sidebar } from "./sidebar";
 import { __resetSidebarModeSnapshotForTests, rememberSidebarMode } from "./sidebar-mode-snapshot";
-import { rowMinWindowWidth } from "./use-sidebar-mode";
 
 /** The runner's status, set by a test as if an export were encoding. */
 const runnerStatus = vi.hoisted(() => {
@@ -64,12 +63,8 @@ function renderAt(path: string) {
 const libraryLink = (): HTMLElement => screen.getByRole("link", { name: /^Library/ });
 
 // The renderer root reads the settings before the first paint (I18nRoot) and leaves the mode
-// here; every test starts as a window whose settings said expanded-row.
-// A 1440px window, wide enough for the row layout (jsdom's default is 1024).
-beforeEach(() => {
-  rememberSidebarMode("expanded-row");
-  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
-});
+// here; every test starts as a window whose settings said expanded (stacked).
+beforeEach(() => rememberSidebarMode("stacked"));
 
 afterEach(() => {
   __resetSidebarModeSnapshotForTests();
@@ -221,9 +216,9 @@ describe("Sidebar modes (NIW2-626)", () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it("opens expanded, icon and label on one row, before anything was chosen", () => {
+  it("opens expanded, the label under each icon, before anything was chosen", () => {
     renderAt("/");
-    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
   });
 
   it("opens in the mode stored in the settings (it survives a restart)", async () => {
@@ -234,48 +229,45 @@ describe("Sidebar modes (NIW2-626)", () => {
     expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
   });
 
-  it("the toggle at the rail's foot cycles expanded → stacked → collapsed → expanded and saves each", async () => {
-    const update = persisted("expanded-row");
+  it("the toggle at the rail's foot switches expanded ↔ collapsed, names what it does, and saves each", async () => {
+    const update = persisted("stacked");
     renderAt("/");
-    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "expanded-row"));
-    fireEvent.click(screen.getByRole("button", { name: /Change sidebar layout to Stacked/ }));
-    expect(nav()).toHaveAttribute("data-mode", "stacked");
-    fireEvent.click(screen.getByRole("button", { name: /Change sidebar layout to Icons only/ }));
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
     expect(nav()).toHaveAttribute("data-mode", "collapsed");
-    fireEvent.click(screen.getByRole("button", { name: /Change sidebar layout to Expanded/ }));
-    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
     expect(update.mock.calls.map(([patch]) => patch)).toEqual([
-      { sidebarMode: "stacked" },
       { sidebarMode: "collapsed" },
-      { sidebarMode: "expanded-row" },
+      { sidebarMode: "stacked" },
     ]);
   });
 
-  it("Cmd+\\ cycles the mode on macOS and saves it", async () => {
-    const update = persisted("expanded-row");
+  it("Cmd+\\ switches the mode on macOS and saves it", async () => {
+    const update = persisted("stacked");
     renderAt("/");
-    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "expanded-row"));
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
     fireEvent.keyDown(window, { key: "\\", code: "Backslash", metaKey: true });
-    expect(nav()).toHaveAttribute("data-mode", "stacked");
-    expect(update).toHaveBeenCalledWith({ sidebarMode: "stacked" });
+    expect(nav()).toHaveAttribute("data-mode", "collapsed");
+    expect(update).toHaveBeenCalledWith({ sidebarMode: "collapsed" });
   });
 
   it("ignores Ctrl+\\ on macOS, a bare \\ and Cmd+Shift+\\", async () => {
-    const update = persisted("expanded-row");
+    const update = persisted("stacked");
     renderAt("/");
-    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "expanded-row"));
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
     fireEvent.keyDown(window, { key: "\\", code: "Backslash", ctrlKey: true });
     fireEvent.keyDown(window, { key: "\\", code: "Backslash" });
     fireEvent.keyDown(window, { key: "|", code: "Backslash", metaKey: true, shiftKey: true });
-    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
     expect(update).not.toHaveBeenCalled();
   });
 
   it("shows the shortcut in the toggle's title", async () => {
-    persisted("expanded-row");
+    persisted("stacked");
     renderAt("/");
-    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "expanded-row"));
-    expect(screen.getByRole("button", { name: /Change sidebar layout/ })).toHaveAttribute(
+    await waitFor(() => expect(nav()).toHaveAttribute("data-mode", "stacked"));
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toHaveAttribute(
       "title",
       expect.stringContaining("⌘\\"),
     );
@@ -312,7 +304,7 @@ describe("Sidebar shortcut leaves other handlers alone (NIW2-626 review)", () =>
     act(() => {
       window.dispatchEvent(event);
     });
-    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
   });
 
   it.each([
@@ -323,20 +315,20 @@ describe("Sidebar shortcut leaves other handlers alone (NIW2-626 review)", () =>
   ])("does nothing while typing in %s", (_, html) => {
     renderAt("/");
     press(extra(html));
-    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
   });
 
   it("does nothing while a modal dialog is open, wherever focus is", () => {
     renderAt("/");
     extra(`<div role="dialog" aria-modal="true"><button data-target>ok</button></div>`);
     press(window);
-    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
+    expect(nav()).toHaveAttribute("data-mode", "stacked");
   });
 
   it("still works from a plain button outside any dialog", () => {
     renderAt("/");
     press(extra(`<button data-target>x</button>`));
-    expect(nav()).toHaveAttribute("data-mode", "stacked");
+    expect(nav()).toHaveAttribute("data-mode", "collapsed");
   });
 });
 
@@ -347,7 +339,7 @@ describe("Sidebar first paint (NIW2-626 review)", () => {
     expect(screen.getByRole("navigation")).toHaveAttribute("data-mode", "collapsed");
   });
 
-  it("with the mode not known yet, draws no rail until the settings say which, never expanded-row", async () => {
+  it("with the mode not known yet, draws no rail until the settings say which, never the default first", async () => {
     __resetSidebarModeSnapshotForTests();
     const original = window.electronAPI.getSettings;
     vi.spyOn(window.electronAPI, "getSettings").mockImplementation(async () => ({
@@ -366,76 +358,7 @@ describe("Sidebar first paint (NIW2-626 review)", () => {
     );
     observer.disconnect();
     vi.restoreAllMocks();
-    expect(seen).not.toContain("expanded-row");
+    expect(seen).not.toContain("stacked");
     expect(seen[0]).toBeNull();
-  });
-});
-
-describe("Sidebar in a narrow window (NIW2-626 review)", () => {
-  const nav = (): HTMLElement => screen.getByRole("navigation");
-  const resizeTo = (width: number) =>
-    act(() => {
-      Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
-      window.dispatchEvent(new Event("resize"));
-    });
-  const editorFloor = rowMinWindowWidth("/editor/video/asset-1");
-  const pageFloor = rowMinWindowWidth("/");
-
-  afterEach(() => {
-    resizeTo(1440);
-    vi.restoreAllMocks();
-  });
-
-  it("derives each floor from the route's window preset plus the row's extra 136px", () => {
-    expect(editorFloor).toBe(1180 + 136);
-    expect(pageFloor).toBe(900 + 136);
-    expect(rowMinWindowWidth("/library")).toBe(pageFloor);
-    expect(rowMinWindowWidth("/editor")).toBe(editorFloor);
-  });
-
-  it.each([
-    ["a sidebar page", "/", pageFloor],
-    ["the editor", "/editor/video/asset-1", editorFloor],
-  ])(
-    "on %s, saved rows draw stacked just below its floor and as rows at it, saving nothing",
-    (_, path, floor) => {
-      const update = vi.spyOn(window.electronAPI, "updateSettings");
-      resizeTo(floor - 1);
-      renderAt(path);
-      expect(nav()).toHaveAttribute("data-mode", "stacked");
-      resizeTo(floor);
-      expect(nav()).toHaveAttribute("data-mode", "expanded-row");
-      expect(update).not.toHaveBeenCalled();
-    },
-  );
-
-  it("a sidebar page at 1040 (the main window's size) shows rows", () => {
-    resizeTo(1040);
-    renderAt("/");
-    expect(nav()).toHaveAttribute("data-mode", "expanded-row");
-  });
-
-  it("leaves collapsed and stacked as they are", () => {
-    resizeTo(1180);
-    rememberSidebarMode("collapsed");
-    renderAt("/editor");
-    expect(nav()).toHaveAttribute("data-mode", "collapsed");
-    cleanup();
-    rememberSidebarMode("stacked");
-    renderAt("/editor");
-    expect(nav()).toHaveAttribute("data-mode", "stacked");
-  });
-
-  it("when rows cannot fit, the toggle skips them and names the mode that will show", () => {
-    resizeTo(editorFloor - 1);
-    rememberSidebarMode("collapsed");
-    renderAt("/editor");
-    const toggle = () => screen.getByRole("button", { name: /Change sidebar layout/ });
-    expect(toggle()).toHaveAccessibleName("Change sidebar layout to Stacked");
-    fireEvent.click(toggle());
-    expect(nav()).toHaveAttribute("data-mode", "stacked");
-    expect(toggle()).toHaveAccessibleName("Change sidebar layout to Icons only");
-    fireEvent.click(toggle());
-    expect(nav()).toHaveAttribute("data-mode", "collapsed");
   });
 });

@@ -90,10 +90,8 @@
     "cloud": "Cloud",
     "editor": "Editor",
     "export": "Exportar",
-    "sidebarToggle": "Cambiar la barra lateral a {next}",
-    "sidebarModeExpanded": "Expandida",
-    "sidebarModeStacked": "Apilada",
-    "sidebarModeCollapsed": "Solo iconos"
+    "sidebarCollapse": "Contraer la barra lateral",
+    "sidebarExpand": "Expandir la barra lateral"
   },
   "editor": {
     "title": "Editor",

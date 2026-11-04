@@ -90,10 +90,8 @@
     "cloud": "Cloud",
     "editor": "Editor",
     "export": "Export",
-    "sidebarToggle": "Change sidebar layout to {next}",
-    "sidebarModeExpanded": "Expanded",
-    "sidebarModeStacked": "Stacked",
-    "sidebarModeCollapsed": "Icons only"
+    "sidebarCollapse": "Collapse sidebar",
+    "sidebarExpand": "Expand sidebar"
   },
   "editor": {
     "title": "Editor",

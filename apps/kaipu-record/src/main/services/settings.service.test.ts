@@ -259,15 +259,16 @@ describe("mergeSettings", () => {
   });
 
   it("keeps each sidebar mode (NIW2-626)", () => {
-    for (const mode of ["expanded-row", "stacked", "collapsed"] as const) {
+    for (const mode of ["stacked", "collapsed"] as const) {
       expect(mergeSettings({ sidebarMode: mode }).sidebarMode).toBe(mode);
     }
   });
 
-  it("defaults sidebarMode to expanded-row when absent or unknown", () => {
-    expect(mergeSettings({}).sidebarMode).toBe("expanded-row");
-    for (const invalid of ["wide", "", null, 3, true]) {
-      expect(mergeSettings({ sidebarMode: invalid as never }).sidebarMode).toBe("expanded-row");
+  it("defaults sidebarMode to stacked when absent or unknown", () => {
+    expect(mergeSettings({}).sidebarMode).toBe("stacked");
+    // "expanded-row" was a third mode for a few builds before the owner kept two (NIW2-626).
+    for (const invalid of ["expanded-row", "wide", "", null, 3, true]) {
+      expect(mergeSettings({ sidebarMode: invalid as never }).sidebarMode).toBe("stacked");
     }
   });
 
