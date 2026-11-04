@@ -118,6 +118,19 @@ else
   fi
 fi
 
+# --- UI catalog reminder ----------------------------------------------------
+# When the private catalog repository was last recounted, and whether a newer desktop release
+# exists. A reminder, never a failure: no access, no repository yet or no bun all print nothing
+# that stops the setup. The status command bounds its own git clone (5 s here), so an
+# unreachable host cannot hold this script up.
+printf '\n%sUI catalog%s\n' "$bold" "$off"
+if command -v bun >/dev/null 2>&1; then
+  (cd "$native_app_dir" && UI_CATALOG_STATUS_TIMEOUT_MS=5000 bun run --silent ui-catalog:status 2>/dev/null) \
+    | sed 's/^/  /' || true
+else
+  printf '  %s·%s %snot checked (bun missing)%s\n' "$yellow" "$off" "$dim" "$off"
+fi
+
 # --- connectivity -----------------------------------------------------------
 # Presence is not access. One real read proves the binary works, the session is
 # valid, and this machine can reach the project — three failures that otherwise

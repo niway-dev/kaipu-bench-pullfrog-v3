@@ -1,0 +1,333 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { beforeEach, describe, expect, it } from "vitest";
+import { checkRemote, remoteOwnerAndRepo } from "./catalog-repo";
+import type { LintResult } from "./lint";
+import { backwardsReason, commitMessage, parseAuthor, parsePublishArgs, publish } from "./publish";
+import {
+  compareVersions,
+  describeStatus,
+  parseStatusArgs,
+  readRemoteManifest,
+  versionOfTag,
+} from "./status";
+import type { Manifest } from "./manifest";
+
+const IDENTITY = { name: "Test Author", email: "author@example.test" };
+const cleanLint = async (): Promise<LintResult> => ({
+  hits: [],
+  reviewByEye: [],
+  scanned: [],
+  errors: [],
+});
+
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+function bareRepo(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "ui-catalog-bare-")) + "/catalog.git";
+  mkdirSync(dir, { recursive: true });
+  git(dir, "init", "--bare", "--quiet", "-b", "main");
+  return dir;
+}
+
+function manifestOf(sha: string, generatedAt: string, version = "0.16.0"): Manifest {
+  return {
+    app: { name: "kaipu-record", version, sha: sha.padEnd(40, "0"), shortSha: sha },
+    generatedAt,
+    states: [],
+  } as unknown as Manifest;
+}
+
+/** An output folder named like a run's: `<short sha>/{manifest.json,README.md,screens,areas}`. */
+function outputFolder(manifest: Manifest, folder = manifest.app.shortSha): string {
+  const dir = path.join(mkdtempSync(path.join(tmpdir(), "ui-catalog-out-")), folder);
+  mkdirSync(path.join(dir, "screens", "record"), { recursive: true });
+  mkdirSync(path.join(dir, "areas", "record"), { recursive: true });
+  writeFileSync(path.join(dir, "screens", "record", "page.png"), manifest.app.shortSha);
+  writeFileSync(path.join(dir, "areas", "record", "mic.png"), manifest.app.shortSha);
+  writeFileSync(path.join(dir, "README.md"), `# ${manifest.app.shortSha}`);
+  writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(manifest));
+  writeFileSync(path.join(dir, "run.log"), "never published");
+  return dir;
+}
+
+describe("remote check", () => {
+  it("accepts only niway-dev/kaipu-ui-catalog on GitHub, over any alias or scheme", () => {
+    for (const ok of [
+      "git@github-csdev:niway-dev/kaipu-ui-catalog.git",
+      "git@github.com:niway-dev/kaipu-ui-catalog",
+      "https://github.com/niway-dev/kaipu-ui-catalog.git",
+      "ssh://git@github.com/niway-dev/kaipu-ui-catalog.git",
+    ]) {
+      expect(checkRemote(ok)).toEqual({ ok: true });
+    }
+    for (const bad of [
+      "git@github-csdev:niway-dev/kaipu-record.git",
+      "git@github-csdev:someone/kaipu-ui-catalog.git",
+      "https://github.com/niway-dev/kaipu-ui-catalog-fork",
+      "github.com/niway-dev/kaipu-ui-catalog",
+      "kaipu-ui-catalog",
+    ]) {
+      expect(checkRemote(bad).ok).toBe(false);
+    }
+  });
+
+  it("allows a local path or file:// remote for tests", () => {
+    expect(checkRemote("/tmp/catalog.git")).toEqual({ ok: true });
+    expect(checkRemote("file:///tmp/catalog.git")).toEqual({ ok: true });
+    expect(remoteOwnerAndRepo("file:///tmp/catalog.git")).toBeNull();
+  });
+});
+
+describe("arguments and messages", () => {
+  it("parses flags and a folder", () => {
+    expect(parsePublishArgs(["out/abc", "--push", "--force", "--remote", "/r"])).toMatchObject({
+      outDir: "out/abc",
+      push: true,
+      force: true,
+      remote: "/r",
+    });
+    expect(parsePublishArgs(["--bogus"])).toEqual({ error: "unknown argument: --bogus" });
+    expect(parsePublishArgs(["--remote"])).toEqual({ error: "--remote needs a value" });
+  });
+
+  it("parses Name <email> and refuses anything else", () => {
+    expect(parseAuthor("A B <a@b.c>")).toEqual({ name: "A B", email: "a@b.c" });
+    expect(parseAuthor("just a name")).toBeNull();
+  });
+
+  it("writes the commit subject from the manifest", () => {
+    expect(commitMessage(manifestOf("b73d7ab1", "2026-11-04T20:04:36.581Z"))).toBe(
+      "catalog: kaipu-record 0.16.0 2026-11-04 @ b73d7ab1",
+    );
+  });
+
+  it("refuses to go backwards only on an older date", () => {
+    const current = manifestOf("aaaaaaaa", "2026-11-04T10:00:00Z");
+    expect(backwardsReason(null, current)).toBeNull();
+    expect(backwardsReason(current, manifestOf("bbbbbbbb", "2026-11-05T10:00:00Z"))).toBeNull();
+    expect(backwardsReason(current, manifestOf("cccccccc", "2026-11-03T10:00:00Z"))).toMatch(
+      /--force/,
+    );
+  });
+});
+
+describe("publish", () => {
+  let remote: string;
+  beforeEach(() => {
+    remote = bareRepo();
+  });
+
+  it("commits the four published items to an empty repository, and only with --push pushes", async () => {
+    const manifest = manifestOf("11111111", "2026-11-04T10:00:00Z");
+    const out = outputFolder(manifest);
+    const result = await publish({
+      outDir: out,
+      remote,
+      push: false,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(result.status).toBe("published");
+    if (result.status !== "published") return;
+    expect(result.message).toBe("catalog: kaipu-record 0.16.0 2026-11-04 @ 11111111");
+    expect(git(result.cloneDir, "log", "-1", "--format=%s|%an|%ae")).toBe(
+      `${result.message}|Test Author|author@example.test`,
+    );
+    const files = git(result.cloneDir, "ls-files").split("\n");
+    expect(files).toEqual([
+      "README.md",
+      "areas/record/mic.png",
+      "manifest.json",
+      "screens/record/page.png",
+    ]);
+    // Not pushed: the bare repository still has no commits.
+    expect(() => git(remote, "rev-parse", "main")).toThrow();
+
+    const pushed = await publish({
+      outDir: out,
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(pushed.status).toBe("published");
+    expect(git(remote, "log", "-1", "--format=%s", "main")).toBe(result.message);
+  });
+
+  it("replaces the previous images and reports an identical republish as unchanged", async () => {
+    const first = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"));
+    await publish({
+      outDir: first,
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    const again = await publish({
+      outDir: first,
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(again.status).toBe("unchanged");
+
+    const second = outputFolder(manifestOf("22222222", "2026-11-05T10:00:00Z", "0.17.0"));
+    const result = await publish({
+      outDir: second,
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(result.status).toBe("published");
+    expect(git(remote, "log", "--format=%s", "main").split("\n")).toEqual([
+      "catalog: kaipu-record 0.17.0 2026-11-05 @ 22222222",
+      "catalog: kaipu-record 0.16.0 2026-11-04 @ 11111111",
+    ]);
+    expect(git(remote, "show", "main:screens/record/page.png")).toBe("22222222");
+  });
+
+  it("refuses an older run without --force and allows it with --force", async () => {
+    const newer = outputFolder(manifestOf("22222222", "2026-11-05T10:00:00Z"));
+    await publish({
+      outDir: newer,
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    const older = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"));
+
+    const refused = await publish({
+      outDir: older,
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(refused).toMatchObject({ status: "refused" });
+    expect(git(remote, "log", "--format=%s", "main").split("\n")).toHaveLength(1);
+
+    const forced = await publish({
+      outDir: older,
+      remote,
+      push: true,
+      force: true,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(forced.status).toBe("published");
+    expect(git(remote, "log", "--format=%s", "main").split("\n")).toHaveLength(2);
+  });
+
+  it("refuses a folder whose name is not its manifest's SHA", async () => {
+    const out = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"), "99999999");
+    const result = await publish({
+      outDir: out,
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: expect.stringContaining("99999999"),
+    });
+  });
+
+  it("refuses when the lint finds a hit, before touching the remote", async () => {
+    const out = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"));
+    const dirty = async (): Promise<LintResult> => ({
+      hits: [{ file: "<output>/README.md", line: 1, entry: "Cricut" }],
+      reviewByEye: [],
+      scanned: [],
+      errors: [],
+    });
+    const result = await publish({
+      outDir: out,
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: dirty,
+    });
+    expect(result.status).toBe("refused");
+    expect(() => git(remote, "rev-parse", "main")).toThrow();
+  });
+
+  it("refuses a GitHub remote that is not the catalog repository", async () => {
+    const out = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z"));
+    const result = await publish({
+      outDir: out,
+      remote: "git@github-csdev:niway-dev/kaipu-record.git",
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(result.status).toBe("refused");
+  });
+});
+
+describe("status", () => {
+  it("compares versions and tags", () => {
+    expect(versionOfTag("desktop-v0.16.0")).toBe("0.16.0");
+    expect(versionOfTag("web-v1.0.0")).toBeNull();
+    expect(compareVersions("0.16.1", "0.16.0")).toBeGreaterThan(0);
+    expect(compareVersions("0.9.0", "0.16.0")).toBeLessThan(0);
+    expect(compareVersions("0.16.0", "0.16.0-rc.1")).toBeGreaterThan(0);
+  });
+
+  it("says current or behind", () => {
+    const manifest = manifestOf("b73d7ab1", "2026-11-04T20:04:36.581Z");
+    expect(describeStatus(manifest, "desktop-v0.16.0")).toBe(
+      "last recount: kaipu-record 0.16.0 on 2026-11-04 @ b73d7ab1; current",
+    );
+    expect(describeStatus(manifest, "desktop-v0.17.0")).toMatch(/behind desktop-v0\.17\.0$/);
+    expect(describeStatus(manifest, null)).toMatch(/no desktop-v\* tag/);
+  });
+
+  it("parses --remote", () => {
+    expect(parseStatusArgs(["--remote", "/r"])).toEqual({ remote: "/r" });
+    expect(parseStatusArgs(["--x"])).toEqual({ error: "unknown argument: --x" });
+  });
+
+  it("reads main of a bare repository, and says null for an empty or missing one", async () => {
+    const remote = bareRepo();
+    expect(readRemoteManifest(remote)).toBeNull();
+    expect(readRemoteManifest(path.join(remote, "nowhere"))).toBeNull();
+
+    const manifest = manifestOf("11111111", "2026-11-04T10:00:00Z");
+    await publish({
+      outDir: outputFolder(manifest),
+      remote,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(readRemoteManifest(remote)?.app.shortSha).toBe("11111111");
+    expect(
+      JSON.parse(readFileSync(path.join(outputFolder(manifest), "manifest.json"), "utf8")).app
+        .version,
+    ).toBe("0.16.0");
+  });
+});
