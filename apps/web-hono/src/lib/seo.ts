@@ -68,7 +68,7 @@ export function siteHeadMeta(locale: Locale) {
     { title: copy.siteTitle },
     { name: "description", content: copy.siteDescription },
     { name: "application-name", content: SITE_NAME },
-    { name: "theme-color", content: "#0b0b0d" },
+    { name: "theme-color", content: "#060607" },
     { property: "og:type", content: "website" },
     { property: "og:site_name", content: SITE_NAME },
     { property: "og:locale", content: og.current },
