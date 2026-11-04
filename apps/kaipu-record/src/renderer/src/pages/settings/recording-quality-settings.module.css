@@ -22,7 +22,7 @@
 .chip {
   padding: 8px 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   background: var(--bg-input);
   color: var(--text-secondary);
   font-family: var(--font-family);
@@ -69,7 +69,7 @@
   gap: var(--space-sm);
   padding: var(--space-md);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 6px;
 }
 
 .sliderHeader {

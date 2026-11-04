@@ -81,10 +81,8 @@
 .modeList {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
   overflow: hidden;
+  border-block: 1px solid var(--line);
 }
 
 .modeOption {
@@ -97,11 +95,11 @@
 }
 
 .modeOption + .modeOption {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 .modeOption:hover:not([data-disabled]) {
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
 }
 
 .modeOption:has(.modeRadio:focus-visible) {
@@ -110,11 +108,11 @@
 }
 
 .modeOptionChecked {
-  background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-card));
+  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
 }
 
 .modeOptionChecked:hover:not([data-disabled]) {
-  background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-card));
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
 }
 
 .modeOption[data-disabled] {
@@ -305,7 +303,7 @@
 }
 
 .skeletonRow + .skeletonRow {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 .skeletonDot {
@@ -475,4 +473,9 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* The account block: a flat section between two hairlines, not a card (NIW2-615). */
+.sectionBody {
+  border-block: 1px solid var(--line);
 }

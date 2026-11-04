@@ -59,6 +59,12 @@
   gap: var(--space-sm);
 }
 
+/* The rows of a section: flat between two hairlines, not a card (NIW2-615). The rows draw
+   their own separators and inner padding. */
+.sectionBody {
+  border-block: 1px solid var(--line);
+}
+
 .sectionTitle {
   margin: 0;
   padding: 0 var(--space-xs);

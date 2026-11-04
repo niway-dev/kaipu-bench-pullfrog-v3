@@ -1,5 +1,4 @@
 import React from "react";
-import { Card } from "@kaipu/ui";
 import type { OverridableKey } from "@shared/settings-scope";
 import { ScopeLine, ScopeNotice, ScopedTitle, SectionBanner } from "./scope/scope-controls";
 import styles from "./settings-page.module.css";
@@ -51,7 +50,7 @@ export function Section({
   return (
     <div className={styles.section}>
       <h3 className={styles.sectionTitle}>{title}</h3>
-      <Card>{children}</Card>
+      <div className={styles.sectionBody}>{children}</div>
     </div>
   );
 }

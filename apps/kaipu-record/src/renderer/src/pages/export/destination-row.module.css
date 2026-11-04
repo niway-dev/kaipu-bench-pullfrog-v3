@@ -3,8 +3,8 @@
   flex-shrink: 0;
   min-width: 0;
   padding: 12px 24px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-app);
+  border-top: 1px solid var(--line);
+  background: var(--bg-panel);
 }
 
 .head {
@@ -59,9 +59,9 @@
   align-items: center;
   gap: 7px;
   padding: 10px 6px;
-  border-radius: 11px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
   color: var(--text-primary);
   font-family: inherit;
   text-align: center;
@@ -72,7 +72,7 @@
 }
 
 .card:hover {
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
 }
 
 .card[data-active="true"] {
