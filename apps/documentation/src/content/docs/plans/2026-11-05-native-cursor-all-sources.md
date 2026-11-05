@@ -108,7 +108,7 @@ region (canvas `drawImage` called with the 9-argument form).
 **Acceptance.** Tests above green; an area take under `dev:native-capture` saves a video of
 the area's size, the sidecar says `capture.mode: "area"` and `cursorPixels: "excluded"`, the
 editor shows the Cursor entry and the pointer lands where it was inside the area; the poster
-shows the area, not the display; a Chromium area take (flag off, no switch) is byte-identical
+shows the area, not the display (decision 14); a Chromium area take (flag off, no switch) is byte-identical
 in behaviour (golden test from ADR 0030 still green).
 
 **How to test it yourself (Mac mini).** `bun run dev:native-capture`, choose Frame, draw a
@@ -143,15 +143,15 @@ the bubble" (`cameraBubble.replace` not called, `bubbleProtection.webcamEnded` c
   bubble to make it capturable — just `show()`.
 - `recorder-store.ts`: `onWebcamEnded`/`webcamReopenFailed` pick the notice by
   `handle.transport`.
-- `packages/i18n/messages/en.json`, `es.json`: `record.webcamStoppedNative` (owner wording,
-  spec open question 3; placeholder English in the PR, flagged for the owner).
+- `packages/i18n/messages/en.json`, `es.json`: `record.webcamStoppedNative` (en "Camera stopped — the rest of the video has no camera", es "La cámara se detuvo: el resto del video no tiene cámara" (owner-approved, spec decision 13)).
 - ADR 0037: a one-line pointer under decision 6 to ADR 0047 for the native transport.
 
 **Acceptance.** Tests green; under `dev:native-capture` with the camera on: a take records
 `<id>.webcam.mp4`, the screen video has no bubble, the editor shows the face as a layer and the
 Cursor entry; unplug the camera mid-take (or toggle it off and on with the device removed): the
 take continues, the toast says the camera stopped, the editor hides the bubble from that
-moment (file end / gap), the screen video still has no bubble anywhere.
+moment (file end / gap), the screen video still has no bubble anywhere. A webcam that fails to open at take start keeps the take native, without a webcam file
+(decision 7).
 
 **How to test it yourself (Mac mini).** Camera on, `bun run dev:native-capture`, record 15 s;
 at 7 s turn the camera off via ⌃⌘K, at 10 s on again. Editor: webcam layer visible 0–7 s,
@@ -193,8 +193,9 @@ a local branch that is not merged.
 **What it is.** The seven rows of the spec's §3.1, run on the Mac mini with a helper variant
 that accepts `--window ID` and logs `SCWindow.frame` plus the frame attachments to stderr.
 No product code is merged; the PR adds the results table to
-`/backlog/cursor-free-capture-diagnostic/` (a "Window capture spike" section) and settles the
-spec's open questions 1 and 2 with the observed errors.
+`/backlog/cursor-free-capture-diagnostic/` (a "Window capture spike" section) and records which
+errors SCK raises for the closed, minimized and off-Space cases; the product behaviour is
+already decided (close ends and saves the take, minimize/off-Space holds the last frame).
 
 **Acceptance.** Every row has an observation and a pass/fail; the coordinate formula (row 7)
 has one measured example on a two-display layout; the PR lists which rows block N1.
@@ -222,7 +223,8 @@ target) yields a `geometry` frame before `config` and a `config` of the requeste
 - `main.swift`: `--window CGWINDOWID W H FPS BITRATE`; `SCContentFilter(desktopIndependentWindow:)`;
   `ignoreShadowsSingleWindow = true`, `scalesToFit = true`; emit `geometry` on start and on
   change (frame from `SCWindow`, refreshed as W0 found; content from `contentRect` and
-  `contentScale` attachments); window closed → the behaviour the owner chose (spec OQ 1).
+  `contentScale` attachments); window closed → `stop` at the last delivered frame, the take ends and is saved; minimized or
+  off-Space → the take continues and the video holds the last frame (spec decisions 11, 12).
 - `src/shared/native-capture.ts`: `geometry` header type; `NativeSequence` rules.
 - `native/session.ts`: argv for a window; version pin.
 
@@ -290,7 +292,8 @@ unknown window.
 **Acceptance.** A window take under `dev:native-capture` with camera, mic and system audio on:
 saves, opens with the Cursor entry, the pointer is drawn over the window content and hidden
 outside it; move and resize the window mid-take: the video letterboxes, the cursor stays on
-the content; close the window: the owner's chosen behaviour (OQ 1).
+the content; close the window: the take ends and is saved with everything up to the close; minimize it or
+move it to another Space: the take continues and the video holds the last frame.
 
 **How to test it yourself (Mac mini).** `bun run dev:native-capture`, pick a Terminal window,
 record 20 s: move it at 5 s, resize at 10 s, type at 15 s. Editor: cursor on the text where it
@@ -317,9 +320,6 @@ Branch `docs/niw2-___-native-all-sources-status`. Last.
 - The IPC contract doc (native channels, request shape, `geometry` frame).
 - Delete this plan (git keeps it); the PR links the spec.
 
-## Open items for the owner (copied from the spec)
+## Open items for the owner
 
-1. Window closed mid-take: end and save (recommended) or fail.
-2. Window minimized / off-Space: hold the last frame (recommended) or auto-pause.
-3. Wording of `record.webcamStoppedNative` (en/es).
-4. Area poster = the area (recommended, matches Chromium) or the display.
+None — all resolved by the owner on 2026-11-05 (spec decisions 11–14).

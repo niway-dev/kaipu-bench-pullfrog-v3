@@ -60,7 +60,13 @@ Three facts shape the decisions:
    file has no frame there (`webcamHasFrameAt`, `WebcamGapLog`), and the user can hide more
    with hidden segments. A webcam unavailable at the start keeps the take native, without a
    webcam file.
-5. **Audio stays Chromium on the native epoch.** No new clock; each source gets a measured
+5. **Window lifecycle (owner, 2026-11-05).** A window closed mid-take ends the take and saves
+   it. A window minimized or moved to another Space keeps the take running and the video holds
+   the last frame; there is no automatic pause.
+6. **Native webcam notice wording (owner, 2026-11-05).** en "Camera stopped — the rest of the
+   video has no camera"; es "La cámara se detuvo: el resto del video no tiene cámara".
+7. **Area poster under native shows the area**, matching Chromium.
+8. **Audio stays Chromium on the native epoch.** No new clock; each source gets a measured
    sync proof before this ADR reads as Accepted.
 
 ## Alternatives rejected

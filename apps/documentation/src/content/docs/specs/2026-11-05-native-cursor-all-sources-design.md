@@ -68,23 +68,14 @@ Mac mini per source, not a new clock. The watermark still forces Chromium and is
 | 8   | **Audio stays in Chromium on the native epoch**; each source gets a sync proof (clap-and-flash) on the Mac mini, with a tolerance of one frame at 30 fps for audio and the webcam and one cursor sample for the pointer.                                                                            | Loopback audio only comes with Chromium's desktop capture; this is the working path for whole displays. The unverified parts are precision, not mechanism; measured numbers settle them.                                                                                                                                 | —                                                      |
 | 9   | **Helper protocol bumps once per transport change** (`--version` string, `validateNativeHelper`) and the request shape stays an exact key set (`validateNativeRequest`).                                                                                                                            | The reader refuses an unknown helper, and the helper refuses an unknown argument set; a stale binary after a pull fails before a take, not during one.                                                                                                                                                                   | —                                                      |
 | 10  | **Watermark stays Chromium-only.** Not trivial: a watermark means a canvas pass over every frame, which is the compositor the native path exists to skip.                                                                                                                                           | Out of scope by owner direction; recorded so no PR "just adds it".                                                                                                                                                                                                                                                       | —                                                      |
+| 11  | **A window closed mid-take ends the take and saves it.** The helper turns the stream's stop into a `stop` at the last delivered frame.                                                                                                                                                              | Owner decision 2026-11-05 (recommended option). The user keeps everything recorded up to the close; failing the take as today (`didStopWithError`, exit 1) would discard it.                                                                                                                                             | 0047                                                   |
+| 12  | **A window minimized or moved to another Space holds the last frame.** The take continues; the video repeats the last frame and the cursor keeps sampling against the last known geometry. No automatic pause.                                                                                      | Owner decision 2026-11-05 (recommended option). An automatic pause changes the clock model.                                                                                                                                                                                                                              | 0047                                                   |
+| 13  | **Native webcam-stopped notice wording** (`record.webcamStoppedNative`): en "Camera stopped — the rest of the video has no camera"; es "La cámara se detuvo: el resto del video no tiene cámara".                                                                                                   | Owner-approved wording 2026-11-05; replaces the earlier proposal.                                                                                                                                                                                                                                                        | 0047                                                   |
+| 14  | **The poster/thumbnail of an area under native shows the area**, cropped with `areaEncodePlan(...).source` (unit A2).                                                                                                                                                                               | Owner decision 2026-11-05; matches what the Chromium path produces today.                                                                                                                                                                                                                                                | —                                                      |
 
-### Open questions (need the owner)
+### Open questions
 
-1. **Window closed mid-take.** Recommended: end the take at that moment and save it (the
-   helper turns the stream's stop into a `stop` at the last frame). Alternative: fail the take
-   as today (`didStopWithError` → exit 1). The spike (W0 row 5) tells us which error SCK
-   raises; the choice is product, not technical.
-2. **Window minimized or on another Space.** Recommended: the take continues and the video
-   holds the last frame (the helper's timer re-encodes the retained surface, which it already
-   does when SCK is idle); the cursor keeps sampling against the last known frame. Alternative:
-   pause automatically. Recommended because an automatic pause changes the clock model.
-3. **Toast copy when the webcam stops under native.** Proposed English:
-   "The camera stopped. The rest of this take has no webcam." Spanish needs the owner's wording
-   (`record.webcamStoppedNative`).
-4. **Thumbnail for an area under native.** Chromium still provides the poster; the proposed
-   fix crops it with `areaEncodePlan(...).source` (unit A2). Confirm that a poster of the area,
-   not the display, is wanted (it is what the Chromium path produces today).
+None — all resolved by the owner on 2026-11-05.
 
 ### Out of scope
 
@@ -178,7 +169,7 @@ With a source rect:
 - The config dimension check (`recorder-engine.ts:734`) already compares with `target`; with
   an area, `target` is the area plan's target, so it holds.
 - The poster thumbnail (`captureThumbnail`, 1210) draws the whole Chromium stream into
-  `target`; under native with an area it must draw `areaPlan.source` (open question 4).
+  `target`; under native with an area it must draw `areaPlan.source` (decision 14).
 - The cursor track is already normalized to the area for every `screen:` source with an area
   (`recording-hub.ts:811–815`); no change.
 
@@ -221,7 +212,10 @@ New argv: `--encoded-capture-v1 --window CGWINDOWID W H FPS BITRATE`. The helper
 the frame attachments, whichever the spike shows is cheap and current); `content` comes from
 the `contentRect`/`contentScale` attachments of the last delivered frame.
 
-- on the stream ending because the window closed: the choice of open question 1.
+- on the stream ending because the window closed: the helper emits `stop` at the last
+  delivered frame and the take ends and is saved (decision 11).
+- on the window being minimized or moved to another Space: the take continues and the helper
+  keeps re-encoding the retained surface, so the video holds the last frame (decision 12).
 
 ### 3.3 Cursor track for a window
 
@@ -258,7 +252,7 @@ poster and the loopback audio.
   toggles mid-take the parking logic is unchanged (the window stays out of the capture whether
   parked or shown — the pid exclusion does not depend on protection).
 - Notice: when the renderer reports `onWebcamEnded` and the take is native, the store shows
-  `record.webcamStoppedNative` (open question 3) instead of `record.webcamUnavailable`. The
+  `record.webcamStoppedNative` (decision 13) instead of `record.webcamUnavailable`. The
   renderer knows the take is native (`native !== null` in the engine; expose
   `transport: "native" | "chromium"` on the handle beside `cursorPixels`).
 - Webcam failing to open before the take: the engine awaits `onWebcamUnavailable`, which
