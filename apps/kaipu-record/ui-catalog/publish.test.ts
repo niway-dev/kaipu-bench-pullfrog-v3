@@ -545,6 +545,18 @@ describe("status", () => {
     expect(compareVersions("0.16.1", "0.16.0")).toBeGreaterThan(0);
     expect(compareVersions("0.9.0", "0.16.0")).toBeLessThan(0);
     expect(compareVersions("0.16.0", "0.16.0-rc.1")).toBeGreaterThan(0);
+    expect(compareVersions("0.16.0", "0.16.0")).toBe(0);
+  });
+
+  it("orders pre-releases per semver", () => {
+    expect(compareVersions("0.16.0-rc.1", "0.16.0-rc.2")).toBeLessThan(0);
+    expect(compareVersions("0.16.0-rc.2", "0.16.0-rc.10")).toBeLessThan(0);
+    expect(compareVersions("0.16.0-rc.10", "0.16.0-rc.2")).toBeGreaterThan(0);
+    expect(compareVersions("0.16.0-rc.1", "0.16.0")).toBeLessThan(0);
+    expect(compareVersions("0.16.0-rc", "0.16.0-rc.1")).toBeLessThan(0);
+    expect(compareVersions("0.16.0-1", "0.16.0-rc")).toBeLessThan(0);
+    expect(compareVersions("0.16.0-alpha", "0.16.0-beta")).toBeLessThan(0);
+    expect(compareVersions("0.16.0-rc.1", "0.16.0-rc.1")).toBe(0);
   });
 
   it("says current or behind", () => {
