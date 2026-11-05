@@ -7,8 +7,8 @@ description: On-demand screenshots of every desktop screen, area and state, take
 
 > **Status: 🟢 Ready to validate.** Implemented by the NIW2-628 / NIW2-629 / NIW2-630 stack; the
 > PRs are pending review and the catalog has not been recounted for a release yet. The private
-> catalog repository `niway-dev/kaipu-ui-catalog` is not created yet; publish is tested against a
-> local bare repository.
+> catalog repository `niway-dev/kaipu-ui-catalog` exists (created 2026-11-04) and holds the first
+> run, published from this stack's head (`catalog: kaipu-record 0.16.0 2026-11-04 @ ccbbe5b6`).
 
 ## What it is
 
@@ -46,6 +46,6 @@ Recounting after a release is a manual step of the desktop release; see
 
 ## Before it counts as done
 
-1. The owner creates the private repository `niway-dev/kaipu-ui-catalog` with an empty `main`.
-2. A first real publish with `--push`, after looking at the review-by-eye images.
-3. Recount at the next desktop release, then fold this page into a `desktop/` reference doc.
+1. Recount at the next desktop release, then fold this page into a `desktop/` reference doc.
+2. A state marked `unpublished` (today `record/source-picker-windows`, which shows the runner's real
+   open windows) is shot locally and never published; its README row says why.
