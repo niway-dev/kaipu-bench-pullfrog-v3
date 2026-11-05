@@ -1,9 +1,11 @@
-import { app, desktopCapturer, ipcMain, type WebContents } from "electron";
+import { app, desktopCapturer, ipcMain, screen, type WebContents } from "electron";
 import {
   NATIVE_CAPTURE_CHANNELS as channels,
   type NativeCaptureReader,
+  type NativeOpenRequest,
   type NativeVideoRequest,
 } from "../../../shared/native-capture";
+import { sanitizeArea } from "../area-geometry";
 import { onPageGone } from "../../renderer-lifetime";
 import { nativeHelperPath, spawnNativeVideo, validateNativeHelper } from "./session";
 
@@ -58,93 +60,102 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
     await active?.cancel();
   };
   for (const [method, channel] of Object.entries(channels)) {
-    ipcMain.handle(
-      channel,
-      async (event, request?: (NativeVideoRequest & { sourceId?: string }) | number | boolean) => {
-        const contents = owner();
-        if (!contents || event.sender !== contents || event.senderFrame !== contents.mainFrame)
-          throw new Error("Unauthorized native capture caller");
-        if (method === "capability") {
-          requestedByFlag = request === true;
-          return capability();
-        }
-        if (method === "cancel") return cancel();
-        if (method === "open") {
-          if (reader || opening) throw new Error("Native capture already open");
-          opening = true;
-          const openedGeneration = generation;
-          // A reload during the awaits below neither destroys the contents nor reaches
-          // the page-gone listener attached after spawn; invalidate this open instead.
-          const detachEarly = onPageGone(contents, () => {
-            generation++;
+    ipcMain.handle(channel, async (event, request?: NativeOpenRequest | number | boolean) => {
+      const contents = owner();
+      if (!contents || event.sender !== contents || event.senderFrame !== contents.mainFrame)
+        throw new Error("Unauthorized native capture caller");
+      if (method === "capability") {
+        requestedByFlag = request === true;
+        return capability();
+      }
+      if (method === "cancel") return cancel();
+      if (method === "open") {
+        if (reader || opening) throw new Error("Native capture already open");
+        opening = true;
+        const openedGeneration = generation;
+        // A reload during the awaits below neither destroys the contents nor reaches
+        // the page-gone listener attached after spawn; invalidate this open instead.
+        const detachEarly = onPageGone(contents, () => {
+          generation++;
+        });
+        try {
+          if (
+            !(await capability()).transportAvailable ||
+            !request ||
+            contents.isDestroyed() ||
+            openedGeneration !== generation
+          )
+            throw new Error("Native transport unavailable");
+          if (typeof request !== "object") throw new Error("Invalid request");
+          const { sourceId, area, ...rest } = request;
+          const videoRequest = rest as NativeVideoRequest;
+          if (sourceId) {
+            if (!sourceId.startsWith("screen:")) throw new Error("Native requires whole display");
+            const sources = await desktopCapturer.getSources({
+              types: ["screen"],
+              thumbnailSize: { width: 0, height: 0 },
+            });
+            videoRequest.displayId = Number(
+              sources.find((source) => source.id === sourceId)?.display_id,
+            );
+            if (area) {
+              // Same validation the hub applies to a recording start: the area must name
+              // this display and is clamped to its bounds. Display points with the origin
+              // at the display's top-left is what the helper's --source-rect takes.
+              const display = screen
+                .getAllDisplays()
+                .find((candidate) => candidate.id === videoRequest.displayId);
+              const safe = display ? sanitizeArea(area, display) : null;
+              if (!safe) throw new Error("Native area is not on the captured display");
+              videoRequest.sourceRect = safe.rect;
+            }
+          } else if (area) throw new Error("Native area needs a display source");
+          if (openedGeneration !== generation || contents.isDestroyed())
+            throw new Error("Native open cancelled");
+          reader = spawnNativeVideo(path, videoRequest);
+          detach = onPageGone(contents, () => {
+            void cancel();
           });
           try {
-            if (
-              !(await capability()).transportAvailable ||
-              !request ||
-              contents.isDestroyed() ||
-              openedGeneration !== generation
-            )
-              throw new Error("Native transport unavailable");
-            if (typeof request !== "object") throw new Error("Invalid request");
-            const { sourceId, ...videoRequest } = request;
-            if (sourceId) {
-              if (!sourceId.startsWith("screen:")) throw new Error("Native requires whole display");
-              const sources = await desktopCapturer.getSources({
-                types: ["screen"],
-                thumbnailSize: { width: 0, height: 0 },
-              });
-              videoRequest.displayId = Number(
-                sources.find((source) => source.id === sourceId)?.display_id,
-              );
-            }
-            if (openedGeneration !== generation || contents.isDestroyed())
-              throw new Error("Native open cancelled");
-            reader = spawnNativeVideo(path, videoRequest);
-            detach = onPageGone(contents, () => {
-              void cancel();
-            });
-            try {
-              await reader.ready?.();
-            } catch (error) {
-              await cancel();
-              throw error;
-            }
-            if (openedGeneration !== generation || contents.isDestroyed()) {
-              await cancel();
-              throw new Error("Native open cancelled");
-            }
-            return;
-          } finally {
-            detachEarly();
-            opening = false;
+            await reader.ready?.();
+          } catch (error) {
+            await cancel();
+            throw error;
           }
+          if (openedGeneration !== generation || contents.isDestroyed()) {
+            await cancel();
+            throw new Error("Native open cancelled");
+          }
+          return;
+        } finally {
+          detachEarly();
+          opening = false;
         }
-        if (!reader) throw new Error("No native capture session");
-        if (["begin", "pause", "resume", "stop"].includes(method)) {
-          if (typeof request !== "number" || !Number.isFinite(request))
-            throw new Error("Missing command clock");
-          if (method === "stop") return reader.stop(request);
-          if (method === "begin") return reader.begin?.(request);
-          if (method === "pause") return reader.pause?.(request);
-          return reader.resume?.(request);
-        }
-        const active = reader;
-        let frame;
-        try {
-          frame = await active.next();
-        } catch (error) {
-          if (reader === active) await cancel();
-          throw error;
-        }
-        if (frame === null && reader === active) {
-          reader = null;
-          detach?.();
-          detach = undefined;
-        }
-        return frame;
-      },
-    );
+      }
+      if (!reader) throw new Error("No native capture session");
+      if (["begin", "pause", "resume", "stop"].includes(method)) {
+        if (typeof request !== "number" || !Number.isFinite(request))
+          throw new Error("Missing command clock");
+        if (method === "stop") return reader.stop(request);
+        if (method === "begin") return reader.begin?.(request);
+        if (method === "pause") return reader.pause?.(request);
+        return reader.resume?.(request);
+      }
+      const active = reader;
+      let frame;
+      try {
+        frame = await active.next();
+      } catch (error) {
+        if (reader === active) await cancel();
+        throw error;
+      }
+      if (frame === null && reader === active) {
+        reader = null;
+        detach?.();
+        detach = undefined;
+      }
+      return frame;
+    });
   }
   app.on("before-quit", () => {
     void cancel();
