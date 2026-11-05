@@ -208,3 +208,54 @@ it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
   },
   10000,
 );
+
+const rectRequest = (width: number, height: number) => ({
+  displayId: Number(process.env.KAIPU_NATIVE_TEST_DISPLAY),
+  width,
+  height,
+  frameRate: 30,
+  videoBitrate: 1_000_000,
+  sourceRect: { x: 0, y: 0, width: 400, height: 300 },
+});
+
+it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
+  "crops at the source: a 400x300 sourceRect yields a 400x300 config",
+  async () => {
+    const reader = spawnNativeVideo(
+      process.env.KAIPU_NATIVE_TEST_HELPER!,
+      rectRequest(400, 300),
+      true,
+    );
+    try {
+      await reader.ready!();
+      await reader.begin!(performance.now());
+      const frame = await reader.next();
+      expect(frame?.header).toMatchObject({ kind: "config", width: 400, height: 300 });
+    } finally {
+      await reader.cancel();
+    }
+  },
+  10000,
+);
+
+it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
+  "refuses to upscale a sourceRect and a rect with the wrong aspect",
+  async () => {
+    for (const [width, height, message] of [
+      [800, 600, /cannot upscale/],
+      [400, 200, /preserve source aspect/],
+    ] as const) {
+      const reader = spawnNativeVideo(
+        process.env.KAIPU_NATIVE_TEST_HELPER!,
+        rectRequest(width, height),
+        true,
+      );
+      try {
+        await expect(reader.ready!()).rejects.toThrow(message);
+      } finally {
+        await reader.cancel();
+      }
+    }
+  },
+  10000,
+);
