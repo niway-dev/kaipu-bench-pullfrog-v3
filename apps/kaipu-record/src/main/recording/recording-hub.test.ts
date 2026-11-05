@@ -2237,6 +2237,21 @@ describe("recording hub — the camera turned off and on mid-take", () => {
     expect(mockState.bubble.show).toHaveBeenCalledOnce();
   });
 
+  it("under native, a camera turned off after the webcam ended parks the bubble, and on shows it again", async () => {
+    // The loss came first, then the user's toggle: no destroy and no replace while the helper
+    // is open (ADR 0047); park releases the camera as destroy would.
+    await takeWithWebcam({ isOpen: () => true });
+    mockState.bubble.isProtected.mockReturnValue(true);
+    await ipc(IPC_CHANNELS.recordingWebcamEnded, "s1");
+    camera(false);
+    expect(mockState.bubble.park).toHaveBeenCalledOnce();
+    camera(true);
+    expect(mockState.bubble.destroy).not.toHaveBeenCalled();
+    expect(mockState.bubble.replace).not.toHaveBeenCalled();
+    expect(mockState.bubble.show).toHaveBeenCalledOnce();
+    expect(mockState.bubbleProtect!()).toBe(false);
+  });
+
   it("a webcam file that ends with the bubble parked or unprotected only updates its protection", async () => {
     await takeWithWebcam();
     camera(false);
