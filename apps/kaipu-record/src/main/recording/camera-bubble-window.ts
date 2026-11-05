@@ -3,7 +3,11 @@ import { release } from "node:os";
 import { join } from "path";
 import { withFlagOverrides } from "../flag-overrides";
 import { is } from "@electron-toolkit/utils";
-import { DEFAULT_CAMERA_BUBBLE, clampCameraBubbleSize } from "@shared/camera-bubble";
+import {
+  DEFAULT_CAMERA_BUBBLE,
+  clampCameraBubbleSize,
+  type CameraBubbleShape,
+} from "@shared/camera-bubble";
 import {
   BUBBLE_PAD,
   bubbleBoundsAt,
@@ -77,6 +81,8 @@ export class CameraBubbleWindow {
      */
     private readonly protect: () => boolean = () =>
       canExcludeWindowFromCapture(process.platform, release()),
+    /** The persisted shape: the window is as wide as it, so the clamp sees the visible bubble. */
+    private readonly shape: () => CameraBubbleShape = () => DEFAULT_CAMERA_BUBBLE.shape,
   ) {}
 
   show(): void {
@@ -308,7 +314,10 @@ export class CameraBubbleWindow {
   }
 
   private fits(): boolean {
-    return this.anchor === null || bubbleBoundsInArea(this.anchor, this.currentSize()) !== null;
+    return (
+      this.anchor === null ||
+      bubbleBoundsInArea(this.anchor, this.currentSize(), undefined, this.shape()) !== null
+    );
   }
 
   private currentSize(): number {
@@ -337,9 +346,9 @@ export class CameraBubbleWindow {
       screen.getDisplayNearestPoint(
         placed ? { x: placed.x, y: placed.bottom } : screen.getCursorScreenPoint(),
       ).workArea;
-    const corner = bubbleBoundsInArea(container, this.currentSize());
+    const corner = bubbleBoundsInArea(container, this.currentSize(), undefined, this.shape());
     if (!corner || !placed) return corner;
-    return bubbleBoundsAt(container, corner.width, placed);
+    return bubbleBoundsAt(container, corner, placed);
   }
 
   private position(): void {

@@ -192,14 +192,23 @@ export function registerRecordingHub(
   const cameraBubble = new CameraBubbleWindow(
     () => getAppSettings().cameraBubble.size,
     () => canExcludeWindowFromCapture(process.platform, release()) && bubbleProtection.protects(),
+    () => getAppSettings().cameraBubble.shape,
   );
   // Shape and size apply live, mid-take included (the user sees the bubble change; the
-  // recording does not, its face is the raw webcam file, restyled on export). The shape is
-  // the renderer's; the size is the window's bounds, re-placed from the anchored corner.
+  // recording does not, its face is the raw webcam file, restyled on export). The renderer
+  // draws the shape; main sizes the window to it (a rectangle is narrower than a square), so
+  // both re-place the window's bounds from the anchored corner.
   let appliedBubbleSize = getAppSettings().cameraBubble.size;
+  let appliedBubbleShape = getAppSettings().cameraBubble.shape;
   onSettingsChanged((next) => {
-    if (next.cameraBubble.size === appliedBubbleSize) return;
+    if (
+      next.cameraBubble.size === appliedBubbleSize &&
+      next.cameraBubble.shape === appliedBubbleShape
+    ) {
+      return;
+    }
     appliedBubbleSize = next.cameraBubble.size;
+    appliedBubbleShape = next.cameraBubble.shape;
     cameraBubble.applySize();
   });
   ipcMain.handle(IPC_CHANNELS.cameraBubblePreviewSize, (_e, size: unknown): number =>

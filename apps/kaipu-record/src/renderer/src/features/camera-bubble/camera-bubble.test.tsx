@@ -65,7 +65,7 @@ describe("CameraBubble", () => {
     expect(mockPreview).toHaveBeenLastCalledWith(true, "cam-9", 720);
   });
 
-  it("centres a 3:4 rectangle in the square window, with the saved corner", async () => {
+  it("fills a 3:4 window with the rectangle, with the saved corner", async () => {
     withStream();
     window.electronAPI.getSettings = async () =>
       ({
@@ -83,13 +83,12 @@ describe("CameraBubble", () => {
     await waitFor(() =>
       expect(container.firstElementChild).toHaveAttribute("data-shape", "rectangle"),
     );
-    // The window's bubble is as tall as the window minus the pads; 3/4 of that wide, centred.
-    const height = Math.min(window.innerWidth, window.innerHeight) - 48;
+    // The window is as wide as the rectangle, so only its height gives the size: the bubble
+    // fills the window minus the pad, with no extra side inset.
+    const height = window.innerHeight - 48;
     const width = height * 0.75;
     const root = container.firstElementChild as HTMLElement;
-    expect(root.style.getPropertyValue("--inset-x")).toBe(
-      `${24 + Math.round((height - width) / 2)}px`,
-    );
+    expect(root.style.getPropertyValue("--inset-x")).toBe("");
     expect(screen.getByTestId("camera-bubble")).toHaveStyle({
       borderRadius: `${Math.round(0.25 * width)}px`,
     });
