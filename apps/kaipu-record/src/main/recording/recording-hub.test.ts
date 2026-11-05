@@ -1052,10 +1052,11 @@ describe("recording hub — a Dock dropped by a floating panel comes back", () =
       await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
         enabled: true,
       });
+      discard.mockClear(); // starting a tracker discards a stale one of the same id first
       t.emit({ type: "open" });
       t.emit({ type: "frame", frame: geometryFrame(1000) });
       anchorTake("session-1");
-      expect(discard).not.toHaveBeenCalledWith("session-1");
+      expect(discard).not.toHaveBeenCalled();
       await t.abort({}, "session-1");
     });
 

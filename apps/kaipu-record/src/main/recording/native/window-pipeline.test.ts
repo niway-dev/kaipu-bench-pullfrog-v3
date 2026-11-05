@@ -60,24 +60,24 @@ async function drain(reader: { next(): Promise<unknown> }) {
 }
 
 it("the stall timer is armed again once go is sent (B2)", async () => {
-  const path = await helper(scriptedWindowHelper(300));
-  // Stall timeout 100 ms. Before `go` the 250 ms of silence is fine; after `go` the helper
-  // stays silent for 300 ms, which is a real stall and must still be reported.
-  const reader = spawnNativeVideo(path, request, false, 100);
+  const path = await helper(scriptedWindowHelper(1000));
+  // Stall timeout 700 ms. Before `go` the 900 ms of silence is fine; after `go` the helper
+  // stays silent for 1000 ms, which is a real stall and must still be reported.
+  const reader = spawnNativeVideo(path, request, false, 700);
   await reader.ready!();
   const pumped = pumpFrames(reader, () => {});
-  await new Promise((r) => setTimeout(r, 250)); // prepare + countdown: nothing arrives
+  await new Promise((r) => setTimeout(r, 900)); // prepare + countdown: nothing arrives
   await pumped.begin!(performance.now());
-  // After `go` the helper needs 300 ms, longer than the 100 ms timeout: a real stall.
+  // After `go` the helper needs 1000 ms, longer than the 700 ms timeout: a real stall.
   await expect(drain(pumped)).rejects.toThrow("Native capture stalled");
 });
 
 it("a quiet gap before go is fine, then frames flow after go (B2)", async () => {
   const path = await helper(scriptedWindowHelper(0));
-  const reader = spawnNativeVideo(path, request, false, 100);
+  const reader = spawnNativeVideo(path, request, false, 700);
   await reader.ready!();
   const pumped = pumpFrames(reader, () => {});
-  await new Promise((r) => setTimeout(r, 400)); // 4x the stall timeout, before go
+  await new Promise((r) => setTimeout(r, 900)); // longer than the stall timeout, before go
   await pumped.begin!(performance.now());
   const kinds: string[] = [];
   for (let f = await pumped.next(); f; f = await pumped.next()) kinds.push(f.header.kind);

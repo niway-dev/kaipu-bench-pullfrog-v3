@@ -146,6 +146,9 @@ export function spawnNativeVideo(
   let paused = false;
   let refreshReadTimeout: (() => void) | undefined;
   let prepared = false;
+  // A window take streams only changes before `go`, so a still window is silent while the take
+  // is prepared and the countdown runs: no stall timer between `ready` and `go`.
+  let begun = false;
   let busy = false,
     cancelled = false,
     stopped = false,
@@ -187,7 +190,11 @@ export function spawnNativeVideo(
       }
       prepared = true;
     },
-    begin: (ms) => command("go", ms),
+    async begin(ms) {
+      await command("go", ms);
+      begun = true;
+      refreshReadTimeout?.();
+    },
     async pause(ms) {
       await command("pause", ms);
       paused = true;
@@ -218,7 +225,7 @@ export function spawnNativeVideo(
           new Promise<never>((_, reject) => {
             refreshReadTimeout = () => {
               clearTimeout(timeout);
-              if (!paused)
+              if (!paused && (!prepared || begun))
                 timeout = setTimeout(
                   () => reject(new Error("Native capture stalled")),
                   stallTimeoutMs,

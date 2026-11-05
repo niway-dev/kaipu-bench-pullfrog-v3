@@ -203,7 +203,7 @@ describe("cursor track for a window take", () => {
     const xAt = (t: number) => track.x[track.t.indexOf(t)];
     expect(xAt(0)).toBeCloseTo(0.5, 6); // before the move
     expect(xAt(20)).toBeCloseTo(0.25, 6); // the moment of the move, mapped late
-    expect(xAt(40)).toBeCloseTo(0.25, 6);
+    expect(xAt(80)).toBeCloseTo(0.25, 6);
     // No sample between t = 20 and the end carries the stale mapping.
     for (let i = 0; i < track.t.length; i++)
       if (track.t[i] >= 20) expect(track.x[i]).toBeCloseTo(0.25, 6);

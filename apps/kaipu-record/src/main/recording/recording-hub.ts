@@ -37,7 +37,7 @@ import {
   windowCapturedSpace,
 } from "./captured-display";
 import type { NativeTransportEvent } from "./native/frame-pump";
-import { WindowGeometryLog } from "./window-geometry-log";
+import { feedWindowLog, WindowGeometryLog } from "./window-geometry-log";
 import { ClickHook, type HookLike } from "./click-hook";
 import { CursorTrackRegistry } from "./cursor-tracker";
 import { ControlBarWindow } from "./control-bar-window";
@@ -204,16 +204,24 @@ export function registerRecordingHub(
     onEvent?: (listener: (event: NativeTransportEvent) => void) => () => void;
   },
 ): RecordingHubHandle {
-  // The geometry of the open native window take (NIW2-645). One native session at a time, so
-  // one log: a new session replaces it, and a tracker keeps the log it started with.
-  let windowLog = new WindowGeometryLog();
+  // The geometry of the current window take (NIW2-645). The recorder starts cursor tracking
+  // BEFORE it opens the native session, so each window take's `cursorTrackStart` creates its
+  // log, and the native session's frames (one session at a time) are fed into it afterwards.
+  let windowLog: WindowGeometryLog | null = null;
   nativeTransport?.onEvent?.((event) => {
-    if (event.type === "open") windowLog = new WindowGeometryLog();
+    const log = windowLog;
+    if (!log) return;
+    if (event.type === "open") log.reset();
     else if (event.type === "frame") {
+      feedWindowLog(log, event.frame);
       const h = event.frame.header;
-      if (h.kind === "geometry" && h.atMainMs !== undefined)
-        windowLog.push({ atMs: h.atMainMs, frame: h.frame, content: h.content });
-      else if (h.kind === "config") windowLog.setOutput({ width: h.width, height: h.height });
+      if (h.kind === "geometry" && log.scaleFactor() === null)
+        log.setScaleFactor(
+          displayScaleAt(
+            { x: h.frame.x + h.frame.width / 2, y: h.frame.y + h.frame.height / 2 },
+            screen.getAllDisplays(),
+          ),
+        );
     }
   });
   const bar = new ControlBarWindow();
@@ -847,21 +855,14 @@ export function registerRecordingHub(
     ): Promise<{ enabled: boolean }> => {
       if (endedSessions.has(sessionId)) return { enabled: false };
       if (sourceId.startsWith("window:")) {
-        // Only a native window take has a cursor track: the Chromium window path cannot
-        // learn where the window is.
-        if (!nativeTransport?.isOpen()) return { enabled: false };
-        const frame = windowLog.latest()?.frame;
-        const space = frame
-          ? windowCapturedSpace(
-              sourceId,
-              displayScaleAt(
-                { x: frame.x + frame.width / 2, y: frame.y + frame.height / 2 },
-                screen.getAllDisplays(),
-              ),
-              windowLog,
-            )
-          : null;
+        // Only a native window take ends up with a cursor track, but the recorder asks before
+        // the native session is open (and before any geometry exists), so enable it here.
+        // The anchor discards it when no geometry arrived (a Chromium window take), and a
+        // track with nothing mapped is never written.
+        const log = new WindowGeometryLog();
+        const space = windowCapturedSpace(sourceId, 1, log);
         if (!space) return { enabled: false };
+        windowLog = log;
         cursorTracks.start(sessionId, space);
         if (clickHook.ensureRunning()) clickSessions.add(sessionId);
         return { enabled: true };
@@ -885,8 +886,19 @@ export function registerRecordingHub(
   ipcMain.handle(IPC_CHANNELS.cursorClockNow, () => performance.now());
   ipcMain.on(
     IPC_CHANNELS.cursorTrackAnchor,
-    (_e, sessionId: string, t0MainMs: number, quality: "exact" | "estimated") =>
-      cursorTracks.get(sessionId)?.setAnchor(t0MainMs, quality),
+    (_e, sessionId: string, t0MainMs: number, quality: "exact" | "estimated") => {
+      const tracker = cursorTracks.get(sessionId);
+      if (!tracker) return;
+      // A window take's geometry arrives before `go`, so none by the first frame means the
+      // take is not native (Chromium cannot see the window): stop sampling and the click hook.
+      if (tracker.display.window && tracker.display.window.size === 0) {
+        cursorTracks.discard(sessionId);
+        clickSessions.delete(sessionId);
+        stopHookIfIdle();
+        return;
+      }
+      tracker.setAnchor(t0MainMs, quality);
+    },
   );
   ipcMain.on(IPC_CHANNELS.cursorTrackPause, (_e, sessionId: string, atMainMs: number) =>
     cursorTracks.get(sessionId)?.pause(atMainMs),

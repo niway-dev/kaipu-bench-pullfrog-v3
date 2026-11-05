@@ -48,9 +48,10 @@ export function displayScaleAt(point: { x: number; y: number }, displays: Displa
 
 /**
  * The space a native WINDOW take's cursor is normalized to (NIW2-645): the output frame, with
- * the window's geometry in force at each sample. Null for any other source, and until the
- * first geometry has arrived. `bounds` is informational (the latest window frame); the
- * tracker maps through `window`.
+ * the window's geometry in force at each sample. Null for any other source. It exists before
+ * any geometry has arrived, because the recorder starts cursor tracking before it opens the
+ * native session; samples wait for the log. `bounds` is informational; the tracker maps
+ * through `window`.
  */
 export function windowCapturedSpace(
   sourceId: string,
@@ -58,11 +59,11 @@ export function windowCapturedSpace(
   log: WindowGeometryLog,
 ): CapturedDisplay | null {
   const match = /^window:(\d+):\d+$/.exec(sourceId);
+  if (!match) return null;
   const latest = log.latest();
-  if (!match || !latest) return null;
   return {
     id: `window:${match[1]}`,
-    bounds: { ...latest.frame },
+    bounds: latest ? { ...latest.frame } : { x: 0, y: 0, width: 0, height: 0 },
     scaleFactor,
     window: log,
   };

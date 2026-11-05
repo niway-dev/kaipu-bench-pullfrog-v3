@@ -11,10 +11,25 @@
  *   stop() + build()   at recordingFinalize — returns the persisted CursorTrack
  */
 import type { CursorButton, CursorTrack } from "@shared/cursor-track";
-import { buildCursorTrack } from "./build-cursor-track";
+import { buildCursorTrack, type RawCursorData } from "./build-cursor-track";
 import { type ClockAnchor, closeOpenPause } from "./cursor-clock";
 import { CursorSampleBuffer } from "./cursor-sample-buffer";
-import type { WindowGeometryLog } from "./window-geometry-log";
+import type { WindowGeometry, WindowGeometryLog } from "./window-geometry-log";
+
+/**
+ * A global point (points) into the output frame, 0–1: the content rect's offset plus the
+ * pointer's offset in the window, scaled by how much the window was shrunk or grown to fit.
+ * A point outside the window lands outside 0–1 (the editor hides it).
+ */
+function mapIntoOutput(
+  p: { x: number; y: number },
+  g: WindowGeometry,
+  out: { width: number; height: number },
+): { x: number; y: number } {
+  const px = g.content.x + (p.x - g.frame.x) * (g.content.width / g.frame.width);
+  const py = g.content.y + (p.y - g.frame.y) * (g.content.height / g.frame.height);
+  return { x: px / out.width, y: py / out.height };
+}
 
 /**
  * 8 ms = 125 Hz. `screen.getCursorScreenPoint()` is a synchronous call on the same main
@@ -96,10 +111,10 @@ export class CursorTracker {
 
   addClick(button: CursorButton): void {
     if (!this.stopTimer) return;
-    const now = this.deps.now();
-    const p = this.normalized(this.deps.cursorPoint(), now);
-    if (!p) return; // a window take before its first geometry has no mapping
-    this.clicks.push({ t: now, x: p.x, y: p.y, button });
+    // A window take keeps the raw point: the geometry in force at this time may not have
+    // been delivered yet, so `build` maps it once the log is complete.
+    const p = this.stored(this.deps.cursorPoint());
+    this.clicks.push({ t: this.deps.now(), x: p.x, y: p.y, button });
   }
 
   stop(): void {
@@ -121,9 +136,15 @@ export class CursorTracker {
     if (!this.anchor || !Number.isFinite(this.anchor.t0)) return null;
     const display = this.persistedDisplay();
     if (!display) return null;
+    const raw = this.display.window
+      ? this.mapWindowRaw(this.display.window)
+      : { t: this.samples.t, x: this.samples.x, y: this.samples.y, clicks: this.clicks };
+    // A window take with nothing mapped (no geometry ever arrived: it fell back to
+    // Chromium) has no track to write.
+    if (!raw) return null;
     const anchor = closeOpenPause(this.anchor, this.deps.now());
     return buildCursorTrack({
-      raw: { t: this.samples.t, x: this.samples.x, y: this.samples.y, clicks: this.clicks },
+      raw,
       anchor,
       anchorQuality: this.anchorQuality,
       clicksAvailable,
@@ -143,7 +164,7 @@ export class CursorTracker {
     if (log) {
       const out = log.output();
       if (!out) return null;
-      const scale = this.display.scaleFactor;
+      const scale = log.scaleFactor() ?? this.display.scaleFactor;
       return {
         id: this.display.id,
         width: out.width / scale,
@@ -160,26 +181,54 @@ export class CursorTracker {
   }
 
   private sample(): void {
-    const now = this.deps.now();
-    const p = this.normalized(this.deps.cursorPoint(), now);
-    if (p) this.samples.push(now, p.x, p.y);
+    const p = this.stored(this.deps.cursorPoint());
+    this.samples.push(this.deps.now(), p.x, p.y);
   }
 
-  /** Null only for a window take with no geometry (or no output size) in force at `atMs`. */
-  private normalized(p: { x: number; y: number }, atMs: number): { x: number; y: number } | null {
-    const log = this.display.window;
-    if (log) {
-      const g = log.at(atMs);
-      const out = log.output();
-      if (!g || !out) return null;
-      // Output pixels: the content rect's offset plus the pointer's offset in the window,
-      // scaled by how much the window was shrunk or grown to fit.
-      const px = g.content.x + (p.x - g.frame.x) * (g.content.width / g.frame.width);
-      const py = g.content.y + (p.y - g.frame.y) * (g.content.height / g.frame.height);
-      return { x: px / out.width, y: py / out.height };
-    }
+  /** What a sample or click stores: the normalized point, or the raw point for a window take. */
+  private stored(p: { x: number; y: number }): { x: number; y: number } {
+    return this.display.window ? p : this.normalized(p);
+  }
+
+  private normalized(p: { x: number; y: number }): { x: number; y: number } {
     const b = this.display.bounds;
     return { x: (p.x - b.x) / b.width, y: (p.y - b.y) / b.height };
+  }
+
+  /**
+   * Map a window take's raw points into the output frame, using the geometry in force at
+   * each point's own time (the log is complete by now, so a geometry delivered late still
+   * applies). Points before the first geometry are dropped. A still pointer is stored as a
+   * run (first and last point only), so a sample is added at each geometry change inside a
+   * run, holding the pointer where it was. Null when nothing maps.
+   */
+  private mapWindowRaw(log: WindowGeometryLog): RawCursorData | null {
+    const out = log.output();
+    if (!out) return null;
+    const { t, x, y } = this.samples;
+    const mt: number[] = [];
+    const mx: number[] = [];
+    const my: number[] = [];
+    const add = (at: number, g: WindowGeometry, px: number, py: number): void => {
+      const p = mapIntoOutput({ x: px, y: py }, g, out);
+      mt.push(at);
+      mx.push(p.x);
+      my.push(p.y);
+    };
+    for (let i = 0; i < t.length; i++) {
+      const g = log.at(t[i]);
+      if (g) add(t[i], g, x[i], y[i]);
+      if (i + 1 < t.length)
+        for (const change of log.between(t[i], t[i + 1])) add(change.atMs, change, x[i], y[i]);
+    }
+    const clicks: RawCursorData["clicks"] = [];
+    for (const c of this.clicks) {
+      const g = log.at(c.t);
+      if (!g) continue;
+      const p = mapIntoOutput(c, g, out);
+      clicks.push({ t: c.t, x: p.x, y: p.y, button: c.button });
+    }
+    return mt.length > 0 ? { t: mt, x: mx, y: my, clicks } : null;
   }
 }
 
