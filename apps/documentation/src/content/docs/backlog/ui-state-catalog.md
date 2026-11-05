@@ -7,8 +7,8 @@ description: On-demand screenshots of every desktop screen, area and state, take
 
 > **Status: 🟢 Ready to validate.** Implemented by the NIW2-628 / NIW2-629 / NIW2-630 stack; the
 > PRs are pending review and the catalog has not been recounted for a release yet. The private
-> catalog repository `niway-dev/kaipu-ui-catalog` exists (created 2026-11-04) and holds the first
-> run, published from this stack's head (`catalog: kaipu-record 0.16.0 2026-11-04 @ ccbbe5b6`).
+> catalog repository `niway-dev/kaipu-ui-catalog` exists (created 2026-11-04) and holds the runs
+> published from this stack's branches; `bun run ui-catalog:status` names the latest.
 
 ## What it is
 
