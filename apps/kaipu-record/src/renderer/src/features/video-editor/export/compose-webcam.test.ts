@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WEBCAM_DEFAULTS, type WebcamLayout, type WebcamScene } from "../webcam/webcam-model";
-import { WEBCAM_POSITION_PRESETS, webcamPresetCenter } from "../webcam/webcam-layout";
+import { WEBCAM_POSITION_PRESETS } from "../webcam/webcam-layout";
 import { drawWebcamLayer, planWebcamDraw, type WebcamCtx } from "./compose-webcam";
 
 const IMAGE = { width: 1280, height: 720 };
@@ -85,7 +85,7 @@ describe("planWebcamDraw", () => {
       ),
     )("at %s (%s)", (_id, shape, preset) => {
       const size = 0.6; // the largest bubble
-      const position = webcamPresetCenter(preset, size, { width: 1920, height: 1080 }, shape);
+      const position = { x: preset.x, y: preset.y };
       const plan = planWebcamDraw(scene({ shape, size, position }), 0, frame, 1, IMAGE)!;
       expect(inside(plan.rect, frame)).toBe(true);
     });

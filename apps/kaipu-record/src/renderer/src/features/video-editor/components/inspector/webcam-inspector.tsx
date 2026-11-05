@@ -32,7 +32,7 @@ import {
   type FrameSize,
   WEBCAM_POSITION_PRESETS,
   type WebcamPositionPresetId,
-  webcamPresetCenter,
+  webcamPresetActive,
 } from "../../webcam/webcam-layout";
 import styles from "./inspector.module.css";
 import webcamStyles from "./webcam-inspector.module.css";
@@ -72,8 +72,6 @@ const SHAPE_LABEL: Record<
 /** The highest shrink the slider offers while the toggle is on; 1 means "off". */
 const MAX_SHRINK_WHILE_ON = 0.95;
 
-const near = (a: number, b: number): boolean => Math.abs(a - b) < 0.005;
-
 function WebcamControls({
   layout,
   target,
@@ -89,22 +87,6 @@ function WebcamControls({
   const commit = (patch: Partial<WebcamLayout>): void => edits.commitLayout(patch, target);
   const live = (patch: Partial<WebcamLayout>): void => edits.liveLayout(patch, target);
   const shrinking = layout.scaleDuringZoom < 1;
-  // A bubble snapped to a preset stays snapped when its width changes with the shape: the
-  // stored centre was placed for the old box, so it is recomputed for the new one. Only for
-  // exactly one matching preset (a big bubble on a narrow frame can sit on several at once,
-  // and picking one would move it), and only when the centre actually moves, so an override
-  // that inherits its position does not get a copy of it.
-  const snapped = WEBCAM_POSITION_PRESETS.filter((preset) => {
-    const center = webcamPresetCenter(preset, layout.size, frame, layout.shape);
-    return near(center.x, layout.position.x) && near(center.y, layout.position.y);
-  });
-  const changeShape = (shape: CameraBubbleShape): void => {
-    const next =
-      snapped.length === 1 ? webcamPresetCenter(snapped[0]!, layout.size, frame, shape) : null;
-    const moves =
-      next !== null && !(near(next.x, layout.position.x) && near(next.y, layout.position.y));
-    commit(moves ? { shape, position: next } : { shape });
-  };
   return (
     <>
       <p className={styles.sectionLabel}>{t("webcamShape")}</p>
@@ -115,7 +97,7 @@ function WebcamControls({
             type="button"
             aria-pressed={layout.shape === shape}
             className={layout.shape === shape ? styles.segmentActive : styles.segment}
-            onClick={() => changeShape(shape)}
+            onClick={() => commit({ shape })}
           >
             {t(SHAPE_LABEL[shape])}
           </button>
@@ -150,8 +132,7 @@ function WebcamControls({
       <p className={styles.sectionLabel}>{t("webcamPosition")}</p>
       <div className={webcamStyles.positions} role="group" aria-label={t("webcamPosition")}>
         {WEBCAM_POSITION_PRESETS.map((preset) => {
-          const center = webcamPresetCenter(preset, layout.size, frame, layout.shape);
-          const active = near(center.x, layout.position.x) && near(center.y, layout.position.y);
+          const active = webcamPresetActive(preset, layout, frame);
           return (
             <button
               key={preset.id}
@@ -160,7 +141,7 @@ function WebcamControls({
               aria-label={t(PRESET_LABEL[preset.id])}
               aria-pressed={active}
               className={active ? webcamStyles.positionActive : webcamStyles.position}
-              onClick={() => commit({ position: center })}
+              onClick={() => commit({ position: { x: preset.x, y: preset.y } })}
             >
               <span className={webcamStyles.dot} aria-hidden />
             </button>
