@@ -66,6 +66,44 @@ describe("machine entries", () => {
   });
 });
 
+describe("machine entries against sources and output", () => {
+  it("flag the generated output but not a source that merely contains the value", () => {
+    const machine = machineEntries({ username: "root", homedir: "/nowhere-home" });
+    const source = path.join(mkdtempSync(path.join(tmpdir(), "ui-catalog-src-")), "record.ts");
+    writeFileSync(source, '// the bubble\nexport const id = "cameraBubble.root";\n');
+    const clean = mkdtempSync(path.join(tmpdir(), "ui-catalog-lint-test-"));
+    writeFileSync(path.join(clean, "README.md"), "# Catalog");
+    writeFileSync(path.join(clean, "manifest.json"), JSON.stringify({ states: [] }));
+    const options = {
+      entries: parseDenyList("Cricut"),
+      machineEntries: machine,
+      sources: [source],
+    };
+    expect(lintOutputDir(clean, options).hits).toEqual([]);
+
+    const leaky = mkdtempSync(path.join(tmpdir(), "ui-catalog-lint-test-"));
+    writeFileSync(path.join(leaky, "README.md"), "built by root on a laptop");
+    writeFileSync(path.join(leaky, "manifest.json"), JSON.stringify({ states: [] }));
+    const hits = lintOutputDir(leaky, options).hits;
+    expect(hits.map((h) => h.file)).toEqual(["<output>/README.md"]);
+    expect(hits[0]?.entry).toBe("<this machine's user name>");
+  });
+
+  it("still flag a committed deny-list entry in a source", () => {
+    const source = path.join(mkdtempSync(path.join(tmpdir(), "ui-catalog-src-")), "record.ts");
+    writeFileSync(source, "// Cricut design space\n");
+    const dir = mkdtempSync(path.join(tmpdir(), "ui-catalog-lint-test-"));
+    writeFileSync(path.join(dir, "README.md"), "x");
+    writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ states: [] }));
+    const result = lintOutputDir(dir, {
+      entries: parseDenyList("Cricut"),
+      machineEntries: [],
+      sources: [source],
+    });
+    expect(result.hits).toHaveLength(1);
+  });
+});
+
 describe("review by eye", () => {
   it("lists shot states that embed the screen, sorted", () => {
     const states = [

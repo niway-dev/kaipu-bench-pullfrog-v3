@@ -159,7 +159,14 @@ export interface LintResult {
 }
 
 export interface LintOptions {
+  /** The committed deny-list: applied to the catalog sources and to the generated output. */
   readonly entries?: readonly DenyEntry[];
+  /**
+   * Values derived from this machine (user name, hostnames): applied to the generated output
+   * only. As substrings they would match ids and comments in the sources (a user `root`
+   * matches `cameraBubble.root`), and a source file cannot hold the machine's own value.
+   */
+  readonly machineEntries?: readonly DenyEntry[];
   readonly sources?: readonly string[];
   /** Used when the manifest predates `embedsScreen` (a run made before the field existed). */
   readonly fallbackReview?: readonly string[];
@@ -168,23 +175,22 @@ export interface LintOptions {
 }
 
 export function lintOutputDir(outDir: string, options: LintOptions = {}): LintResult {
-  const entries = options.entries ?? [
-    ...parseDenyList(readFileSync(DENY_LIST_FILE, "utf8")),
-    ...currentMachineEntries(),
-  ];
+  const entries = options.entries ?? parseDenyList(readFileSync(DENY_LIST_FILE, "utf8"));
+  const outputEntries = [...entries, ...(options.machineEntries ?? currentMachineEntries())];
   const sources = options.sources ?? sourceFiles();
   const errors: string[] = [];
   const hits: Hit[] = [];
   const scanned: string[] = [];
 
-  const scan = (file: string, label: string): void => {
-    hits.push(...scanText(label, readFileSync(file, "utf8"), entries));
+  const scan = (file: string, label: string, against: readonly DenyEntry[]): void => {
+    hits.push(...scanText(label, readFileSync(file, "utf8"), against));
     scanned.push(label);
   };
-  for (const file of sources) scan(file, path.relative(path.dirname(UI_CATALOG_DIR), file));
+  for (const file of sources)
+    scan(file, path.relative(path.dirname(UI_CATALOG_DIR), file), entries);
   for (const name of ["README.md", "manifest.json", "run.log"]) {
     const file = path.join(outDir, name);
-    if (existsSync(file)) scan(file, `<output>/${name}`);
+    if (existsSync(file)) scan(file, `<output>/${name}`, outputEntries);
     else if (name !== "run.log") errors.push(`${outDir}: ${name} is missing`);
   }
 
