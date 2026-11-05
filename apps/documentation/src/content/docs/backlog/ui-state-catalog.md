@@ -15,7 +15,9 @@ description: On-demand screenshots of every desktop screen, area and state, take
 - A typed UI map (`src/shared/ui-map.ts`) declares every screen, area and state of the desktop app.
 - A catalog (`apps/kaipu-record/ui-catalog/catalog/`) says, as data, how to reach each state in the real app.
 - A run launches the built Electron app on the Mac mini, walks the catalog and shoots every state,
-  then writes the images, a `manifest.json` and a generated `README.md`.
+  then writes the images, a `manifest.json` and a generated `README.md`. Published, each
+  version gets its own folder (`versions/<version>/`, one page per screen, a list of what
+  could not be captured and what to do) under a root index; see ADR 0045's 2026-11-05 amendment.
 - A deny-list lint checks the seed, the descriptions and the generated text before anything leaves
   the machine, and lists the images that embed real screen content for a look by eye.
 - Publish copies one run into the private catalog repository as a single commit; status says
