@@ -231,6 +231,18 @@ describe("native IPC session ownership", () => {
     ).rejects.toThrow();
     expect(fake.spawn).not.toHaveBeenCalled();
   });
+  it("a stop after the helper already ended is a no-op, not an error", async () => {
+    await call("open");
+    reader.next.mockResolvedValueOnce(null); // the final frame: main drops the reader
+    await call("next");
+    const ctx = { sender: contents, senderFrame: contents.mainFrame };
+    await expect(fake.handlers.get(channels.stop)!(ctx, 5)).resolves.toBeUndefined();
+    expect(reader.stop).not.toHaveBeenCalled();
+    // Other commands still refuse without a session.
+    await expect(fake.handlers.get(channels.pause)!(ctx, 5)).rejects.toThrow(
+      "No native capture session",
+    );
+  });
   describe("window sources", () => {
     const win = { width: 800, height: 600, frameRate: 30, videoBitrate: 1000000 };
     it("resolves window:<id>:0 to its CGWindowID and hands the helper a window request", async () => {
@@ -263,6 +275,7 @@ describe("native IPC session ownership", () => {
     it.each([
       { width: 801, height: 600 },
       { width: 800, height: 7682 },
+      { width: 800, height: 2162 }, // above the tallest quality step: the renderer never asks
       { width: 0, height: 600 },
       { width: 800.5, height: 600 },
     ])("refuses an output size main would not choose: %o", async (size) => {

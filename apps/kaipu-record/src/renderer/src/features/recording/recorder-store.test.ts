@@ -686,6 +686,29 @@ describe("recorder-store", () => {
     expect(window.electronAPI.recordingFinalize).toHaveBeenCalledOnce();
   });
 
+  it("a window closed while the take is still starting is saved as soon as the take begins", async () => {
+    let onSourceClosed: (() => void) | undefined;
+    const engine = fakeEngine();
+    const prepared = fakePrepared(engine);
+    prepared.begin.mockImplementation(async () => {
+      // The helper's end arrives while begin() still awaits (e.g. the webcam's startup).
+      onSourceClosed?.();
+      return engine;
+    });
+    prepareEngineMock.mockImplementation(async (opts) => {
+      onSourceClosed = opts.onSourceClosed;
+      return prepared;
+    });
+    store.requestStartRecording(() => input);
+    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(700);
+
+    expect(engine.stop).toHaveBeenCalledOnce();
+    expect(store.getRecorderSnapshot()).toEqual({ status: "idle", countdown: null });
+    expect(reportErrorMock).not.toHaveBeenCalled();
+    expect(window.electronAPI.recordingFinalize).toHaveBeenCalledOnce();
+  });
+
   it("an engine that fails during the countdown fails the start when it ends instead of recording", async () => {
     const prepared = fakePrepared();
     prepareEngineMock.mockImplementation(async (opts) => {

@@ -745,11 +745,12 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
     });
     const nativeVideo = native
       ? attachNativeEncodedVideo(output, native, (config) => {
-          // A window's fixed output is main's to confirm: the helper's config is the truth.
-          // A display or area keeps the strict check against the planned target.
+          // The helper builds its encoder from the request (`target`, windows included), so
+          // its config must name exactly that size.
           if (
             !Number.isFinite(config.epochMainMs) ||
-            (!nativeWindow && (config.width !== target.width || config.height !== target.height))
+            config.width !== target.width ||
+            config.height !== target.height
           )
             throw new Error("Native clock/dimensions mismatch");
           nativeSize = { width: config.width, height: config.height };
@@ -1105,8 +1106,14 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
         await Promise.race([thumbnail, delay(THUMBNAIL_STOP_WAIT_MS)]);
         try {
           try {
-            await nativeStopping;
+            // A stop that races the helper's own end (a window closing) may be refused: the
+            // take is complete once the pump has ended, so that is not a failure.
+            let stopError: unknown;
+            await nativeStopping?.catch((error: unknown) => {
+              stopError = error;
+            });
             if (nativePump) await nativePump;
+            if (stopError !== undefined && !nativeEnded) throw stopError;
             await output.finalize();
           } catch (error) {
             // The take fails with its screen: the webcam file has no take to belong to.

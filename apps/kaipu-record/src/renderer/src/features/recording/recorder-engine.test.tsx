@@ -2074,9 +2074,8 @@ describe("experimental native recorder lifecycle", () => {
     expect(handle.webcam).not.toBeNull();
     await handle.stop();
   });
-  it("opens the native helper for a window and takes the output size from the config frame", async () => {
-    // The helper's config says 1280x720; the renderer asked for what the Chromium stream measured.
-    const bridge = nativeBridge({ width: 1280, height: 720 });
+  it("opens the native helper for a window and reports the size the helper confirmed", async () => {
+    const bridge = nativeBridge({ width: 1920, height: 1080 });
     const prepared = await prepareEngine(baseOptions({ sourceId: "window:55:0" }));
     expect(bridge.open).toHaveBeenCalledOnce();
     const request = (bridge.open.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
@@ -2085,8 +2084,13 @@ describe("experimental native recorder lifecycle", () => {
     expect(MediaStreamVideoTrackSource).not.toHaveBeenCalled();
     const handle = await prepared.begin();
     expect(handle.transport).toBe("native");
-    expect(handle.outputSize).toEqual({ width: 1280, height: 720 });
+    expect(handle.outputSize).toEqual({ width: 1920, height: 1080 });
     await handle.stop();
+  });
+  it("refuses a native config that differs from the target for a window, as for a display", async () => {
+    nativeBridge({ width: 1280, height: 720 });
+    const prepared = await prepareEngine(baseOptions({ sourceId: "window:55:0" }));
+    await expect(prepared.begin()).rejects.toThrow("Native clock/dimensions mismatch");
   });
   it("still refuses a native config that differs from the target for a display", async () => {
     nativeBridge({ width: 1280, height: 720 });
@@ -2094,7 +2098,7 @@ describe("experimental native recorder lifecycle", () => {
     await expect(prepared.begin()).rejects.toThrow("Native clock/dimensions mismatch");
   });
   it("a window that closes mid-take ends the take through onSourceClosed, not onError, and stop saves it", async () => {
-    const bridge = nativeBridge({ width: 1280, height: 720 }, true);
+    const bridge = nativeBridge({ width: 1920, height: 1080 }, true);
     const onError = vi.fn();
     const onSourceClosed = vi.fn();
     const prepared = await prepareEngine(
@@ -2109,8 +2113,33 @@ describe("experimental native recorder lifecycle", () => {
     expect(lastOutput().finalize).toHaveBeenCalledOnce();
     expect(onError).not.toHaveBeenCalled();
   });
+  it.each(["window:55:0", "screen:3:0"])(
+    "a Chromium take of %s whose track ends is still an error",
+    async (sourceId) => {
+      // The default bridge cannot open a session: the take runs through Chromium (fallback).
+      const onError = vi.fn();
+      const prepared = await prepareEngine(baseOptions({ sourceId, onError }));
+      const handle = await prepared.begin();
+      expect(handle.transport).toBe("chromium");
+      const ended = screenVideoTrack.addEventListener.mock.calls.find(
+        (call) => call[0] === "ended",
+      )?.[1] as (() => void) | undefined;
+      ended?.();
+      expect(onError).toHaveBeenCalledOnce();
+      await handle.stop();
+    },
+  );
+  it("a stop refused after the helper ended by itself does not discard the take", async () => {
+    const bridge = nativeBridge({ width: 1920, height: 1080 }, true);
+    bridge.stop.mockRejectedValue(new Error("No native capture session"));
+    const prepared = await prepareEngine(baseOptions({ sourceId: "window:55:0" }));
+    const handle = await prepared.begin();
+    // The stop goes out before the end frame has been read: nativeEnded is still false.
+    await handle.stop();
+    expect(lastOutput().finalize).toHaveBeenCalledOnce();
+  });
   it("a Chromium window stream that ends during a native window take is not an error", async () => {
-    nativeBridge({ width: 1280, height: 720 });
+    nativeBridge({ width: 1920, height: 1080 });
     const onError = vi.fn();
     const prepared = await prepareEngine(baseOptions({ sourceId: "window:55:0", onError }));
     const handle = await prepared.begin();

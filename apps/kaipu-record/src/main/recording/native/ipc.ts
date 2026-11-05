@@ -7,10 +7,14 @@ import {
   type NativeWindowRequest,
 } from "../../../shared/native-capture";
 import type { RecordingArea } from "@shared/types/ipc";
+import { RESOLUTION_STEPS } from "@shared/recording-quality";
 import { sanitizeArea } from "../area-geometry";
 import { onPageGone } from "../../renderer-lifetime";
 import { type NativeTransportEvent, pumpFrames } from "./frame-pump";
 import { nativeHelperPath, spawnNativeVideo, validateNativeHelper } from "./session";
+
+/** The tallest output the renderer ever plans (the top quality step's height cap). */
+const MAX_WINDOW_HEIGHT = Math.max(...RESOLUTION_STEPS);
 
 /** Explicit developer transport only. No file path or process arguments come from IPC. */
 export function registerNativeCaptureTransport(
@@ -135,7 +139,8 @@ export function registerNativeCaptureTransport(
               (n as number) % 2 === 0;
             // The renderer measured the window stream and fitted it to the quality cap (even
             // sides); main cannot read a window's size, so it only refuses what the helper would.
-            if (!validSide(width) || !validSide(height))
+            // The height is also capped by the tallest quality step, as `fitToCap` does.
+            if (!validSide(width) || !validSide(height) || (height as number) > MAX_WINDOW_HEIGHT)
               throw new Error("Invalid native window output size");
             // Only windows on screen: a minimized or off-Space window falls back to Chromium
             // before anything is encoded. (Once recording, minimizing holds the last frame.)
@@ -205,6 +210,9 @@ export function registerNativeCaptureTransport(
           opening = false;
         }
       }
+      // A stop after the helper ended by itself (a window closed) has nothing to stop: the
+      // take is complete and the renderer only has to finalize it.
+      if (!reader && method === "stop") return;
       if (!reader) throw new Error("No native capture session");
       if (["begin", "pause", "resume", "stop"].includes(method)) {
         if (typeof request !== "number" || !Number.isFinite(request))
