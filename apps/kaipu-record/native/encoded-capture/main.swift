@@ -150,9 +150,15 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     }
     func stream(_ stream: SCStream, didOutputSampleBuffer sample: CMSampleBuffer, of type: SCStreamOutputType) {
         guard accepting, type == .screen, sample.isValid,
-              let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
-              attachments.first?[.status] as? Int == SCFrameStatus.complete.rawValue,
-              let buffer = sample.imageBuffer else { return }
+              let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]] else { return }
+        let status = attachments.first?[.status] as? Int
+        if logGeometry { FileHandle.standardError.write(Data("encoded-capture: sample status=\(status.map(String.init) ?? "nil") keys=\(attachments.first?.keys.map { $0.rawValue }.sorted() ?? [])\n".utf8)) }
+        // A window that moved or resized without repainting can arrive as an idle sample that
+        // carries no image but still reports its screen rect.
+        if windowMode, ready, status == SCFrameStatus.idle.rawValue, let info = attachments.first {
+            do { try emitGeometry(info) } catch { fail(error) }
+        }
+        guard status == SCFrameStatus.complete.rawValue, let buffer = sample.imageBuffer else { return }
         image = buffer // One retained surface; timer encodes it even while SCK is idle.
         lastFrameUs = hostUs()
         // A minimized or off-Space window delivers no frames and no error; the timer keeps
