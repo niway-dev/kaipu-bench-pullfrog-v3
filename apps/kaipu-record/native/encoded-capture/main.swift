@@ -209,8 +209,10 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             let sourcePointsH = sourceRect.map { Double($0.height) } ?? Double(filter.contentRect.height)
             let nativeW = sourcePointsW * scale
             let nativeH = sourcePointsH * scale
-            guard abs(Double(width) / Double(height) - nativeW / nativeH) < 0.01 else { throw CaptureError(message: "Dimensions must preserve source aspect") }
-            guard Double(width) <= nativeW, Double(height) <= nativeH else { throw CaptureError(message: "Dimensions cannot upscale the source") }
+            // The planner rounds each side to an even number (odd sides go UP by 1 px), so allow
+            // 2 px of slack on each side; a ratio tolerance would fail wide areas after rounding.
+            guard abs(Double(width) - Double(height) * nativeW / nativeH) <= 2 else { throw CaptureError(message: "Dimensions must preserve source aspect") }
+            guard Double(width) <= nativeW + 2, Double(height) <= nativeH + 2 else { throw CaptureError(message: "Dimensions cannot upscale the source") }
             let config = SCStreamConfiguration()
             if let sourceRect { config.sourceRect = sourceRect }
             config.showsCursor = false; config.width = width; config.height = height
