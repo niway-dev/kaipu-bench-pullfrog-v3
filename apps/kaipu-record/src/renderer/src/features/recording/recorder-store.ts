@@ -560,6 +560,12 @@ function acquireStart(input: StartInput): PendingStart {
       // A failure mid-recording (encoder error or the screen capture ending)
       // runs the same robust stop — finalize-or-abort + always restore the
       // window/Dock/bar — so the app never gets stuck.
+      // The native helper ended the take by itself (the recorded window was closed): a normal
+      // stop that saves everything up to the close, not a failure.
+      onSourceClosed: () => {
+        if (pendingStart === start || sessionId !== id) return;
+        void stopRecording();
+      },
       onError: (error) => {
         // Not recording yet (the countdown, or the cursor session still opening): there is
         // no take to stop, and the start would go on to record a dead capture.

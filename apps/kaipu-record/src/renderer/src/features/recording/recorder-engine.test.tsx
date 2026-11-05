@@ -2141,7 +2141,7 @@ describe("experimental native recorder lifecycle", () => {
       const bridge = nativeBridge();
       const onNativeDecision = vi.fn();
       const prepared = await prepareEngine(
-        baseOptions({ ...over, onNativeDecision } as Partial<EngineOptions>),
+        baseOptions({ ...over, onNativeDecision } as unknown as Partial<EngineOptions>),
       );
       expect(onNativeDecision).toHaveBeenCalledWith(expect.stringContaining("using Chromium"));
       expect(bridge.open).not.toHaveBeenCalled();
