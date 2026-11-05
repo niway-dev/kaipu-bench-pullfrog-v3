@@ -115,7 +115,7 @@ test("webcam: editor size range, edge presets and drag clamp under a 2x zoom", a
   const sizeLabel = async (): Promise<string> =>
     page.getByRole("slider", { name: "Size", exact: true }).evaluate((el) => {
       const text = el.parentElement?.querySelector("span[aria-hidden]")?.textContent;
-      return text ?? "?";
+      return (text ?? "?").replace("%", "");
     });
 
   const shot = async (step: string): Promise<void> => {
