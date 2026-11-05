@@ -48,7 +48,7 @@ export const libraryCatalog = catalog(
     "sort-menu": {
       profile: "default",
       steps: [library, { click: { area: "library.sortMenu", part: { css: "button" } } }],
-      demonstrates: ["library.sortMenu:open"],
+      demonstrates: ["library.sortMenu:open", "library.sortOptions:open"],
       after: [{ press: "Escape", on: "main" }],
     },
     recordings: {
