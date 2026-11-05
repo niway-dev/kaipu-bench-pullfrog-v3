@@ -7,6 +7,7 @@ import {
   validateNativeHelper,
   validateNativeRequest,
   nativeHelperPath,
+  HELPER_VERSION,
 } from "./session";
 const directories: string[] = [];
 afterEach(async () => {
@@ -74,13 +75,20 @@ it("accepts an optional sourceRect and refuses a malformed one or extra keys", (
 });
 it("pins the helper to protocol 3 and passes sourceRect as argv", async () => {
   await expect(
-    validateNativeHelper(await helper('console.log("kaipu-encoded-capture/3 source-rect")')),
+    validateNativeHelper(await helper(`console.log("${HELPER_VERSION}")`)),
   ).resolves.toBeUndefined();
   await expect(
     validateNativeHelper(
       await helper('console.log("kaipu-encoded-capture/2 prepared pause-clock")'),
     ),
   ).rejects.toThrow("version");
+  for (const stale of [
+    "kaipu-encoded-capture/3 source-rect",
+    "kaipu-encoded-capture/2 prepared continuous-clock",
+  ])
+    await expect(validateNativeHelper(await helper(`console.log("${stale}")`))).rejects.toThrow(
+      "version",
+    );
   const path = await helper(
     "process.stderr.write(process.argv.slice(2).join(' '));process.exit(2);",
   );
