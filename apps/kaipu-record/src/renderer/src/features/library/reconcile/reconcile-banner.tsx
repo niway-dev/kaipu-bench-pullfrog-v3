@@ -11,12 +11,13 @@ import {
   useReconcile,
 } from "./reconcile-store";
 import styles from "./reconcile.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 /**
  * "N files in your folder don't match Kaipu. Check and fix." — on the Library and Home
  * (NIW2-561). Checks once per session and vault folder; nothing changes on its own.
  */
-export function ReconcileBanner(): React.JSX.Element | null {
+export function ReconcileBanner({ ui }: { ui?: UiAreaProps }): React.JSX.Element | null {
   const t = useTranslations("library");
   const state = useReconcile();
   useEffect(() => {
@@ -25,7 +26,7 @@ export function ReconcileBanner(): React.JSX.Element | null {
   const content = bannerContent(state, localStorage.getItem(LISTED_SEEN_KEY));
   if (!content) return null;
   return (
-    <div className={styles.banner} role="status" aria-live="polite">
+    <div {...ui} className={styles.banner} role="status" aria-live="polite">
       <AlertTriangle size={17} strokeWidth={2} aria-hidden className={styles.bannerIcon} />
       <span className={styles.bannerText}>
         <span className={styles.bannerTitle}>

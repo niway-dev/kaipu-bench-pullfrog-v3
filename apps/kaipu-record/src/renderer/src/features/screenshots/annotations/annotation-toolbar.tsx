@@ -4,6 +4,7 @@ import { useTranslations } from "@kaipu/i18n";
 import { ANNOTATION_TOOLS, type AnnotationTool } from "./tools";
 import type { AnnotationToolsController } from "./use-annotation-tools";
 import styles from "./annotation-toolbar.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type ToolLabelKey =
   | "toolSelect"
@@ -40,7 +41,7 @@ export function AnnotationToolbar({
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   return (
-    <div className={styles.toolGroup}>
+    <div {...uiArea("editorImage.tools")} className={styles.toolGroup}>
       {ANNOTATION_TOOLS.map((tool) => {
         const { labelKey, Icon } = TOOL_META[tool];
         const label = t(labelKey);

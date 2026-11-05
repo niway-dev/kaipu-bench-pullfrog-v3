@@ -6,6 +6,7 @@ import {
   usePasteToEditor,
 } from "@renderer/features/editor/use-paste-to-editor";
 import styles from "./editor-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * `/editor/new` — an empty editor waiting for an image. ⌘V anywhere on the page
@@ -18,11 +19,11 @@ export function EditorNewPage(): React.JSX.Element {
   const { pasteFromClipboard, empty } = usePasteToEditor({ replace: true });
 
   return (
-    <div className={styles.page}>
+    <div {...uiArea("editorNew.page")} className={styles.page}>
       <h1 className={styles.title}>{t("newHeading")}</h1>
       <p className={styles.subtitle}>{t("newSubtitle")}</p>
 
-      <div className={styles.pasteZone}>
+      <div {...uiArea("editorNew.pasteZone")} className={styles.pasteZone}>
         <ClipboardPaste size={32} strokeWidth={1.5} aria-hidden className={styles.pasteIcon} />
         <p className={styles.pasteTitle}>{t("pasteTitle")}</p>
         <p className={styles.pasteHint}>{t("pasteHint", { shortcut: pasteShortcutLabel() })}</p>

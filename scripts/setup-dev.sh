@@ -22,6 +22,7 @@ REQUIRED=(
 # Optional: absence is reported but does not fail the check.
 OPTIONAL=(
   "gh||opening and reviewing pull requests|brew install gh"
+  "ffmpeg||the UI catalog's fixture video (apps/kaipu-record/ui-catalog/fixtures)|brew install ffmpeg"
 )
 
 red=$'\033[31m'; green=$'\033[32m'; yellow=$'\033[33m'; dim=$'\033[90m'; bold=$'\033[1m'; off=$'\033[0m'
@@ -115,6 +116,19 @@ else
     printf '       %swithout it:%s the unpatched hook runs — start() can deadlock the app\n' "$dim" "$off"
     printf '       %srun:%s        bun run rebuild:native\n' "$dim" "$off"
   fi
+fi
+
+# --- UI catalog reminder ----------------------------------------------------
+# When the private catalog repository was last recounted, and whether a newer desktop release
+# exists. A reminder, never a failure: no access, no repository yet or no bun all print nothing
+# that stops the setup. The status command bounds its own git clone (5 s here), so an
+# unreachable host cannot hold this script up.
+printf '\n%sUI catalog%s\n' "$bold" "$off"
+if command -v bun >/dev/null 2>&1; then
+  (cd "$native_app_dir" && UI_CATALOG_STATUS_TIMEOUT_MS=5000 bun run --silent ui-catalog:status 2>/dev/null) \
+    | sed 's/^/  /' || true
+else
+  printf '  %s·%s %snot checked (bun missing)%s\n' "$yellow" "$off" "$dim" "$off"
 fi
 
 # --- connectivity -----------------------------------------------------------

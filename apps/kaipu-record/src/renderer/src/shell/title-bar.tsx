@@ -9,6 +9,7 @@ import { useOptionalWorkspaces } from "@renderer/features/workspaces/workspaces-
 import { hostPlatform } from "@renderer/features/shortcuts/host-platform";
 import { OnboardingContext } from "@renderer/features/onboarding/onboarding-context";
 import styles from "./title-bar.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * The main window's title bar (NIW2-621), drawn by us in the space main frees with
@@ -31,7 +32,7 @@ export function TitleBar({ workspace = true }: { workspace?: boolean }): React.J
   const onboarding = useContext(OnboardingContext)?.isOpen ?? false;
   const showSwitcher = workspace && workspaces !== null && !onboarding;
   return (
-    <header className={styles.bar} data-platform={hostPlatform()}>
+    <header {...uiArea("shell.titleBar")} className={styles.bar} data-platform={hostPlatform()}>
       <KaipuLogo use="product" size={28} />
       <span className={styles.name}>Kaipu Record</span>
       {showSwitcher && (

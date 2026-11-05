@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { useTranslations } from "@kaipu/i18n";
 import type { EditorTool } from "../../annotations/video-tools";
 import styles from "./editor-inspector.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type HintKey = "hintSelect" | "hintBox" | "hintArrow" | "hintText" | "hintBlur" | "hintCover";
 
@@ -41,7 +42,11 @@ export function InspectorEmptyState({ tool }: { tool: EditorTool }): React.JSX.E
 
 export function EditorInspector({ children }: { children: ReactNode }): React.JSX.Element {
   return (
-    <aside className={styles.column} data-testid="editor-inspector">
+    <aside
+      {...uiArea("editorVideo.inspector")}
+      className={styles.column}
+      data-testid="editor-inspector"
+    >
       {children}
     </aside>
   );

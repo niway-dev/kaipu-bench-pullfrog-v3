@@ -2,6 +2,7 @@ import React from "react";
 import type { OverridableKey } from "@shared/settings-scope";
 import { ScopeLine, ScopeNotice, ScopedTitle, SectionBanner } from "./scope/scope-controls";
 import styles from "./settings-page.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 /**
  * One settings page: title, subtitle, then its titled sections. `scope` says whether the page's
@@ -15,15 +16,18 @@ export function SettingsPanel({
   scope,
   keys,
   children,
+  ui,
 }: {
   title: string;
   subtitle: string;
   scope?: "workspace" | "global";
   keys?: readonly OverridableKey[];
   children: React.ReactNode;
+  /** The catalog area this page is (`uiArea("<screen>.page")`), put on its root. */
+  ui?: UiAreaProps;
 }): React.JSX.Element {
   return (
-    <div className={styles.page}>
+    <div {...ui} className={styles.page}>
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>
           {scope ? <ScopedTitle scope={scope}>{title}</ScopedTitle> : title}
@@ -43,12 +47,15 @@ export function SettingsPanel({
 export function Section({
   title,
   children,
+  ui,
 }: {
   title: string;
   children: React.ReactNode;
+  /** The catalog area this section is (`uiArea("…")`), put on its root. */
+  ui?: UiAreaProps;
 }): React.JSX.Element {
   return (
-    <div className={styles.section}>
+    <div {...ui} className={styles.section}>
       <h3 className={styles.sectionTitle}>{title}</h3>
       <div className={styles.sectionBody}>{children}</div>
     </div>

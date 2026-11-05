@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, screen } from "electron";
 import type { BrowserWindowConstructorOptions, Display, Rectangle } from "electron";
 import { join } from "path";
+import { withFlagOverrides } from "../flag-overrides";
 import { is } from "@electron-toolkit/utils";
 import { IPC_CHANNELS } from "@shared/types/ipc";
 import {
@@ -656,11 +657,11 @@ export class CaptureOverlayWindows implements OverlayPort {
       // macOS: the first click on an overlay that is not the key window must act (pick
       // that display, grab a handle), not merely make the window key.
       acceptFirstMouse: true,
-      webPreferences: {
+      webPreferences: withFlagOverrides({
         preload: join(__dirname, "../preload/index.js"),
         sandbox: false,
         backgroundThrottling: false,
-      },
+      }),
     });
     // Above full-screen apps on macOS and above the taskbar on Windows.
     window.setAlwaysOnTop(true, "screen-saver");

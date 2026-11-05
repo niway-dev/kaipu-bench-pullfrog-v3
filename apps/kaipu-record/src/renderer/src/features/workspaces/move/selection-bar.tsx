@@ -5,6 +5,7 @@ import { useOptionalWorkspaces } from "../workspaces-context";
 import { useMoveUi } from "./move-store";
 import { MoveTargetList, useMoveLock } from "./move-target-list";
 import styles from "./move.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 /**
  * The Library's bottom bar in select mode (spec decision 20): "N selected · Move to ▸", a way
@@ -16,11 +17,13 @@ export function SelectionBar({
   onMoveTo,
   onClear,
   onDone,
+  ui,
 }: {
   count: number;
   onMoveTo(target: string | "new"): void;
   onClear(): void;
   onDone(): void;
+  ui?: UiAreaProps;
 }): React.JSX.Element | null {
   const t = useTranslations("move");
   const workspaces = useOptionalWorkspaces();
@@ -31,7 +34,7 @@ export function SelectionBar({
 
   if (progress) {
     return (
-      <div className={styles.selectionBar} role="status">
+      <div {...ui} className={styles.selectionBar} role="status">
         <span className={styles.progress}>
           {t("moving", { current: Math.max(progress.current, 1), total: progress.total })}
         </span>
@@ -48,7 +51,7 @@ export function SelectionBar({
   }
 
   return (
-    <div className={styles.selectionBar} role="toolbar" aria-label={t("select")}>
+    <div {...ui} className={styles.selectionBar} role="toolbar" aria-label={t("select")}>
       <span className={styles.selectionCount}>{t("selectedCount", { count })}</span>
       <span className={styles.selectionDivider} aria-hidden />
       <div className={styles.chipAnchor}>

@@ -3,6 +3,7 @@ import type { RecordingReadyPayload } from "@shared/types/recording-ready";
 import type { RecordingReadyCardBridge } from "@shared/types/electron-api";
 import { PostRecordingCard } from "@renderer/features/status-cards/post-recording-card";
 import styles from "./recording-ready-card.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 interface RecordingReadyCardProps {
   /** Injected by tests; the window's bridge otherwise. */
@@ -55,8 +56,9 @@ export function RecordingReadyCard({
   if (!payload) return null;
 
   return (
-    <div ref={frame} className={styles.frame}>
+    <div {...uiArea("recordingReady.root")} ref={frame} className={styles.frame}>
       <PostRecordingCard
+        ui={uiArea("recordingReady.card")}
         // A new payload is a new recording: start the card over (its pop-in included).
         key={payload.assetId}
         durationSeconds={payload.durationSeconds}

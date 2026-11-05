@@ -8,6 +8,7 @@ import {
 } from "../../cursor/cursor-model";
 import { HistorySlider } from "../history-slider";
 import styles from "./inspector.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 export function CursorInspector({
   controller,
@@ -36,7 +37,11 @@ export function CursorInspector({
     </label>
   );
   return (
-    <section className={styles.panel} aria-label={t("cursorTitle")}>
+    <section
+      {...uiArea("editorVideo.cursorInspector")}
+      className={styles.panel}
+      aria-label={t("cursorTitle")}
+    >
       <h2 className={styles.title}>{t("cursorTitle")}</h2>
       {toggle("visible", t("cursorVisible"))}
       <label className={styles.field}>

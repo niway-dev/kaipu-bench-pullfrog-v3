@@ -14,6 +14,7 @@ import { SystemAudioSettingsContent } from "./system-audio-settings-content";
 import { spreadLevels, useMicLevelMeter } from "./use-mic-level-meter";
 import { useTakeMicLevels } from "./use-take-mic-levels";
 import type { AudioSettingsStore } from "./use-audio-settings";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 /** State the Mic (or Audio) split tile and its settings drawer share. */
 export interface AudioControl extends SettingsDisclosure {
@@ -90,6 +91,7 @@ interface MicTileProps {
   onToggle: () => void;
   compact?: boolean;
   control: AudioControl;
+  ui?: UiAreaProps;
 }
 
 export function MicToggleSplit({
@@ -97,6 +99,7 @@ export function MicToggleSplit({
   on,
   onToggle,
   compact,
+  ui,
 }: MicTileProps): React.JSX.Element {
   const t = useTranslations("micSettings");
   const tRecord = useTranslations("record");
@@ -107,6 +110,7 @@ export function MicToggleSplit({
       status={on ? tRecord("statusOn") : tRecord("statusOff")}
       on={on}
       onToggle={onToggle}
+      ui={ui}
       chevronLabel={t("title")}
       compact={compact}
       open={control.open}
@@ -127,12 +131,14 @@ export function MicPanelDrawer({
   on,
   isRecording,
   variant = "panel",
+  ui,
   ...devices
 }: MicDevices & {
   control: AudioControl;
   on: boolean;
   isRecording: boolean;
   variant?: SettingsDrawerVariant;
+  ui?: UiAreaProps;
 }): React.JSX.Element | null {
   const t = useTranslations("micSettings");
   const { firstRef, onKeyDown } = useSettingsFocus(control.open, control.chevronRef, control.close);
@@ -143,6 +149,7 @@ export function MicPanelDrawer({
       open={control.open}
       variant={variant}
       onKeyDown={onKeyDown}
+      ui={ui}
     >
       <MicSettingsBody
         control={control}
@@ -166,6 +173,7 @@ interface AudioTileProps {
   unavailable?: boolean;
   compact?: boolean;
   control: AudioControl;
+  ui?: UiAreaProps;
 }
 
 export function SystemAudioToggleSplit({
@@ -174,6 +182,7 @@ export function SystemAudioToggleSplit({
   onToggle,
   unavailable = false,
   compact,
+  ui,
 }: AudioTileProps): React.JSX.Element {
   const t = useTranslations("systemAudioSettings");
   const tRecord = useTranslations("record");
@@ -184,6 +193,7 @@ export function SystemAudioToggleSplit({
       status={on ? tRecord("statusOn") : tRecord("statusOff")}
       on={on}
       onToggle={onToggle}
+      ui={ui}
       bodyUnavailable={unavailable}
       bodyTitle={unavailable ? tRecord("audioUnavailable") : undefined}
       chevronLabel={t("title")}
@@ -201,10 +211,12 @@ export function SystemAudioPanelDrawer({
   control,
   micOn,
   variant = "panel",
+  ui,
 }: {
   control: AudioControl;
   micOn: boolean;
   variant?: SettingsDrawerVariant;
+  ui?: UiAreaProps;
 }): React.JSX.Element | null {
   const t = useTranslations("systemAudioSettings");
   const { firstRef, onKeyDown } = useSettingsFocus(control.open, control.chevronRef, control.close);
@@ -215,6 +227,7 @@ export function SystemAudioPanelDrawer({
       open={control.open}
       variant={variant}
       onKeyDown={onKeyDown}
+      ui={ui}
     >
       <SystemAudioSettingsContent
         audio={control.store.audio}

@@ -4,6 +4,7 @@ import type { RecordingShadeView } from "@shared/types/ipc";
 import type { CaptureRect } from "@shared/types/screenshot-capture";
 import { CountdownOverlay } from "@renderer/features/recording/components/countdown-overlay";
 import styles from "./recording-shade.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** Room the REC tag needs above the area's border before it moves inside. */
 const TAG_ROOM_DIP = 30;
@@ -54,11 +55,24 @@ export function RecordingShade({
   if (state.phase === "countdown") {
     // The same pink countdown the Record page shows; click-through here, so no Cancel
     // button: Esc is a global shortcut the hub holds, and the hint says so.
-    return <CountdownOverlay value={state.value} region={rect} hint={t("shadeCountdownHint")} />;
+    return (
+      <CountdownOverlay
+        ui={uiArea("recordingShade.countdown")}
+        value={state.value}
+        region={rect}
+        hint={t("shadeCountdownHint")}
+      />
+    );
   }
 
   if (!rect) {
-    return <div className={styles.displayBorder} data-testid="recording-shade-display" />;
+    return (
+      <div
+        {...uiArea("recordingShade.displayBorder")}
+        className={styles.displayBorder}
+        data-testid="recording-shade-display"
+      />
+    );
   }
   return (
     <>
@@ -68,6 +82,7 @@ export function RecordingShade({
         style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
       />
       <div
+        {...uiArea("recordingShade.areaBorder")}
         className={styles.border}
         data-testid="recording-shade-border"
         // No room above the area for the tag (it would leave the display): draw it inside.

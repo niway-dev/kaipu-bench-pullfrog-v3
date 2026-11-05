@@ -16,6 +16,7 @@ import { type DestinationId, destinationOfPreset } from "../destinations";
 import { DESTINATION_COPY } from "../destination-copy";
 import { DestinationLogo } from "./destination-logo";
 import styles from "./master-copies-panel.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** The background export of this master, while it runs (`useExportRunner`). */
 export interface RunningCopy {
@@ -123,7 +124,11 @@ export function MasterCopiesPanel({
   };
 
   return (
-    <section className={styles.panel} aria-labelledby="master-copies-heading">
+    <section
+      {...uiArea("libraryDetail.copies")}
+      className={styles.panel}
+      aria-labelledby="master-copies-heading"
+    >
       <div className={styles.head}>
         <h2 id="master-copies-heading" className={styles.heading}>
           {source === "master" ? t("copiesHeading") : t("copiesHeadingCopy")}

@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@kaipu/ui";
 import type { CaptureRect } from "@shared/types/screenshot-capture";
 import styles from "./countdown-overlay.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 interface CountdownOverlayProps {
   /**
@@ -22,6 +23,7 @@ interface CountdownOverlayProps {
   region?: CaptureRect | null;
   /** Line shown under the number in place of the Cancel button (only without `onCancel`). */
   hint?: string;
+  ui?: UiAreaProps;
 }
 
 /**
@@ -33,6 +35,7 @@ export function CountdownOverlay({
   onCancel,
   region = null,
   hint,
+  ui,
 }: CountdownOverlayProps): React.JSX.Element {
   useEffect(() => {
     if (!onCancel) return;
@@ -45,6 +48,7 @@ export function CountdownOverlay({
 
   return (
     <div
+      {...ui}
       className={region ? `${styles.overlay} ${styles.region}` : styles.overlay}
       role="status"
       aria-live="assertive"

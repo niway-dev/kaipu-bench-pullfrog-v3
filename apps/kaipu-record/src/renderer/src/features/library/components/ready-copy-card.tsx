@@ -7,6 +7,7 @@ import { DestinationTag } from "@renderer/features/prepare/components/destinatio
 import { isWindowsHost } from "@renderer/features/shortcuts/host-platform";
 import type { ReadyCopy } from "@renderer/features/video-editor/export/ready-copies";
 import styles from "./ready-copy-card.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 interface ReadyCopyCardProps {
   video: LibraryVideo;
@@ -18,6 +19,8 @@ interface ReadyCopyCardProps {
   onDismiss(): void;
   /** Show in Finder or a drag: the user acted on the copy. */
   onActed(): void;
+  /** The catalog area this card is (`uiArea("…")`), put on its root. */
+  ui?: UiAreaProps;
 }
 
 /**
@@ -33,6 +36,7 @@ export function ReadyCopyCard({
   onOpen,
   onDismiss,
   onActed,
+  ui,
 }: ReadyCopyCardProps): React.JSX.Element {
   const t = useTranslations("backgroundCopy");
   const tLibrary = useTranslations("library");
@@ -49,7 +53,7 @@ export function ReadyCopyCard({
   const localId = video.id;
 
   return (
-    <article className={styles.card} aria-label={t("readyCardLabel", { name: title })}>
+    <article {...ui} className={styles.card} aria-label={t("readyCardLabel", { name: title })}>
       <button type="button" className={styles.poster} onClick={onOpen} aria-label={title}>
         {video.thumbnailUrl ? (
           <img src={video.thumbnailUrl} alt="" className={styles.posterImage} />

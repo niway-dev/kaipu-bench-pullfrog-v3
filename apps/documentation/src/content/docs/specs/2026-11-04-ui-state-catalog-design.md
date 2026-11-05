@@ -5,7 +5,7 @@ description: "NIW2-625: one command runs the real built desktop app on the Mac m
 
 # UI state catalog — design
 
-**Status: 🔵 Proposed · 2026-11-04, round 2. Design only; nothing is implemented.** Ticket
+**Status: 🟢 Implemented by the NIW2-628 / NIW2-629 / NIW2-630 stack (PRs pending review) · designed 2026-11-04, round 2.** Ticket
 [NIW2-625](https://linear.app/niway/issue/NIW2-625/ui-state-catalog-on-demand-screenshots-of-every-desktop-screen-and).
 ADRs: [0044](/architecture/decisions/0044-the-ui-state-catalog-runs-the-real-app-on-the-mac-mini/)
 (driver), [0045](/architecture/decisions/0045-ui-catalog-images-live-in-a-separate-repository/)
@@ -62,7 +62,7 @@ gates nothing.
 | 8   | Output is still PNGs only: the full window per state and a crop per area present. No video output, ever.                                                                                                                                 | The owner analyses images with image recognition; a video is not an input to that.                                                                                                                | —                     |
 | 9   | Fixture media is generated once by a script: one countdown video (big numbers 10→0 on a neutral background, `ffmpeg`) reused by every recording fixture, and neutral generated PNGs for screenshots.                                     | Recordings in the Library and the editor need a real file with real frames; one neutral video that reads as "a recording" is enough and leaks nothing.                                            | —                     |
 | 10  | Images keep the app's real version in the status bar (`V0.16.0`), and the README header and the commit carry version, date and SHA.                                                                                                      | The owner wants every image to say which tagged version it came from; the per-release diff of the status bar is accepted.                                                                         | 0045                  |
-| 11  | Images and the README live in the **private** repository `niway-dev/kaipu-ui-catalog`; each run overwrites the same paths and makes one commit.                                                                                          | Screenshots bloat a code repository; a separate one can have its history reset. Private by the owner's decision; fixtures stay neutral regardless.                                                | 0045                  |
+| 11  | Images and the README live in the **private** repository `niway-dev/kaipu-ui-catalog`; each run replaces its own `versions/<version>/` folder, rebuilds the root index and makes one commit (amended 2026-11-05, ADR 0045).              | Screenshots bloat a code repository; a separate one can have its history reset. Private by the owner's decision; fixtures stay neutral regardless.                                                | 0045                  |
 | 12  | Capture reality only: no design source is compared against, no pixel assertion, no CI job of any kind. Local (mini) only.                                                                                                                | The catalog is a map for planning, not a regression suite; the owner wants nothing in CI for it.                                                                                                  | reuses 0027 (no gate) |
 | 13  | Window sizes: the app's own (`main` 1040×760, `editor` 1440×900) plus the minimum variants (`main` 900×670, `editor` 1180×760) for Record and the video editor; floating windows at the size main gives them. Dark theme, English only.  | The window table in `src/shared/window-size.ts` is what users get; the minimums are where the layout is allowed to stop working, so they belong in the map.                                       | —                     |
 | 14  | Fixtures are neutral generated data: no real workspace, person, file path, product or ticket names; a deny-list scan runs before publish.                                                                                                | The images leave the machine; a real name in a fixture becomes a leak.                                                                                                                            | —                     |
@@ -91,8 +91,10 @@ not assumed:
      `~/.local/share/mise/installs/node/24.21.0/bin/node` (Screen Recording) and Electron's
      ad-hoc cdhash. A Node or Electron upgrade needs a new grant. The run starts with a
      preflight that prints each permission's status and stops with the missing grant named.
-   - Accessibility for that `node` was still denied at the last check. Until it is granted,
-     the click-zoom gate is shot on its "not granted" side only, and the README says so.
+   - Accessibility for that `node` was granted on 2026-11-04, so the click-zoom gate is shot on
+     both sides: `settingsPermissions/all-granted` shows `clickZoom:granted` and
+     `settingsPermissions/click-zoom-denied` shows `clickZoom:notGranted` (the latter only on a
+     runner that lacks the grant; otherwise the README says it was not capturable).
 2. **Account states: fully offline (owner decision).** The catalog never runs the API. It
    shoots `signed-out` (no `auth.enc`) and `unknown` (stored session, API unreachable). States
    that need a live server (`signedIn`, `cloud`, `sessionExpired`) are `notCapturable` with the
@@ -212,7 +214,7 @@ No question is open.
       one section per screen with route or window query, one subsection per area with its gate
       and one row per state (image, crop, how reached); a final "Not capturable" section.
 - [ ] `bun run ui-catalog:publish` clones `niway-dev/kaipu-ui-catalog` into a temporary
-      directory, replaces `screens/`, `areas/`, `manifest.json` and `README.md`, and makes one
+      directory, replaces `versions/<version>/`, rebuilds the root `README.md` index and `manifest.json`, and makes one
       commit `catalog: kaipu-record <version> <YYYY-MM-DD> @ <short sha>`; it pushes only with
       `--push` and refuses an older SHA/date without `--force`.
 - [ ] `bun run ui-catalog:status` prints the catalog repository's last version, date and SHA and
@@ -550,7 +552,7 @@ In `apps/kaipu-record/package.json` unless noted:
 | `bun run ui-catalog --only <glob>`                     | mini only       | Only the matching state ids (`record/*`, `windows/capture-toast/*`, `editor/video@min`).                                                                                                                                                                              |
 | `bun run ui-catalog --twice`                           | mini only       | Every state twice; reports nondeterministic crops outside the known-variable list.                                                                                                                                                                                    |
 | `bun run ui-catalog:lint`                              | either          | Deny-list scan of fixtures, catalog descriptions and the generated README. Also run by `publish`.                                                                                                                                                                     |
-| `bun run ui-catalog:publish [--push] [--force]`        | owner's machine | Clones `git@github-niway:niway-dev/kaipu-ui-catalog.git` into a temp dir, verifies `origin`, replaces `screens/`, `areas/`, `manifest.json`, `README.md`, commits `catalog: kaipu-record <version> <date> @ <sha>`.                                                   |
+| `bun run ui-catalog:publish [--push] [--force]`        | owner's machine | Clones `git@github-csdev:niway-dev/kaipu-ui-catalog.git` into a temp dir, verifies `origin`, replaces `screens/`, `areas/`, `manifest.json`, `README.md`, commits `catalog: kaipu-record <version> <date> @ <sha>`.                                                   |
 | `bun run ui-catalog:status`                            | either          | Reads the catalog repository's `manifest.json` from `main` and compares with the latest `desktop-v*` tag; prints `current` or `behind <tag>`.                                                                                                                         |
 
 The run is a Playwright test project after all, unlike round 1: `_electron.launch` and the
@@ -559,7 +561,7 @@ quit watchdog are built for `@playwright/test`, `verify/` already runs that way 
 reporter gives the per-state log for free. Nothing uses `toHaveScreenshot` or `-snapshots`
 folders.
 
-The SSH alias follows `~/GITHUB_ACCOUNTS.md`; publish refuses a remote whose owner is not
+The SSH alias follows `~/GITHUB_ACCOUNTS.md`, which maps the `niway-dev` repositories to `github-csdev` on this machine (the first draft wrote `github-niway`, an alias that does not exist); publish refuses a remote whose owner is not
 `niway-dev`, a non-empty clone directory, or a manifest older than the repository's last commit
 (without `--force`). It never touches the monorepo's git state.
 

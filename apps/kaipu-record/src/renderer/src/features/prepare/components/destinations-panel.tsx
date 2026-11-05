@@ -8,6 +8,7 @@ import type { DestinationId } from "../destinations";
 import { DESTINATION_COPY } from "../destination-copy";
 import { DestinationLogo } from "./destination-logo";
 import styles from "./destinations-panel.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 interface DestinationsPanelProps {
   /** The recording's file size: the archive card's number, and the base for the others. */
@@ -56,7 +57,11 @@ export function DestinationsPanel({
   };
 
   return (
-    <section className={styles.panel} aria-labelledby="destinations-heading">
+    <section
+      {...uiArea("libraryDetail.destinations")}
+      className={styles.panel}
+      aria-labelledby="destinations-heading"
+    >
       <div className={styles.head}>
         <Upload size={16} strokeWidth={1.8} className={styles.icon} aria-hidden />
         <div className={styles.headText}>

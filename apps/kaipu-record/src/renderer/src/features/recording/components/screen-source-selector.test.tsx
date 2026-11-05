@@ -86,7 +86,8 @@ describe("ScreenSourceSelector", () => {
 
   it("closes when clicking the backdrop (but not the modal)", () => {
     const { container, onClose } = renderSelector();
-    const overlay = container.firstChild as HTMLElement;
+    // The first child is the area wrapper (`display: contents`); the overlay is inside it.
+    const overlay = (container.firstChild as HTMLElement).firstChild as HTMLElement;
     fireEvent.click(overlay); // target === currentTarget → closes
     expect(onClose).toHaveBeenCalledTimes(1);
   });

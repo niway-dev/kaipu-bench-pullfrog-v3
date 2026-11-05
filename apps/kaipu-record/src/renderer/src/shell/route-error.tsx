@@ -2,6 +2,7 @@ import { isRouteErrorResponse, useNavigate, useRouteError } from "react-router-d
 import { useTranslations, type Translator } from "@kaipu/i18n";
 import { TitleBar } from "./title-bar";
 import styles from "./route-error.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 interface ErrorInfo {
   code?: string;
@@ -32,7 +33,10 @@ function ErrorCard({ info, screen }: { info: ErrorInfo; screen?: boolean }): Rea
   const navigate = useNavigate();
   const t = useTranslations("routeError");
   return (
-    <div className={screen ? styles.screen : styles.wrap}>
+    <div
+      {...(screen ? uiArea("shell.routeError") : uiArea("shell.notFound"))}
+      className={screen ? styles.screen : styles.wrap}
+    >
       <div className={styles.box}>
         {info.code && <span className={styles.code}>{info.code}</span>}
         <h1 className={styles.title}>{info.title}</h1>

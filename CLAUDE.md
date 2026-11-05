@@ -139,6 +139,10 @@ The web app (TanStack Start) proxies all API requests through itself to the Elys
   `locale` and the shortcut accelerators do) and pin it with a test that imports
   the package — test files are not in that bundle.
 
+## Desktop UI map
+
+A desktop UI PR adds its screens, areas and states to `apps/kaipu-record/src/shared/ui-map.ts`, spreads `uiArea("<AreaId>")` on each area's root, and adds a catalog state per area (`ui-catalog/catalog/`), per ADR 0046.
+
 ## Secrets: Infisical
 
 All environment values come from Infisical. There are no hand-maintained `.env`

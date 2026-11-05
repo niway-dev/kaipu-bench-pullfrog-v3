@@ -12,6 +12,7 @@ import type { LibraryVideo } from "@renderer/features/library/types";
 import { ColorMenu, TagChip } from "../tags/tag-chip";
 import { TagEditor } from "./tag-editor";
 import styles from "./tag-panel.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 /** Library tags offered as one-click toggles, most used first. */
 const QUICK_TAGS_SHOWN = 16;
@@ -33,6 +34,8 @@ interface TagPanelProps {
   onFilterTag(id: string): void;
   onOpenDetails(): void;
   onClose(): void;
+  /** The catalog area this drawer is (`uiArea("…")`), put on its drawer. */
+  ui?: UiAreaProps;
 }
 
 /**
@@ -53,6 +56,7 @@ export function TagPanel({
   onFilterTag,
   onOpenDetails,
   onClose,
+  ui,
 }: TagPanelProps): React.JSX.Element {
   const t = useTranslations("library");
   const [tab, setTab] = useState<TagPanelTab>(video ? initialTab : "all");
@@ -73,7 +77,7 @@ export function TagPanel({
   return (
     <div className={styles.root}>
       <div className={styles.curtain} onClick={onClose} aria-hidden />
-      <aside className={styles.drawer} role="dialog" aria-label={t("tagPanelTitle")}>
+      <aside {...ui} className={styles.drawer} role="dialog" aria-label={t("tagPanelTitle")}>
         <header className={styles.header}>
           <span className={styles.heading}>{t("tagPanelTitle")}</span>
           <button

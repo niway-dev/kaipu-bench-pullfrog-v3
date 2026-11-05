@@ -2,6 +2,7 @@ import React from "react";
 import { Camera, Video, type LucideIcon } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import styles from "./panel-tabs.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** The two modes the Capture Panel can show. `as const` (no TS enum) so the values
  *  and the type share one source. */
@@ -32,6 +33,7 @@ export function PanelTabs({
   const t = useTranslations("panel");
   return (
     <div
+      {...uiArea("capturePanel.tabs")}
       className={styles.tabs}
       role="tablist"
       aria-label={t("panelMode")}

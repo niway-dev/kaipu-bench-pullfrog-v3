@@ -17,6 +17,7 @@ import { type LayoutEntry, layoutDuration } from "../timeline";
 import type { MutedRange } from "../audio-edits";
 import { fractionToTime, timeToFraction } from "./timeline-geometry";
 import styles from "./audio-lane.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 export interface AudioLaneProps {
   ranges: MutedRange[];
@@ -102,7 +103,12 @@ export function AudioLane({
 
   if (audioMuted) {
     return (
-      <div ref={laneRef} className={styles.lane} data-testid="audio-lane">
+      <div
+        ref={laneRef}
+        {...uiArea("editorVideo.audioLane")}
+        className={styles.lane}
+        data-testid="audio-lane"
+      >
         <p className={styles.allMuted}>
           <VolumeX size={12} /> {t("audioAllMuted")}
         </p>
@@ -111,7 +117,12 @@ export function AudioLane({
   }
 
   return (
-    <div ref={laneRef} className={styles.lane} data-testid="audio-lane">
+    <div
+      ref={laneRef}
+      {...uiArea("editorVideo.audioLane")}
+      className={styles.lane}
+      data-testid="audio-lane"
+    >
       {ranges.length === 0 && <p className={styles.empty}>{t("audioEmptyState")}</p>}
       {ranges.flatMap((range, index) => {
         const blocks = sourceRangeToTimelineBlocks(layout, range.sourceStart, range.sourceEnd);

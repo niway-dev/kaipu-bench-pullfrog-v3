@@ -15,6 +15,7 @@ import {
 } from "@shared/camera-bubble";
 import { bubblePreviewLines } from "@shared/webcam-track";
 import styles from "./camera-bubble.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * The bubble's height: the window's, minus the pad main sizes it with. The window stays a
@@ -242,6 +243,7 @@ export function CameraBubble(): React.JSX.Element {
 
   return (
     <div
+      {...uiArea("cameraBubble.root")}
       className={styles.root}
       style={{ "--inset-x": `${insetX}px` } as React.CSSProperties}
       data-shape={bubble.shape}
@@ -256,6 +258,7 @@ export function CameraBubble(): React.JSX.Element {
         </span>
       )}
       <div
+        {...uiArea("cameraBubble.bubble")}
         className={styles.bubble}
         style={{ borderRadius: radius }}
         data-testid="camera-bubble"

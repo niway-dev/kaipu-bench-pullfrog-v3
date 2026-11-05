@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslations } from "@kaipu/i18n";
 import styles from "./version-gate-banner.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 interface Props {
   message: string;
@@ -13,7 +14,7 @@ export function VersionGateBanner({ message, downloadUrl }: Props): React.JSX.El
   const [dismissed, setDismissed] = React.useState(false);
   if (dismissed) return null;
   return (
-    <div className={styles.banner}>
+    <div {...uiArea("shell.versionBanner")} className={styles.banner}>
       <span className={styles.message}>{message}</span>
       <button className={styles.action} onClick={() => window.open(downloadUrl, "_blank")}>
         {t("update")}

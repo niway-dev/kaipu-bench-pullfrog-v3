@@ -4,6 +4,7 @@ import { StorageCloudSettings } from "@renderer/features/storage-cloud/storage-c
 import { useAppSettings } from "@renderer/pages/settings/use-app-settings";
 import { OverrideBlock } from "@renderer/pages/settings/scope/scope-controls";
 import styles from "@renderer/features/storage-cloud/storage-cloud-settings.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * Rail section: cloud account, save mode and capacity. The save mode is per device, and a
@@ -14,7 +15,7 @@ export function CloudPage(): React.JSX.Element {
   const t = useTranslations("storageCloud");
   const { settings } = useAppSettings();
   return (
-    <div className={styles.page}>
+    <div {...uiArea("cloud.page")} className={styles.page}>
       <OverrideBlock settingKey="uploadMode" fallback="local-only" label={t("saveMode")}>
         {({ value, onChange }) => (
           <StorageCloudSettings

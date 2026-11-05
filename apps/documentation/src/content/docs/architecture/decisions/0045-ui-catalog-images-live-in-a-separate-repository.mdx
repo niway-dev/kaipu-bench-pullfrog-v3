@@ -111,10 +111,36 @@ new worktree per ticket; 20 MB per run would be felt by both within a few months
 - The hub rule is now "never committed, except a product's UI catalog in its own repository".
   Until the hub PR lands, this ADR is the only place that says so.
 
+## Amendment 2026-11-05: one folder per version (owner decision)
+
+Decision 2 above said each run overwrites the same paths. It is replaced by this layout:
+
+```
+README.md                       index, one row per version, newest first
+manifest.json                   copy of the newest version's manifest (status reads it)
+versions/<version>/README.md    that version's header, links to its screen pages, and what
+                                the run could not capture with the next step for each
+versions/<version>/<screen>.md  one page per screen, HTML tables (10/30/30/30 column widths)
+versions/<version>/screens/ … areas/ … manifest.json
+```
+
+Publishing a run replaces only `versions/<its version>/` (a recount of the same version
+overwrites that folder, so git still diffs it), then regenerates the root index from every
+`versions/*/manifest.json` and the root `manifest.json` from the newest. The legacy flat
+`screens/` and `areas/` are removed by the first publish in the new layout. The pages are
+rendered by `ui-catalog/readme.ts` from the manifest; tables are HTML because GitHub Markdown
+cannot set widths, and GitHub keeps `width` on `table`, `th` and `img`.
+
+Consequences:
+
+- Each release adds a full copy of the images, about 26 MB at today's size.
+- GitHub's image diff works between recounts of one version, not across versions.
+- Old versions can be pruned with a history-rewriting commit if the size grows.
+
 ## Non-goals
 
-- Versioning the images by release tag inside the catalog repository (one path per state is the
-  whole point; history is the versioning).
+- Versioning the images by release tag inside the catalog repository (superseded by the
+  amendment above: the owner chose one folder per version).
 - Serving the catalog as a site, or embedding its images into the documentation site.
 - Storing PR evidence, `verify/` scenario artifacts, videos, or `.evidence/` content of any
   other kind there. The catalog holds still PNGs only.

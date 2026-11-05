@@ -7,6 +7,7 @@ import { ENABLED_CAPTURE_MODES, type CaptureMode } from "@shared/types/screensho
 import { useScreenshotMode } from "./use-screenshot-mode";
 import { useSupportedCaptureModes } from "./use-supported-capture-modes";
 import styles from "./capture-mode-buttons.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 const MODE_ICON: Record<CaptureMode, LucideIcon> = {
   frame: Frame,
@@ -38,6 +39,10 @@ interface CaptureModeButtonsProps {
   onStopRecording?: () => void;
   /** The chips on offer; defaults to `ENABLED_CAPTURE_MODES` (Window is off). */
   enabledModes?: readonly CaptureMode[];
+  /** Catalog areas: the whole control, the Capture button, and the row of mode chips. */
+  ui?: UiAreaProps;
+  captureUi?: UiAreaProps;
+  modesUi?: UiAreaProps;
 }
 
 /**
@@ -59,6 +64,9 @@ export function CaptureModeButtons({
   recording = null,
   onStopRecording,
   enabledModes = ENABLED_CAPTURE_MODES,
+  ui,
+  captureUi,
+  modesUi,
 }: CaptureModeButtonsProps): React.JSX.Element {
   const t = useTranslations("screenshots");
   const supported = useSupportedCaptureModes();
@@ -80,6 +88,7 @@ export function CaptureModeButtons({
 
   const primary = (
     <button
+      {...captureUi}
       type="button"
       className={styles.primary}
       disabled={busy || !available(current)}
@@ -125,7 +134,7 @@ export function CaptureModeButtons({
   if (variant === "panel") {
     const noneAvailable = supported !== null && supported.length === 0;
     return (
-      <div className={styles.panel} data-busy={busy || undefined}>
+      <div {...ui} className={styles.panel} data-busy={busy || undefined}>
         {recording && (
           <div className={styles.trayBanner} role="status">
             <CircleDot size={14} className={styles.recIcon} aria-hidden />
@@ -135,7 +144,9 @@ export function CaptureModeButtons({
           </div>
         )}
         {primary}
-        <div className={styles.chips}>{chips}</div>
+        <div {...modesUi} className={styles.chips}>
+          {chips}
+        </div>
         <p className={styles.trayHint}>
           {noneAvailable ? t("notAvailable") : t("trayLastUsed", { mode: name(current) })}
         </p>
@@ -144,7 +155,7 @@ export function CaptureModeButtons({
   }
 
   return (
-    <section className={styles.hero} data-busy={busy || undefined}>
+    <section {...ui} className={styles.hero} data-busy={busy || undefined}>
       {recording && (
         <div className={styles.banner} role="status">
           <CircleDot size={16} className={styles.recIcon} aria-hidden />
@@ -164,7 +175,9 @@ export function CaptureModeButtons({
       </div>
       <div className={styles.lastUsed}>
         <span className={styles.lastUsedLabel}>{t("lastUsed")}</span>
-        <div className={styles.chips}>{chips}</div>
+        <div {...modesUi} className={styles.chips}>
+          {chips}
+        </div>
       </div>
     </section>
   );

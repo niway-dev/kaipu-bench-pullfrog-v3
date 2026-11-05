@@ -8,6 +8,7 @@ import { tokens } from "@kaipu/tokens/kaipu.stylex";
 import { Popover } from "@kaipu/ui";
 import { PERMISSION_META } from "../permissions";
 import styles from "./permissions-step.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** The "granted" pill's own shape, moved out of permissions-step.module.css:
  *  the shared Badge takes StyleX styles, not a className. */
@@ -67,7 +68,7 @@ export function PermissionsStep({
 }: PermissionsStepProps): React.JSX.Element {
   const t = useTranslations("onboarding");
   return (
-    <div className={styles.step}>
+    <div {...uiArea("onboarding.permissionsStep")} className={styles.step}>
       <span className={styles.mark}>
         <KaipuLogo use="permissions" size={96} />
       </span>

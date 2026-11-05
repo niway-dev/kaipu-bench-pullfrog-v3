@@ -58,6 +58,7 @@ import { isMaintenanceError } from "@renderer/features/library/vault-errors";
 import { showToast } from "@renderer/ui/toast-store";
 import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
 import styles from "./screenshot-editor-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
@@ -92,11 +93,18 @@ export function ScreenshotEditorPage(): React.JSX.Element {
   const location = useLocation();
   const source = location.state as ImageSource | null;
   if (!source) return <Navigate to="/screenshots" replace />;
-  return <ScreenshotEditor key={location.key} source={source} />;
+  return <ScreenshotEditor key={location.key} source={source} fresh />;
 }
 
 /** The image editor itself. The Editor workspace routes render it, keyed per item. */
-export function ScreenshotEditor({ source }: { source: ImageSource }): React.JSX.Element {
+export function ScreenshotEditor({
+  source,
+  fresh = false,
+}: {
+  source: ImageSource;
+  /** A capture that is not in the vault yet (`/editor/capture`), not a saved item. */
+  fresh?: boolean;
+}): React.JSX.Element {
   const t = useTranslations("screenshots");
   const tLibrary = useTranslations("library");
   const tCommon = useTranslations("common");
@@ -546,10 +554,14 @@ export function ScreenshotEditor({ source }: { source: ImageSource }): React.JSX
   if (!image) return <></>;
 
   return (
-    <div className={styles.editor}>
+    <div
+      {...(fresh ? uiArea("editorCapture.page") : uiArea("editorImage.page"))}
+      className={styles.editor}
+    >
       {/* "IN · Work ▾" once the shot is saved in a workspace (ADR 0033). */}
       <ItemWorkspaceChip assetId={savedId ? (savedAssetIdRef.current ?? null) : null} />
       <div
+        {...uiArea("editorImage.toolbar")}
         ref={toolbarRef}
         className={styles.toolbar}
         role="toolbar"
@@ -635,7 +647,7 @@ export function ScreenshotEditor({ source }: { source: ImageSource }): React.JSX
         </div>
       </div>
       <div className={styles.body}>
-        <div className={styles.canvasArea}>
+        <div {...uiArea("editorImage.canvas")} className={styles.canvasArea}>
           <div ref={canvasRef} className={styles.canvas} data-zoomed={zoom > 1}>
             <BeautifiedFrame
               src={image.displayUrl}

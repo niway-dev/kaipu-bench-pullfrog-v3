@@ -4,6 +4,7 @@ import { Button } from "@kaipu/ui";
 import type { LibraryVideo } from "@renderer/features/library/types";
 import { VideoPicker } from "./video-picker";
 import styles from "./export-drop-zone.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 interface ExportDropZoneProps {
   /** Files are being dragged over the window: the zone lights up as the target. */
@@ -30,7 +31,12 @@ export function ExportDropZone({
   const t = useTranslations("export");
   return (
     <div className={styles.wrap}>
-      <div className={styles.zone} data-active={active} data-testid="export-drop-zone">
+      <div
+        {...uiArea("exportNew.dropZone")}
+        className={styles.zone}
+        data-active={active}
+        data-testid="export-drop-zone"
+      >
         <Download size={30} strokeWidth={1.8} className={styles.icon} aria-hidden />
         <h2 className={styles.title}>
           {importing ? t("dropImporting") : active ? t("dropActive") : t("dropTitle")}

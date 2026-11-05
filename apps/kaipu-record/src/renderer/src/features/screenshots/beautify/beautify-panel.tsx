@@ -9,6 +9,7 @@ import {
 } from "./backgrounds";
 import type { BeautifyController } from "./use-beautify";
 import styles from "./beautify-panel.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** The right-side "Beautify" panel: background swatches + the three sliders. */
 export function BeautifyPanel({ beautify }: { beautify: BeautifyController }): React.JSX.Element {
@@ -16,7 +17,7 @@ export function BeautifyPanel({ beautify }: { beautify: BeautifyController }): R
   const { state, commit, beginEdit, setLive, endEdit } = beautify;
 
   return (
-    <aside className={styles.panel}>
+    <aside {...uiArea("editorImage.beautify")} className={styles.panel}>
       <p className={styles.heading}>{t("beautifyHeading")}</p>
 
       <p className={styles.label}>{t("background")}</p>

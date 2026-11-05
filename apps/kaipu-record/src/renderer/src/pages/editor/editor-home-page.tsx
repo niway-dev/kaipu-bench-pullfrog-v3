@@ -34,6 +34,7 @@ import {
   type EditorTab,
 } from "./editor-continue";
 import styles from "./editor-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type Entry = ContinueEntry<LibraryVideo>;
 
@@ -66,7 +67,7 @@ export function EditorHomePage(): React.JSX.Element {
   const paste = usePasteToEditor();
 
   return (
-    <div className={styles.home}>
+    <div {...uiArea("editor.page")} className={styles.home}>
       <div className={styles.homeHeader}>
         <div>
           <h1 className={styles.homeTitle}>{t("title")}</h1>
@@ -74,7 +75,12 @@ export function EditorHomePage(): React.JSX.Element {
             {t(tab === "images" ? "subtitleImages" : "subtitleVideos")}
           </p>
         </div>
-        <div className={styles.tabs} role="tablist" aria-label={t("tabsLabel")}>
+        <div
+          {...uiArea("editor.tabs")}
+          className={styles.tabs}
+          role="tablist"
+          aria-label={t("tabsLabel")}
+        >
           {(["images", "videos"] as const).map((id) => (
             <button
               key={id}
@@ -118,7 +124,7 @@ function StartImage({ onPaste }: { onPaste: () => void }): React.JSX.Element {
   const t = useTranslations("editor");
   const clip = useClipboardImageSize();
   return (
-    <section className={styles.start}>
+    <section {...uiArea("editor.startImage")} className={styles.start}>
       <span className={styles.startIcon} aria-hidden>
         <ImagePlus size={24} />
       </span>
@@ -196,7 +202,7 @@ function ContinueSection(props: {
   const rows = rest.slice(0, shown);
   const hidden = rest.length - rows.length;
   return (
-    <section className={styles.continue}>
+    <section {...uiArea("editor.continue")} className={styles.continue}>
       <div className={styles.continueHeader}>
         <h2 className={styles.continueTitle}>{t("continueTitle")}</h2>
         <span className={styles.continueCaption}>
@@ -282,7 +288,7 @@ function HeroCard({ entry, lineage }: { entry: Entry; lineage: Lineage }): React
   const t = useTranslations("editor");
   const label = useActivityLabel();
   return (
-    <div className={styles.hero}>
+    <div {...uiArea("editor.hero")} className={styles.hero}>
       <Thumb item={entry.item} large />
       <div className={styles.heroText}>
         <span className={styles.eyebrow}>{t("lastWorkedOn")}</span>
@@ -316,7 +322,7 @@ function EmptyContinue({ tab }: { tab: EditorTab }): React.JSX.Element {
   const t = useTranslations("editor");
   const shortcuts = useShortcutLabels();
   return (
-    <section className={styles.emptyContinue}>
+    <section {...uiArea("editor.emptyContinue")} className={styles.emptyContinue}>
       <span className={styles.emptyMark} aria-hidden>
         <KaipuLogo use="product" size={64} />
       </span>

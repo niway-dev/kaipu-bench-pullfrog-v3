@@ -53,6 +53,7 @@ import { useLibrarySelection } from "@renderer/features/library/hooks/use-librar
 import type { ItemSelection } from "@renderer/features/library/components/select-check";
 import type { LibraryVideo } from "@renderer/features/library/types";
 import styles from "./library-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** The search field's share of the toolbar, moved out of the module: the shared
  *  SearchInput takes StyleX styles, not a className. */
@@ -217,8 +218,8 @@ export function LibraryPage(): React.JSX.Element {
   };
 
   return (
-    <div className={styles.page}>
-      <WorkspaceNotConnectedNotice />
+    <div {...uiArea("library.page")} className={styles.page}>
+      <WorkspaceNotConnectedNotice ui={uiArea("library.workspaceNotice")} />
       <div className={styles.pageHeader}>
         <div className={styles.pageHeaderText}>
           <div className={styles.pageTitleRow}>
@@ -261,7 +262,7 @@ export function LibraryPage(): React.JSX.Element {
           under them; the title above scrolls away to leave room. */}
       <div ref={stuckSentinel} aria-hidden />
       <div className={styles.stickyBar} data-stuck={stuck}>
-        <div className={styles.toolbar}>
+        <div {...uiArea("library.toolbar")} className={styles.toolbar}>
           <SearchInput
             placeholder={t("searchPlaceholder")}
             value={searchTerm}
@@ -269,7 +270,7 @@ export function LibraryPage(): React.JSX.Element {
             icon={<Search size={14} strokeWidth={1.8} />}
             style={sxLibrary.search}
           />
-          <SortMenu sort={sortKey} onChange={setSortKey} />
+          <SortMenu ui={uiArea("library.sortMenu")} sort={sortKey} onChange={setSortKey} />
           <div className={styles.viewToggle}>
             <button
               className={styles.viewToggleButton}
@@ -293,7 +294,12 @@ export function LibraryPage(): React.JSX.Element {
         </div>
 
         <div className={styles.filterRow}>
-          <div className={styles.filterGroup} role="group" aria-label={t("filterKind")}>
+          <div
+            {...uiArea("library.kindFilter")}
+            className={styles.filterGroup}
+            role="group"
+            aria-label={t("filterKind")}
+          >
             <span className={styles.groupLabel} title={t("filterKindHint")}>
               {t("filterKind")}
             </span>
@@ -316,7 +322,12 @@ export function LibraryPage(): React.JSX.Element {
             </FilterChip>
           </div>
 
-          <div className={styles.filterGroup} role="group" aria-label={t("filterStorage")}>
+          <div
+            {...uiArea("library.storageFilter")}
+            className={styles.filterGroup}
+            role="group"
+            aria-label={t("filterStorage")}
+          >
             <span
               className={styles.groupLabel}
               title={t(isWindowsHost() ? "filterStorageHintWindows" : "filterStorageHint")}
@@ -348,7 +359,12 @@ export function LibraryPage(): React.JSX.Element {
         </div>
 
         <div className={styles.filterRow}>
-          <div className={styles.tagGroup} role="group" aria-label={t("filterTags")}>
+          <div
+            {...uiArea("library.tagFilter")}
+            className={styles.tagGroup}
+            role="group"
+            aria-label={t("filterTags")}
+          >
             <span className={styles.groupLabel} title={t("filterTagsHint")}>
               {t("filterTags")}
             </span>
@@ -383,7 +399,7 @@ export function LibraryPage(): React.JSX.Element {
           </div>
         </div>
 
-        <ReconcileBanner />
+        <ReconcileBanner ui={uiArea("library.reconcileBanner")} />
 
         {canShowVaultBanner && (
           <div className={styles.vaultBanner} role="status" aria-live="polite">
@@ -415,7 +431,7 @@ export function LibraryPage(): React.JSX.Element {
       </div>
 
       {showFullPageError ? (
-        <div className={styles.empty}>
+        <div {...uiArea("library.emptyState")} className={styles.empty}>
           <AlertTriangle size={48} className={styles.emptyIcon} />
           <h3 className={styles.emptyTitle}>{t("errorTitle")}</h3>
           <p className={styles.emptySubtitle}>{t("errorSubtitle")}</p>
@@ -425,7 +441,7 @@ export function LibraryPage(): React.JSX.Element {
           </Button>
         </div>
       ) : visibleItems.length === 0 ? (
-        <div className={styles.empty}>
+        <div {...uiArea("library.emptyState")} className={styles.empty}>
           <Library size={48} className={styles.emptyIcon} />
           {videos.length === 0 ? (
             <>
@@ -450,9 +466,10 @@ export function LibraryPage(): React.JSX.Element {
           )}
         </div>
       ) : view === "grid" ? (
-        <div className={styles.grid}>
+        <div {...uiArea("library.grid")} className={styles.grid}>
           {leading.map(({ video, copy }) => (
             <ReadyCopyCard
+              ui={uiArea("library.readyCopyCard")}
               key={video.assetId}
               video={video}
               copy={copy}
@@ -469,6 +486,7 @@ export function LibraryPage(): React.JSX.Element {
             .filter((video) => !leadingIds.has(video.assetId))
             .map((video) => (
               <VideoCard
+                ui={uiArea("library.videoCard")}
                 key={video.assetId}
                 video={video}
                 destination={copyDestinationOf(video, readyInfo.get(video.assetId)?.destination)}
@@ -492,10 +510,11 @@ export function LibraryPage(): React.JSX.Element {
             ))}
         </div>
       ) : (
-        <div className={styles.scrollContainer}>
+        <div {...uiArea("library.list")} className={styles.scrollContainer}>
           <div className={styles.listContainer}>
             {visibleItems.map((video, i) => (
               <VideoRow
+                ui={uiArea("library.videoRow")}
                 key={video.assetId}
                 video={video}
                 isLast={i === visibleItems.length - 1}
@@ -521,6 +540,7 @@ export function LibraryPage(): React.JSX.Element {
       )}
       {(selection.active || moveProgress) && (
         <SelectionBar
+          ui={uiArea("library.selectionBar")}
           count={selection.selected.length}
           onMoveTo={(target) => void runMove(selection.selected, target)}
           onClear={selection.clear}
@@ -529,6 +549,7 @@ export function LibraryPage(): React.JSX.Element {
       )}
       {tagDrawer && (
         <TagPanel
+          ui={uiArea("library.tagPanel")}
           video={tagging}
           tags={tagApi.tags}
           initialTab={tagDrawer.tab}

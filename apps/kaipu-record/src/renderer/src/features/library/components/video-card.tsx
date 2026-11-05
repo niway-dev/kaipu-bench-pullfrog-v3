@@ -15,6 +15,7 @@ import type { DestinationId } from "@renderer/features/prepare/destinations";
 import { DestinationTag } from "@renderer/features/prepare/components/destination-tag";
 import { SelectCheck, type ItemSelection } from "./select-check";
 import styles from "./video-card.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 const CARD_TAGS_SHOWN = 3;
 
@@ -41,6 +42,8 @@ interface VideoCardProps {
   moveMenu?: React.ReactNode;
   /** Select mode: a click toggles the checkbox instead of opening the item. */
   selection?: ItemSelection;
+  /** The catalog area this card is (`uiArea("…")`), put on its root. */
+  ui?: UiAreaProps;
 }
 
 export function VideoCard({
@@ -57,6 +60,7 @@ export function VideoCard({
   destination = null,
   moveMenu,
   selection,
+  ui,
 }: VideoCardProps): React.JSX.Element {
   const t = useTranslations("library");
   // A few tags always visible under the title, the rest as "+N".
@@ -72,6 +76,7 @@ export function VideoCard({
 
   return (
     <div
+      {...ui}
       className={styles.card}
       data-selected={selected || selection?.checked}
       aria-pressed={selection ? selection.checked : undefined}

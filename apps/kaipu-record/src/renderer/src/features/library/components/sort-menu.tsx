@@ -3,6 +3,7 @@ import { ArrowUpDown, ChevronDown, Check } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { SortKey } from "@renderer/features/library/library-filters";
 import styles from "./sort-menu.module.css";
+import { uiArea, type UiAreaProps } from "@renderer/lib/ui-area";
 
 const SORT_OPTIONS: Array<{ key: SortKey; labelKey: "sortNewest" | "sortOldest" | "sortLargest" }> =
   [
@@ -14,14 +15,15 @@ const SORT_OPTIONS: Array<{ key: SortKey; labelKey: "sortNewest" | "sortOldest" 
 interface SortMenuProps {
   sort: SortKey;
   onChange: (key: SortKey) => void;
+  ui?: UiAreaProps;
 }
 
-export function SortMenu({ sort, onChange }: SortMenuProps): React.JSX.Element {
+export function SortMenu({ sort, onChange, ui }: SortMenuProps): React.JSX.Element {
   const t = useTranslations("library");
   const [open, setOpen] = useState(false);
   const current = SORT_OPTIONS.find((o) => o.key === sort) ?? SORT_OPTIONS[0];
   return (
-    <div className={styles.root}>
+    <div {...ui} className={styles.root}>
       <button className={styles.sortButton} onClick={() => setOpen((o) => !o)} type="button">
         <ArrowUpDown size={14} strokeWidth={1.8} />
         {t(current.labelKey)}
@@ -30,7 +32,7 @@ export function SortMenu({ sort, onChange }: SortMenuProps): React.JSX.Element {
       {open && (
         <>
           <div className={styles.sortBackdrop} onClick={() => setOpen(false)} />
-          <div className={styles.sortDropdown}>
+          <div {...uiArea("library.sortOptions")} className={styles.sortDropdown}>
             {SORT_OPTIONS.map((o) => (
               <button
                 key={o.key}

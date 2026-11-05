@@ -1,6 +1,7 @@
 import React, { type ComponentType, type Ref } from "react";
 import { ChevronDown } from "lucide-react";
 import styles from "./toggle-split.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 export interface ToggleSplitProps {
   icon: ComponentType<{ size?: number }>;
@@ -32,6 +33,8 @@ export interface ToggleSplitProps {
   controlsId?: string;
   /** The chevron, so the settings can send focus back to it when they close. */
   chevronRef?: Ref<HTMLButtonElement>;
+  /** The catalog area this tile is (`uiArea("…")`), put on its root. */
+  ui?: UiAreaProps;
 }
 
 /**
@@ -57,12 +60,14 @@ export function ToggleSplit({
   onOpenChange,
   controlsId,
   chevronRef,
+  ui,
 }: ToggleSplitProps): React.JSX.Element {
   const iconSize = compact ? 15 : 20;
   const ShownIcon = blocked && BlockedIcon ? BlockedIcon : Icon;
 
   return (
     <div
+      {...ui}
       className={styles.split}
       data-compact={compact || undefined}
       data-active={on || undefined}

@@ -12,6 +12,7 @@ import {
 } from "@kaipu/ui";
 import type { ScreenSource } from "@shared/types/electron-api";
 import { PermissionNotice } from "./permission-notice";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** The thumbnail, or a clean monitor/window icon when the capture came back blank
  *  (or the image fails to load) — never a broken <img>. */
@@ -120,15 +121,19 @@ export function ScreenSourceSelector(props: ScreenSourceSelectorProps): React.JS
     );
   })();
 
+  // `SourcePicker` (@kaipu/ui) forwards no props to its DOM, so the area root is this
+  // wrapper; `display: contents` keeps it out of the layout.
   return (
-    <SourcePicker
-      title={t("selectScreenOrWindow")}
-      tabs={KINDS.map((k) => ({ id: k.id, label: t(k.labelKey) }))}
-      activeTab={kind}
-      onTabChange={(id) => setKind(id as SourceKind)}
-      onClose={props.onClose}
-    >
-      {panel}
-    </SourcePicker>
+    <div {...uiArea("record.sourcePicker")} style={{ display: "contents" }}>
+      <SourcePicker
+        title={t("selectScreenOrWindow")}
+        tabs={KINDS.map((k) => ({ id: k.id, label: t(k.labelKey) }))}
+        activeTab={kind}
+        onTabChange={(id) => setKind(id as SourceKind)}
+        onClose={props.onClose}
+      >
+        {panel}
+      </SourcePicker>
+    </div>
   );
 }

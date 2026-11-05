@@ -37,6 +37,7 @@ import {
   webcamTimeFor,
 } from "../webcam/webcam-sync";
 import styles from "./webcam-layer.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 type Point = { x: number; y: number };
 
@@ -320,6 +321,7 @@ export function WebcamLayer({
   return (
     <div className={styles.slot} data-testid="webcam-slot">
       <div
+        {...uiArea("editorVideo.webcam")}
         ref={boxRef}
         className={styles.bubble}
         style={{ display: "none" }}

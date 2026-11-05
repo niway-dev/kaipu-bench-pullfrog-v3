@@ -15,6 +15,7 @@ import "@renderer/features/library/tags/tag-palette.css";
 import { isWindowsHost } from "@renderer/features/shortcuts/host-platform";
 import { useWorkspaces } from "./workspaces-context";
 import styles from "./workspace-switcher.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** Where the settings page for workspaces lives (Manage workspaces…, the menu's Settings). */
 export const WORKSPACES_SETTINGS_PATH = "/settings/workspaces";
@@ -83,7 +84,7 @@ export function WorkspaceSwitcher(): React.JSX.Element | null {
   const showHint = !state.hintDismissed && !menuOpen;
 
   return (
-    <div className={styles.anchor} ref={anchorRef}>
+    <div {...uiArea("shell.workspaceSwitcher")} className={styles.anchor} ref={anchorRef}>
       <button
         type="button"
         className={styles.bar}
@@ -159,7 +160,12 @@ function WorkspaceMenu({
   return (
     <>
       <div className={styles.backdrop} onClick={() => setMenuOpen(false)} aria-hidden />
-      <div className={styles.menu} role="menu" aria-label={t("label")}>
+      <div
+        {...uiArea("shell.workspaceMenu")}
+        className={styles.menu}
+        role="menu"
+        aria-label={t("label")}
+      >
         <div className={styles.current}>
           <div className={styles.currentHead}>
             <WorkspaceTile workspace={active} size={28} dim={activeOff} />

@@ -16,12 +16,14 @@ export interface EnvBadgeProps {
  */
 export function EnvBadge({ className }: EnvBadgeProps): React.JSX.Element | null {
   if (!import.meta.env.DEV) return null;
+  // Feature flags pinned by `KAIPU_FLAG_OVERRIDES`: say so, or a pinned window looks real.
+  const overridden = Object.keys(window.electronAPI?.flagOverrides ?? {}).length > 0;
   return (
     <span
       className={cx(styles.badge, className)}
       title="Running from electron-vite dev — not a packaged build"
     >
-      local env
+      local env{overridden ? " · flags overridden" : ""}
     </span>
   );
 }

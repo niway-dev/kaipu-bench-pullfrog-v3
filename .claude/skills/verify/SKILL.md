@@ -49,7 +49,26 @@ bun <skills>/cs-capture-evidence/scripts/shots.mjs apps/documentation/public/moc
 Copy a mockup that is not committed yet into its own `/tmp` folder first; run the script from the
 repo root either way, so it finds `playwright-core`.
 
-### Renderer component in a harness
+### Real-app picture of one state (preferred)
+
+For any screen or state the UI catalog names, the real Electron app on the Mac mini is the source,
+not a harness. From `apps/kaipu-record`:
+
+```bash
+bun run ui-catalog:remote --only '<screen>/<state>'            # e.g. 'record/countdown'
+bun run ui-catalog:remote --sha <base sha> --only '<screen>/<state>'   # the same state on the base, for a before/after
+```
+
+The images land in `.evidence/ui-catalog/<short sha>/screens/` (and `areas/`); run the command once
+per SHA for a before/after. Electron starts only on the mini (`ssh macmini`), never on this machine.
+The state ids are in `apps/kaipu-record/ui-catalog/catalog/README.md`. The catalog publishes
+nothing unless `ui-catalog:publish` is run, so this is safe on a branch.
+
+### Renderer component in a harness (fallback only)
+
+Label every shot from here as a harness shot: it proves what a component renders, never main's
+behaviour, and it is never a catalog image or a before/after of the real app. Use it only when
+the state is not in the catalog yet or the mini is unreachable.
 
 For a real component (a card, a floating window, a dialog), without Electron. Proven on NIW2-606
 (the capture preview card):

@@ -98,15 +98,43 @@ async function seedVault(vaultDir: string): Promise<void> {
  * put `app.getPath("userData")` in our temp dir, so vault-location.ts reads OUR
  * preferences and never the developer's real profile or ~/Videos/Kaipu Record.
  */
-export async function launchApp(options: { recordVideoDir?: string } = {}): Promise<{
+export interface LaunchOptions {
+  /** Used only by `verify/` (PR proof). Playwright finalizes the .webm when the app closes. */
+  recordVideoDir?: string;
+  /**
+   * Merged over `{ locale: "en" }` into the profile's `settings.json` before launch. The UI
+   * catalog uses it to start on one side of a settings gate (`recordingMode`, …).
+   */
+  settings?: Record<string, unknown>;
+  /** Fills the throwaway vault before launch. Default: the suite's two fixtures. */
+  seedVault?: (vaultDir: string) => Promise<void>;
+  /** Extra environment for Electron, over the runner's own (`KAIPU_FLAG_OVERRIDES`, …). */
+  env?: Record<string, string>;
+  /** Extra Electron/Chromium switches, after the user-data dir. */
+  extraArgs?: string[];
+  /**
+   * `KAIPU_DISABLE_SCREEN_CAPTURE=1` (default true). Only a run that records a real take
+   * turns it off, because without it the app asks macOS for screen capture.
+   */
+  disableScreenCapture?: boolean;
+  /**
+   * Launch the app folder (its package.json `main`) instead of the main script. Electron then
+   * reads the app's name and version from package.json, so the status bar shows the real
+   * version (V0.16.0) rather than Electron's own; the UI catalog needs that, the suite does not.
+   */
+  launchAppDir?: boolean;
+}
+
+export async function launchApp(options: LaunchOptions = {}): Promise<{
   app: ElectronApplication;
   page: Page;
   vaultDir: string;
+  userDataDir: string;
   teardown: () => Promise<void>;
 }> {
   const userDataDir = await mkdtemp(path.join(tmpdir(), "kaipu-e2e-user-"));
   const vaultDir = await mkdtemp(path.join(tmpdir(), "kaipu-e2e-vault-"));
-  await seedVault(vaultDir);
+  await (options.seedVault ?? seedVault)(vaultDir);
   await writeFile(
     path.join(userDataDir, "preferences.json"),
     JSON.stringify({ vaultDirectory: vaultDir }),
@@ -116,19 +144,29 @@ export async function launchApp(options: { recordVideoDir?: string } = {}): Prom
   // runners, Spanish on a local machine — which would flip every user-facing
   // string. Seeding settings.json with `locale: "en"` (the language these tests
   // assert in) makes the suite independent of the runner's OS locale.
-  await writeFile(path.join(userDataDir, "settings.json"), JSON.stringify({ locale: "en" }));
+  await writeFile(
+    path.join(userDataDir, "settings.json"),
+    JSON.stringify({ locale: "en", ...options.settings }),
+  );
 
   // Electron's Chromium sandbox needs a SUID helper that headless CI runners lack, so the
   // app fails to launch there without --no-sandbox. Disable it only under CI, never locally.
-  const args = [MAIN_ENTRY, `--user-data-dir=${userDataDir}`];
+  const entry = options.launchAppDir ? APP_ROOT : MAIN_ENTRY;
+  const args = [entry, `--user-data-dir=${userDataDir}`, ...(options.extraArgs ?? [])];
   if (process.env.CI) args.push("--no-sandbox");
 
   // No test in this suite records anything, so the app must not ask macOS for screen
   // capture on its way to the Record page (the default route). Without this, every launch
   // raises a system permission dialog and a full run stacks one per test.
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    ...options.env,
+  };
+  if (options.disableScreenCapture ?? true) env.KAIPU_DISABLE_SCREEN_CAPTURE = "1";
+  else delete env.KAIPU_DISABLE_SCREEN_CAPTURE;
   const app = await electron.launch({
     args,
-    env: { ...process.env, KAIPU_DISABLE_SCREEN_CAPTURE: "1" },
+    env,
     // Used only by `verify/` (PR proof). Playwright finalizes the .webm when the app closes.
     ...(options.recordVideoDir ? { recordVideo: { dir: options.recordVideoDir } } : {}),
   });
@@ -170,6 +208,7 @@ export async function launchApp(options: { recordVideoDir?: string } = {}): Prom
     app,
     page,
     vaultDir,
+    userDataDir,
     // The quit itself is bounded. `app.close()` asks the main process for `app.quit()` and
     // waits for the process to exit; when the quit lands 3.5–4.5 s after launch, in the
     // window where the app pre-loads its overlay and shade windows, the process sometimes

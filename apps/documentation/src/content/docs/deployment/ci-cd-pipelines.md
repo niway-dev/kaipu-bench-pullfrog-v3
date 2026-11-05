@@ -52,6 +52,17 @@ Keep the tag and the component's `package.json` version in sync (bump the file, 
    the installers (`.dmg`) to `download/<version>/` and `download/latest/`.
 3. Attaches the artifacts to a **draft pre-release** GitHub Release.
 
+4. **Manual, after Publish: recount the UI catalog.** No workflow does this (the catalog runs the
+   real app on the Mac mini and publishes to a private repository, so it cannot run in CI):
+
+   ```bash
+   cd apps/kaipu-record && bun run ui-catalog:remote --sha desktop-v<version> && bun run ui-catalog:publish --push
+   ```
+
+   `bun run ui-catalog:status` says whether the catalog is `current` or `behind` the newest
+   `desktop-v*` tag; `bun run setup` prints the same line. See the
+   [UI state catalog](/backlog/ui-state-catalog).
+
 The version is parsed from the tag: `desktop-v0.1.0` → `0.1.0` (used for the DMG filenames). See
 [auto-update](/backlog/auto-update) and [version-gate](/backlog/version-gate) for how installed apps
 consume the R2 feed.

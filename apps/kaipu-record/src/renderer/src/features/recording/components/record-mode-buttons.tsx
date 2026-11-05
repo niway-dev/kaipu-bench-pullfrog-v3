@@ -9,6 +9,7 @@ import {
 // The same chips and primary button as the screenshot entry points, so both read as one model.
 import styles from "@renderer/features/screenshots/capture-mode-buttons.module.css";
 import own from "./record-mode-buttons.module.css";
+import type { UiAreaProps } from "@renderer/lib/ui-area";
 
 const MODE_ICON: Record<CaptureMode, LucideIcon> = {
   frame: Frame,
@@ -37,6 +38,9 @@ interface RecordModeButtonsProps {
   onPick(mode: CaptureMode): void;
   /** What sits under the chips: the sound and camera inputs (before the panel's footnote). */
   children?: React.ReactNode;
+  /** Catalog areas: the Start button, and the row of mode chips. */
+  startUi?: UiAreaProps;
+  modesUi?: UiAreaProps;
 }
 
 /**
@@ -53,6 +57,8 @@ export function RecordModeButtons({
   onStart,
   onPick,
   children,
+  startUi,
+  modesUi,
 }: RecordModeButtonsProps): React.JSX.Element {
   const t = useTranslations("record");
   const tModes = useTranslations("screenshots");
@@ -60,7 +66,12 @@ export function RecordModeButtons({
   const ratio = area?.ratio && area.ratio !== "free" ? area.ratio : t("ratioFree");
 
   const primary = (
-    <button type="button" className={`${styles.primary} ${own.primary}`} onClick={onStart}>
+    <button
+      {...startUi}
+      type="button"
+      className={`${styles.primary} ${own.primary}`}
+      onClick={onStart}
+    >
       <span className={own.dot} aria-hidden />
       <span>{t("startRecording")}</span>
       {shortcut && <kbd className={styles.primaryShortcut}>{shortcut}</kbd>}
@@ -92,7 +103,9 @@ export function RecordModeButtons({
     return (
       <div className={styles.panel}>
         {primary}
-        <div className={styles.chips}>{chips}</div>
+        <div {...modesUi} className={styles.chips}>
+          {chips}
+        </div>
         {children}
         <p className={styles.trayHint}>{t("lastUsedNote", { mode: last })}</p>
       </div>
@@ -105,7 +118,7 @@ export function RecordModeButtons({
         {primary}
         <p className={styles.heroHint}>{t("startHelper")}</p>
       </div>
-      <div className={styles.lastUsed}>
+      <div {...modesUi} className={styles.lastUsed}>
         <span className={styles.lastUsedLabel}>{t("lastUsed")}</span>
         <div className={styles.chips}>{chips}</div>
         {mode === "frame" && area && (

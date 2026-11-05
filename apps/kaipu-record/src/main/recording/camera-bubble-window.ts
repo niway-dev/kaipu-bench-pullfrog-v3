@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from "electron";
 import { release } from "node:os";
 import { join } from "path";
+import { withFlagOverrides } from "../flag-overrides";
 import { is } from "@electron-toolkit/utils";
 import { DEFAULT_CAMERA_BUBBLE, clampCameraBubbleSize } from "@shared/camera-bubble";
 import {
@@ -103,11 +104,11 @@ export class CameraBubbleWindow {
       alwaysOnTop: true,
       skipTaskbar: true,
       hasShadow: false,
-      webPreferences: {
+      webPreferences: withFlagOverrides({
         preload: join(__dirname, "../preload/index.js"),
         sandbox: false,
         backgroundThrottling: false,
-      },
+      }),
     });
     this.protectedNow = this.protect();
     if (this.protectedNow) this.window.setContentProtection(true);

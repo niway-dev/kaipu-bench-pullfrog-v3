@@ -12,6 +12,7 @@ import { type LayoutEntry, layoutDuration } from "../timeline";
 import { fractionToTime, timeToFraction } from "./timeline-geometry";
 import type { EdgePhase } from "./zoom-lane";
 import styles from "./privacy-lane.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 export interface PrivacyLaneProps {
   redactions: Redaction[];
@@ -89,7 +90,12 @@ export function PrivacyLane({
   };
 
   return (
-    <div ref={laneRef} className={styles.lane} data-testid="privacy-lane">
+    <div
+      ref={laneRef}
+      {...uiArea("editorVideo.privacyLane")}
+      className={styles.lane}
+      data-testid="privacy-lane"
+    >
       {redactions.flatMap((r) => {
         const blocks = sourceRangeToTimelineBlocks(layout, r.start, r.end);
         const selected = r.id === selectedId;

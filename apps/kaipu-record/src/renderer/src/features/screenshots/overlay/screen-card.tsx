@@ -15,6 +15,7 @@ import {
 } from "./selection-chrome";
 import type { OverlayToggles } from "./record-chrome";
 import styles from "./capture-overlay.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /** Compact Mic · System · Cam chips on the Screen card opened to record. */
 function CardInputs({ toggles }: { toggles: OverlayToggles }): React.JSX.Element {
@@ -138,7 +139,11 @@ export function ScreenCard({
       onPointerLeave={() => report(null)}
       onClick={() => answer(primaryAction(intent))}
     >
-      <div className={styles.screenCard} data-testid="screen-card">
+      <div
+        {...uiArea("captureOverlay.screenCard")}
+        className={styles.screenCard}
+        data-testid="screen-card"
+      >
         <div className={styles.cardHeader}>
           <span className={styles.chooserNumber} aria-hidden>
             {index}

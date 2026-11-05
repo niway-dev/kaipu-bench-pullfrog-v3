@@ -3,6 +3,7 @@ import { useVideoFrameClock } from "../use-video-frame-clock";
 import { cameraAt, type CameraPath } from "../zoom/camera-path";
 import type { Redaction } from "../privacy/redaction";
 import { prepareCursor, drawCursor, type CursorFrame, type CursorLayerData } from "./cursor-model";
+import { uiArea } from "@renderer/lib/ui-area";
 
 export function CursorLayer({
   data,
@@ -83,6 +84,7 @@ export function CursorLayer({
   }, [claim, onSelect, frame.width]);
   return (
     <canvas
+      {...uiArea("editorVideo.cursor")}
       ref={canvas}
       width={frame.width}
       height={frame.height}

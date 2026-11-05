@@ -42,6 +42,7 @@ import { CountdownSettings } from "./countdown-settings";
 import { DiagnosticsSettings } from "./diagnostics-settings";
 import { Section, SettingsPanel } from "./settings-panel";
 import styles from "./settings-page.module.css";
+import { uiArea } from "@renderer/lib/ui-area";
 
 /*
  * Settings pages. Each surfaces only settings wired end to end:
@@ -62,17 +63,22 @@ export function GeneralSettingsPage(): React.JSX.Element {
   const navigate = useNavigate();
   const { settings, update } = useAppSettings();
   return (
-    <SettingsPanel title={t("general")} subtitle={t("generalDescription")} scope="global">
-      <Section title={t("language")}>
+    <SettingsPanel
+      ui={uiArea("settingsGeneral.page")}
+      title={t("general")}
+      subtitle={t("generalDescription")}
+      scope="global"
+    >
+      <Section ui={uiArea("settingsGeneral.language")} title={t("language")}>
         <LanguageSettings />
       </Section>
-      <Section title={t("theme")}>
+      <Section ui={uiArea("settingsGeneral.theme")} title={t("theme")}>
         <ThemeSettings
           theme={settings?.theme ?? "dark"}
           onChange={(theme) => void update({ theme })}
         />
       </Section>
-      <Section title={t("account")}>
+      <Section ui={uiArea("settingsGeneral.account")} title={t("account")}>
         <Row
           icon={<Cloud size={16} />}
           label={t("accountMoved")}
@@ -107,8 +113,13 @@ export function PermissionsSettingsPage(): React.JSX.Element {
   // `requestAccessibility()`; the onboarding Accessibility step is the only other one.
   const accessibility = useAccessibility();
   return (
-    <SettingsPanel title={t("permissions")} subtitle={t("permissionsDescription")} scope="global">
-      <Section title={t("permissions")}>
+    <SettingsPanel
+      ui={uiArea("settingsPermissions.page")}
+      title={t("permissions")}
+      subtitle={t("permissionsDescription")}
+      scope="global"
+    >
+      <Section ui={uiArea("settingsPermissions.permissions")} title={t("permissions")}>
         {PERMISSION_ROWS.map(({ kind, labelKey, icon }) => {
           const granted = status[kind];
           return (
@@ -134,6 +145,7 @@ export function PermissionsSettingsPage(): React.JSX.Element {
             "Hidden when the status is not-required"). */}
         {accessibility.status !== "not-required" && (
           <Row
+            {...uiArea("settingsPermissions.clickZoom")}
             icon={<MousePointerClick size={16} />}
             label={t("clickZoomLabel")}
             description={
@@ -162,12 +174,16 @@ export function RecordingQualitySettingsPage(): React.JSX.Element {
   const { settings, update } = useAppSettings();
   return (
     <SettingsPanel
+      ui={uiArea("settingsRecordingQuality.page")}
       title={t("recordingQuality")}
       subtitle={t("recordingQualityDescription")}
       scope="workspace"
       keys={["recordingQuality", "exportQuality"]}
     >
-      <Section title={t("recordingQuality")}>
+      <Section
+        ui={uiArea("settingsRecordingQuality.recordingQuality")}
+        title={t("recordingQuality")}
+      >
         <OverrideBlock
           settingKey="recordingQuality"
           fallback={DEFAULT_QUALITY}
@@ -178,7 +194,7 @@ export function RecordingQualitySettingsPage(): React.JSX.Element {
           )}
         </OverrideBlock>
       </Section>
-      <Section title={t("exportQuality")}>
+      <Section ui={uiArea("settingsRecordingQuality.exportQuality")} title={t("exportQuality")}>
         <OverrideBlock
           settingKey="exportQuality"
           fallback={DEFAULT_EXPORT_QUALITY}
@@ -210,12 +226,13 @@ export function RecordingSettingsPage(): React.JSX.Element {
   const { settings, update } = useAppSettings();
   return (
     <SettingsPanel
+      ui={uiArea("settingsRecording.page")}
       title={t("recording")}
       subtitle={t("recordingDescription")}
       scope="workspace"
       keys={["showBrandBadge"]}
     >
-      <Section title={t("recording")}>
+      <Section ui={uiArea("settingsRecording.options")} title={t("recording")}>
         <Row
           label={t("showControlBar")}
           description={t("showControlBarDescription")}
@@ -249,9 +266,14 @@ export function WorkspacesSettingsPage(): React.JSX.Element {
   const [removing, setRemoving] = React.useState<WorkspaceView | null>(null);
   const count = state?.workspaces.length ?? 0;
   return (
-    <SettingsPanel title={t("workspaces")} subtitle={t("workspacesDescription")} scope="global">
+    <SettingsPanel
+      ui={uiArea("settingsWorkspaces.page")}
+      title={t("workspaces")}
+      subtitle={t("workspacesDescription")}
+      scope="global"
+    >
       {state?.readOnly && <p className={styles.pathValue}>{tw("readOnly")}</p>}
-      <Section title={t("workspaces")}>
+      <Section ui={uiArea("settingsWorkspaces.list")} title={t("workspaces")}>
         {state?.workspaces.map((workspace) => {
           const isActive = workspace.id === state.activeId;
           const status =
@@ -371,8 +393,13 @@ export function AppSettingsPage(): React.JSX.Element {
   const { open: openOnboarding } = useOnboarding();
   const { settings, update } = useAppSettings();
   return (
-    <SettingsPanel title={t("app")} subtitle={t("appDescription")} scope="global">
-      <Section title={t("app")}>
+    <SettingsPanel
+      ui={uiArea("settingsApp.page")}
+      title={t("app")}
+      subtitle={t("appDescription")}
+      scope="global"
+    >
+      <Section ui={uiArea("settingsApp.app")} title={t("app")}>
         {/* The Dock and its activation policy exist only on macOS; on Windows the
             toggle would change nothing, so it is not shown at all. */}
         {!isWindowsHost() && (
@@ -397,10 +424,10 @@ export function AppSettingsPage(): React.JSX.Element {
           }
         />
       </Section>
-      <Section title={t("privacy")}>
+      <Section ui={uiArea("settingsApp.privacy")} title={t("privacy")}>
         <DiagnosticsSettings />
       </Section>
-      <Section title={tUpdates("updates")}>
+      <Section ui={uiArea("settingsApp.updates")} title={tUpdates("updates")}>
         <UpdateSettings />
       </Section>
     </SettingsPanel>
@@ -412,12 +439,13 @@ export function ScreenshotsSettingsPage(): React.JSX.Element {
   const t = useTranslations("settings");
   return (
     <SettingsPanel
+      ui={uiArea("settingsScreenshots.page")}
       title={t("screenshots")}
       subtitle={t("screenshotsDescription")}
       scope="workspace"
       keys={["screenshotCopy"]}
     >
-      <Section title={t("screenshots")}>
+      <Section ui={uiArea("settingsScreenshots.options")} title={t("screenshots")}>
         <ScreenshotAfterCaptureSettings />
         <ScreenshotCopySettings />
       </Section>
