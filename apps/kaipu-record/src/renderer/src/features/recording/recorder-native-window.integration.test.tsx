@@ -42,7 +42,7 @@ vi.mock("mediabunny", () => ({
   }),
 }));
 
-import { reportError } from "@renderer/features/analytics";
+let reportError: typeof import("@renderer/features/analytics").reportError;
 
 const RECORDING: LocalRecording = {
   id: "recording-x",
@@ -61,7 +61,7 @@ const RECORDING: LocalRecording = {
 // The store registers listeners at import time: the bridge must be in place first.
 window.electronAPI.onRecordingCommand = vi.fn(() => () => {});
 window.electronAPI.onSettingsChanged = vi.fn(() => () => {});
-const store = await import("./recorder-store");
+let store: typeof import("./recorder-store");
 
 const track = () => ({
   stop: vi.fn(),
@@ -83,6 +83,12 @@ function scriptedHelper() {
     closeWindow = resolve;
   });
   let ended = false;
+  let mainEnded = false;
+  let releaseStop!: () => void;
+  const stopGate = new Promise<void>((resolve) => {
+    releaseStop = resolve;
+  });
+  let gateStop = false;
   let step = 0;
   const bridge = {
     capability: vi.fn(async () => ({
@@ -97,8 +103,10 @@ function scriptedHelper() {
     cancel: vi.fn(async () => {}),
     // Main drops the session once it has handed out the final frame: a later stop is refused
     // unless main treats it as a no-op (here: the real main now resolves, the old one threw).
+    // Like main: a stop that arrives after the end was handed out (no reader) is a no-op.
     stop: vi.fn(async () => {
-      if (ended) throw new Error("No native capture session");
+      if (gateStop) await stopGate;
+      if (mainEnded) return;
       closeWindow();
     }),
     next: vi.fn(async () => {
@@ -124,6 +132,7 @@ function scriptedHelper() {
         };
       if (step === 3) {
         await closed;
+        mainEnded = true;
         return { header: { kind: "end" as const, endUs: 1000000 }, payload: new Uint8Array() };
       }
       ended = true;
@@ -134,6 +143,11 @@ function scriptedHelper() {
     bridge,
     /** The helper ends the take: the window closed. */
     close: () => closeWindow(),
+    /** Hold the renderer's stop request in flight until `releaseStop` (the IPC is slow). */
+    holdStop: () => {
+      gateStop = true;
+    },
+    releaseStop: () => releaseStop(),
   };
 }
 
@@ -147,11 +161,18 @@ const input = {
   height: 720,
 };
 
+let OutputRef: typeof Output;
 let outputs: Array<{ start: ReturnType<typeof vi.fn>; finalize: ReturnType<typeof vi.fn> }>;
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.useFakeTimers();
   vi.clearAllMocks();
+  // Each case gets its own store (and module instances): one failure cannot cascade.
+  vi.resetModules();
+  store = await import("./recorder-store");
+  reportError = (await import("@renderer/features/analytics")).reportError;
+  const { Output: OutputMock } = await import("mediabunny");
+  OutputRef = OutputMock;
   const screenTrack = track();
   vi.stubGlobal("AudioContext", function () {
     return {
@@ -193,7 +214,6 @@ beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((cb) => cb(null));
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
-  //DBG
 
   window.electronAPI.recordingCreate = vi.fn(async () => ({ tempPath: "/tmp/s" }));
   window.electronAPI.recordingStart = vi.fn();
@@ -207,8 +227,8 @@ beforeEach(() => {
   window.electronAPI.reportRecordTiming = vi.fn();
   window.electronAPI.cursorTrackStart = vi.fn(async () => ({ enabled: true }));
   outputs = [];
-  const make = vi.mocked(Output).getMockImplementation()!;
-  vi.mocked(Output).mockImplementation(function (...args) {
+  const make = vi.mocked(OutputRef).getMockImplementation()!;
+  vi.mocked(OutputRef).mockImplementation(function (...args) {
     const out = Reflect.construct(make, args);
     outputs.push(out);
     return out;
@@ -260,9 +280,9 @@ describe("a native window take whose window closes", () => {
   it("(b) while the webcam's startup is pending: it is saved once the take has begun", async () => {
     const helper = scriptedHelper();
     let startWebcam!: () => void;
-    const make = vi.mocked(Output).getMockImplementation()!;
+    const make = vi.mocked(OutputRef).getMockImplementation()!;
     let created = 0;
-    vi.mocked(Output).mockImplementation(function (...args) {
+    vi.mocked(OutputRef).mockImplementation(function (...args) {
       const out = Reflect.construct(make, args);
       if (++created === 2)
         out.start = vi.fn(() => new Promise<void>((resolve) => (startWebcam = resolve)));
@@ -301,18 +321,24 @@ describe("a native window take whose window closes", () => {
     expect(reportError).not.toHaveBeenCalled();
   });
 
-  it("(d) a user Stop racing the close: main refuses the stop, the take is still saved", async () => {
+  it("(d) a user Stop racing the close: main no-ops the late stop, the take is still saved", async () => {
     const helper = scriptedHelper();
     await startTake(helper);
 
-    // The window closes and, before the renderer has read the helper's end, the user stops.
-    helper.close();
+    // The user's Stop leaves the renderer first, but its IPC is slow: the helper's end is
+    // processed by main (no reader left) before the stop reaches it, so main no-ops the stop.
+    helper.holdStop();
     store.stopOrCancelRecording();
+    await vi.advanceTimersByTimeAsync(500);
+    helper.close();
+    await vi.advanceTimersByTimeAsync(500);
+    helper.releaseStop();
     await settle();
 
     expect(store.getRecorderSnapshot()).toEqual(idle);
     expect(outputs[0]!.finalize).toHaveBeenCalledOnce();
     expect(window.electronAPI.recordingFinalize).toHaveBeenCalledOnce();
+    expect(helper.bridge.stop).toHaveBeenCalledOnce();
     expect(window.electronAPI.recordingAbort).not.toHaveBeenCalled();
     expect(reportError).not.toHaveBeenCalled();
   });

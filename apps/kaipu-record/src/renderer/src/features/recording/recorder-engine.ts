@@ -1106,14 +1106,10 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
         await Promise.race([thumbnail, delay(THUMBNAIL_STOP_WAIT_MS)]);
         try {
           try {
-            // A stop that races the helper's own end (a window closing) may be refused: the
-            // take is complete once the pump has ended, so that is not a failure.
-            let stopError: unknown;
-            await nativeStopping?.catch((error: unknown) => {
-              stopError = error;
-            });
+            // A stop refused by main rejects here: the helper may still be running, so waiting
+            // for the pump could hang. (Main resolves a stop that races the end as a no-op.)
+            await nativeStopping;
             if (nativePump) await nativePump;
-            if (stopError !== undefined && !nativeEnded) throw stopError;
             await output.finalize();
           } catch (error) {
             // The take fails with its screen: the webcam file has no take to belong to.

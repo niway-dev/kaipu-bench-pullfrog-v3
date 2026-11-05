@@ -2129,14 +2129,14 @@ describe("experimental native recorder lifecycle", () => {
       await handle.stop();
     },
   );
-  it("a stop refused after the helper ended by itself does not discard the take", async () => {
-    const bridge = nativeBridge({ width: 1920, height: 1080 }, true);
-    bridge.stop.mockRejectedValue(new Error("No native capture session"));
+  it("a refused native stop mid-take rejects the stop promptly instead of hanging", async () => {
+    // The helper keeps running (its pump never ends): only the rejection can end the stop.
+    const bridge = nativeBridge({ width: 1920, height: 1080 });
+    bridge.stop.mockRejectedValue(new Error("stop refused"));
     const prepared = await prepareEngine(baseOptions({ sourceId: "window:55:0" }));
     const handle = await prepared.begin();
-    // The stop goes out before the end frame has been read: nativeEnded is still false.
-    await handle.stop();
-    expect(lastOutput().finalize).toHaveBeenCalledOnce();
+    await expect(handle.stop()).rejects.toThrow("stop refused");
+    expect(lastOutput().finalize).not.toHaveBeenCalled();
   });
   it("a Chromium window stream that ends during a native window take is not an error", async () => {
     nativeBridge({ width: 1920, height: 1080 });
