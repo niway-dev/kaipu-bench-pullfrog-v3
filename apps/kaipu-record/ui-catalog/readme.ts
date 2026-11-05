@@ -4,7 +4,7 @@ import {
   NOT_CAPTURABLE_KINDS,
   type NotCapturableKind,
 } from "./catalog/not-capturable";
-import { compareVersions } from "./status";
+import { compareVersions } from "./version";
 
 /**
  * `manifest.json` → `README.md`. Pure: the README is a function of the run and nothing

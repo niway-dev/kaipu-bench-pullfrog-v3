@@ -30,7 +30,7 @@ import {
 } from "./lint";
 import type { Manifest } from "./manifest";
 import { renderRootIndex, renderVersionPages, newestFirst } from "./readme";
-import { compareVersions } from "./status";
+import { compareVersions } from "./version";
 
 /**
  * `bun run ui-catalog:publish [<output dir>] [--push] [--force] [--remote <url>] [--author "Name <email>"]`

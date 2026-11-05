@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { compareVersions } from "./version";
 import { rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,21 +37,6 @@ export function parseStatusArgs(argv: readonly string[]): { remote: string } | {
 /** `desktop-v0.16.0` → `0.16.0`; null for any other tag. */
 export function versionOfTag(tag: string): string | null {
   return /^desktop-v(\d+\.\d+\.\d+(?:-[\w.]+)?)$/.exec(tag)?.[1] ?? null;
-}
-
-/** Plain semver order on the numeric part; a pre-release sorts before its release. */
-export function compareVersions(a: string, b: string): number {
-  const parse = (v: string): { nums: number[]; pre: boolean } => ({
-    nums: v.split("-")[0]!.split(".").map(Number),
-    pre: v.includes("-"),
-  });
-  const pa = parse(a);
-  const pb = parse(b);
-  for (let i = 0; i < 3; i++) {
-    const diff = (pa.nums[i] ?? 0) - (pb.nums[i] ?? 0);
-    if (diff !== 0) return diff;
-  }
-  return Number(pb.pre) - Number(pa.pre);
 }
 
 /** The catalog's line, and `current` or `behind desktop-vX.Y.Z`. */

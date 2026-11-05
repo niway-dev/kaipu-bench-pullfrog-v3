@@ -14,13 +14,13 @@ import {
   publish,
 } from "./publish";
 import {
-  compareVersions,
   describeStatus,
   parseStatusArgs,
   readRemoteManifest,
   statusCloneEnv,
   versionOfTag,
 } from "./status";
+import { compareVersions } from "./version";
 import type { Manifest } from "./manifest";
 
 const IDENTITY = { name: "Test Author", email: "author@example.test" };
