@@ -329,7 +329,9 @@ export function registerRecordingHub(
         // Showing a floating panel can drop the app from the Dock/Cmd+Tab on
         // macOS; re-assert the policy so the app stays reachable.
         applyDockPolicy();
-      } else if (takeRecordsWebcam()) {
+      } else if (takeRecordsWebcam() || (activity.active && nativeTransport?.isOpen())) {
+        // Under native the bubble is never destroyed mid-take, even after its webcam file
+        // ended: park releases the camera just the same (ADR 0047).
         // Mid-take, with the face going to its webcam file: park (hide, keep, still protected)
         // instead. The running screen capture leaves out the windows that were on screen when
         // it started, so turning the camera on again must bring back this same window; a new
