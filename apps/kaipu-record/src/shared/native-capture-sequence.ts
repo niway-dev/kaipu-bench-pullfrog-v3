@@ -1,11 +1,19 @@
 import { MAX_NATIVE_HEADER, MAX_NATIVE_PAYLOAD, type NativeCaptureFrame } from "./native-capture";
 
+/** The content sits top-left inside the output; 1 px of rounding is allowed. */
+const contentFits = (
+  content: { width: number; height: number },
+  out: { width: number; height: number },
+) => content.width <= out.width + 1 && content.height <= out.height + 1;
+
 /** Validate again in the renderer: IPC is a trust boundary too. */
 export class NativeSequence {
   private configured = false;
   private ended = false;
   private endUs = -1;
   private packets = 0;
+  private output: { width: number; height: number } | null = null;
+  private earlyContent = { width: 0, height: 0 };
   accept(frame: NativeCaptureFrame): void {
     const h = frame.header;
     if (this.ended || !h || frame.payload.length > MAX_NATIVE_PAYLOAD)
@@ -31,6 +39,15 @@ export class NativeSequence {
         !rect(h.content, true)
       )
         throw new Error("Invalid native geometry");
+      // The content sits top-left inside the output; 1 px of rounding is allowed.
+      if (h.content.x !== 0 || h.content.y !== 0) throw new Error("Invalid native geometry");
+      if (this.output) {
+        if (!contentFits(h.content, this.output)) throw new Error("Invalid native geometry");
+      } else {
+        // Before config the output size is unknown; remember the largest and check at config.
+        this.earlyContent.width = Math.max(this.earlyContent.width, h.content.width);
+        this.earlyContent.height = Math.max(this.earlyContent.height, h.content.height);
+      }
     } else if (h.kind === "config") {
       if (
         this.configured ||
@@ -72,6 +89,8 @@ export class NativeSequence {
       if (offset >= bytes.length) throw new Error("Missing AVC PPS");
       const ppsCount = bytes[offset++];
       sets(ppsCount, 8);
+      if (!contentFits(this.earlyContent, h)) throw new Error("Invalid native geometry");
+      this.output = { width: h.width, height: h.height };
       this.configured = true;
     } else if (h.kind === "packet") {
       if (

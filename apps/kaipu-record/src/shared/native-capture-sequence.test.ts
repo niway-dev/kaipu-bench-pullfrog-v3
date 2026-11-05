@@ -81,3 +81,24 @@ it("refuses a malformed geometry frame", () => {
   withPayload.payload = Uint8Array.from([1]);
   expect(() => new NativeSequence().accept(withPayload)).toThrow("Invalid native geometry");
 });
+
+it("refuses content that does not fit the output once config is known", () => {
+  const big = { x: 0, y: 0, width: 400, height: 180 }; // output is 320x180
+  const offset = { x: 10, y: 0, width: 320, height: 180 };
+  // After config: checked on arrival.
+  for (const content of [big, offset]) {
+    const sequence = new NativeSequence();
+    sequence.accept(config());
+    expect(() => sequence.accept(geometry({ content }))).toThrow("Invalid native geometry");
+  }
+  // Before config: checked when config arrives.
+  const early = new NativeSequence();
+  early.accept(geometry({ content: big }));
+  expect(() => early.accept(config())).toThrow("Invalid native geometry");
+  // Within one pixel of rounding is fine.
+  const ok = new NativeSequence();
+  ok.accept(config());
+  expect(() =>
+    ok.accept(geometry({ content: { x: 0, y: 0, width: 320.5, height: 180 } })),
+  ).not.toThrow();
+});

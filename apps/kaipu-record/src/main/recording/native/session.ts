@@ -103,6 +103,8 @@ export function spawnNativeVideo(
   extraArgs: string[] = [],
 ): NativeCaptureReader {
   validateNativeRequest(request);
+  if (testAllowUnmatchedParent && "windowId" in request)
+    throw new Error("The unmatched-parent bypass is not available for a window");
   const child = spawn(
     path,
     [

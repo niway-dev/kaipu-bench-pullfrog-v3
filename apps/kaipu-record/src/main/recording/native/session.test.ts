@@ -139,6 +139,11 @@ it("passes a window as --window argv without a display", async () => {
     /--encoded-capture-v1 --window 4242 580 384 30 1000000$/,
   );
 });
+it("refuses the unmatched-parent test bypass for a window", () => {
+  expect(() => spawnNativeVideo("/nonexistent", windowRequest, true)).toThrow(
+    "not available for a window",
+  );
+});
 it("reads geometry before config and between packets, then a clean end", async () => {
   const frame = (header: object, payload: number[] = []) => {
     const json = Buffer.from(JSON.stringify(header));
