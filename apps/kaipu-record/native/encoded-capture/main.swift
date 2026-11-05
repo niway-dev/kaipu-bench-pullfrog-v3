@@ -6,7 +6,11 @@ import VideoToolbox
 import CoreGraphics
 
 struct CaptureError: Error { let message: String }
-func hostUs() -> Int64 { Int64(CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock())) * 1_000_000) }
+// Same clock as Node's process.hrtime (mach_continuous_time, counts sleep). Do not use
+// CMClockGetHostTimeClock here: it is mach_absolute_time, which stops during sleep, so
+// stamped commands from Node would differ by the total sleep time (NIW2-649). Every
+// timestamp in this helper derives from this function, not from SCK sample PTS.
+func hostUs() -> Int64 { Int64(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW) / 1000) }
 func check(_ status: OSStatus) throws { if status != noErr { throw CaptureError(message: "Native status \(status)") } }
 
 final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
@@ -175,7 +179,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     static func main() async {
         do {
             let args = Array(CommandLine.arguments.dropFirst())
-            if args == ["--version"] { print("kaipu-encoded-capture/2 prepared pause-clock"); return }
+            if args == ["--version"] { print("kaipu-encoded-capture/2 prepared continuous-clock"); return }
             guard (args.count == 6 || (args.count == 7 && args[6] == "--test-allow-unmatched-parent")), args[0] == "--encoded-capture-v1", let displayID = UInt32(args[1]),
                   let width = Int(args[2]), let height = Int(args[3]), let fps = Int(args[4]), let bitrate = Int(args[5]),
                   width >= 2, width <= 7680, width % 2 == 0, height >= 2, height <= 7680, height % 2 == 0,

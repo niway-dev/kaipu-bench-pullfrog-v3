@@ -17,13 +17,14 @@ export function nativeHelperPath(resourcesPath: string, appPath?: string): strin
   }
   return join(resourcesPath, "app.asar.unpacked", "resources", "native", "kaipu-encoded-capture");
 }
+/** Bumped when the helper clock changes, so a stale binary is refused. */
+export const HELPER_VERSION = "kaipu-encoded-capture/2 prepared continuous-clock";
 export async function validateNativeHelper(path: string): Promise<void> {
   const { stdout } = await promisify(execFile)(path, ["--version"], {
     timeout: 2000,
     maxBuffer: 1024,
   });
-  if (stdout.trim() !== "kaipu-encoded-capture/2 prepared pause-clock")
-    throw new Error("Unsupported native helper version");
+  if (stdout.trim() !== HELPER_VERSION) throw new Error("Unsupported native helper version");
 }
 export function validateNativeRequest(request: NativeVideoRequest): void {
   if (
@@ -73,7 +74,8 @@ export function spawnNativeVideo(
   child.stdin.on("error", () => {}); // Exit/next reports pipe failures with bounded stderr.
   const frames = decodeNativeFrames(child.stdout);
   const sequence = new NativeSequence();
-  // Node hrtime and CMClock host time share macOS monotonic uptime. Bun does not.
+  // Node hrtime (libuv) and the helper's CLOCK_MONOTONIC_RAW are both mach_continuous_time,
+  // including sleep. CMClockGetHostTimeClock is not (NIW2-649). Bun does not match.
   const hostOffsetUs = Number(process.hrtime.bigint() / 1000n) - performance.now() * 1000;
   const hostAt = (ms: number) => {
     if (!Number.isFinite(ms) || Math.abs(ms - performance.now()) > 10_000)
