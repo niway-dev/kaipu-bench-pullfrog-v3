@@ -4,6 +4,7 @@ import type { RecordingArea } from "./types/ipc";
 export const NATIVE_CAPTURE_VERSION = 1;
 export const MAX_NATIVE_HEADER = 16 * 1024;
 export const MAX_NATIVE_PAYLOAD = 8 * 1024 * 1024;
+export type NativeRect = { x: number; y: number; width: number; height: number };
 export type NativeCaptureFrame = {
   header:
     | { kind: "ready"; version: 1 }
@@ -16,6 +17,16 @@ export type NativeCaptureFrame = {
         epochUs: number;
         cursorPixels: "excluded";
         epochMainMs?: number;
+      }
+    | {
+        /** Window sources only. Emitted before `config` and again on every change. */
+        kind: "geometry";
+        /** Host-clock microseconds, the same clock as `config.epochUs`. */
+        atUs: number;
+        /** The window in screen points, origin top-left of the primary display. */
+        frame: NativeRect;
+        /** Where the window's pixels sit inside the fixed output frame, in output pixels. */
+        content: NativeRect;
       }
     | { kind: "packet"; ptsUs: number; durationUs: number; keyframe: boolean }
     | { kind: "end"; endUs: number };
@@ -49,6 +60,19 @@ export interface NativeVideoRequest {
   /** Crop at the source, in display points (origin top-left). Absent: the whole display. */
   sourceRect?: { x: number; y: number; width: number; height: number };
 }
+/**
+ * A window source: the helper records one window at a fixed output size and streams its
+ * geometry. `windowId` is the CGWindowID (the number in Electron's `window:<n>:0`). It takes
+ * neither `displayId` nor `sourceRect`.
+ */
+export interface NativeWindowRequest {
+  windowId: number;
+  width: number;
+  height: number;
+  frameRate: number;
+  videoBitrate: number;
+}
+export type NativeCaptureRequest = NativeVideoRequest | NativeWindowRequest;
 /**
  * What the renderer asks main to open: the encode parameters plus the source it picked.
  * Main resolves `displayId` from `sourceId` and, with an `area`, the helper's `sourceRect`

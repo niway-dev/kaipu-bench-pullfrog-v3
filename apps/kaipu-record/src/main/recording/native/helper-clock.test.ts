@@ -30,6 +30,8 @@ it("never reads the sleep-excluding host time clock", () => {
 });
 
 it("rejects a stale helper build that still uses the old clock", () => {
-  expect(HELPER_VERSION).toBe("kaipu-encoded-capture/3 source-rect continuous-clock");
+  expect(HELPER_VERSION).toBe(
+    "kaipu-encoded-capture/4 source-rect window-geometry continuous-clock",
+  );
   expect(source).toContain(`print("${HELPER_VERSION}")`);
 });

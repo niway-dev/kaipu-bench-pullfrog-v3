@@ -11,7 +11,27 @@ export class NativeSequence {
     if (this.ended || !h || frame.payload.length > MAX_NATIVE_PAYLOAD)
       throw new Error("Invalid native sequence");
     const integer = (n: number) => Number.isSafeInteger(n) && n >= 0;
-    if (h.kind === "config") {
+    if (h.kind === "geometry") {
+      const rect = (r: unknown, nonNegativeOrigin: boolean) => {
+        if (!r || typeof r !== "object") return false;
+        const o = r as Record<string, unknown>;
+        if (Object.keys(o).sort().join(",") !== "height,width,x,y") return false;
+        const { x, y, width, height } = o as Record<string, number>;
+        return (
+          [x, y, width, height].every((n) => typeof n === "number" && Number.isFinite(n)) &&
+          width > 0 &&
+          height > 0 &&
+          (!nonNegativeOrigin || (x >= 0 && y >= 0))
+        );
+      };
+      if (
+        !integer(h.atUs) ||
+        frame.payload.length ||
+        !rect(h.frame, false) ||
+        !rect(h.content, true)
+      )
+        throw new Error("Invalid native geometry");
+    } else if (h.kind === "config") {
       if (
         this.configured ||
         h.version !== 1 ||
