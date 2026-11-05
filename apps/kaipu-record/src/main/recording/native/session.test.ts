@@ -7,6 +7,7 @@ import {
   validateNativeHelper,
   validateNativeRequest,
   nativeHelperPath,
+  HELPER_VERSION,
 } from "./session";
 const directories: string[] = [];
 afterEach(async () => {
@@ -56,6 +57,50 @@ it("gates helper version and refuses invalid quality dimensions before spawning"
   expect(nativeHelperPath("/package/Contents/Resources")).toBe(
     "/package/Contents/Resources/app.asar.unpacked/resources/native/kaipu-encoded-capture",
   );
+});
+it("accepts an optional sourceRect and refuses a malformed one or extra keys", () => {
+  const rect = { x: 0, y: 0, width: 400, height: 300 };
+  expect(() => validateNativeRequest({ ...request, sourceRect: rect })).not.toThrow();
+  expect(() => validateNativeRequest(request)).not.toThrow();
+  for (const bad of [
+    { ...rect, x: -1 },
+    { ...rect, y: 1.5 },
+    { ...rect, width: 1 },
+    { ...rect, height: 0 },
+    { ...rect, extra: 1 },
+    { x: 0, y: 0, width: 400 },
+  ])
+    expect(() => validateNativeRequest({ ...request, sourceRect: bad } as never)).toThrow();
+  expect(() => validateNativeRequest({ ...request, extra: 1 } as never)).toThrow();
+});
+it("pins the helper to protocol 3 and passes sourceRect as argv", async () => {
+  await expect(
+    validateNativeHelper(await helper(`console.log("${HELPER_VERSION}")`)),
+  ).resolves.toBeUndefined();
+  await expect(
+    validateNativeHelper(
+      await helper('console.log("kaipu-encoded-capture/2 prepared pause-clock")'),
+    ),
+  ).rejects.toThrow("version");
+  for (const stale of [
+    "kaipu-encoded-capture/3 source-rect",
+    "kaipu-encoded-capture/2 prepared continuous-clock",
+  ])
+    await expect(validateNativeHelper(await helper(`console.log("${stale}")`))).rejects.toThrow(
+      "version",
+    );
+  const path = await helper(
+    "process.stderr.write(process.argv.slice(2).join(' '));process.exit(2);",
+  );
+  const withRect = spawnNativeVideo(path, {
+    ...request,
+    sourceRect: { x: 10, y: 20, width: 400, height: 300 },
+  });
+  await expect(withRect.next()).rejects.toThrow(
+    "--encoded-capture-v1 3 320 180 30 1000000 --source-rect 10 20 400 300",
+  );
+  const without = spawnNativeVideo(path, request);
+  await expect(without.next()).rejects.toThrow(/1000000$/);
 });
 it("times out a helper that closes stdout after end but never exits", async () => {
   const frame = (header: object, payload: number[] = []) => {

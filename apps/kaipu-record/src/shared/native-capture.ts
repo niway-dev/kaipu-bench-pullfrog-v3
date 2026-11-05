@@ -44,6 +44,8 @@ export interface NativeVideoRequest {
   height: number;
   frameRate: number;
   videoBitrate: number;
+  /** Crop at the source, in display points (origin top-left). Absent: the whole display. */
+  sourceRect?: { x: number; y: number; width: number; height: number };
 }
 export interface NativeCaptureBridge {
   /** `requested`: the renderer's `native-cursor-capture` flag. The main process also

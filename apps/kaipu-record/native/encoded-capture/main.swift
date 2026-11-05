@@ -6,7 +6,11 @@ import VideoToolbox
 import CoreGraphics
 
 struct CaptureError: Error { let message: String }
-func hostUs() -> Int64 { Int64(CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock())) * 1_000_000) }
+// Same clock as Node's process.hrtime (mach_continuous_time, counts sleep). Do not use
+// CMClockGetHostTimeClock here: it is mach_absolute_time, which stops during sleep, so
+// stamped commands from Node would differ by the total sleep time (NIW2-649). Every
+// timestamp in this helper derives from this function, not from SCK sample PTS.
+func hostUs() -> Int64 { Int64(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW) / 1000) }
 func check(_ status: OSStatus) throws { if status != noErr { throw CaptureError(message: "Native status \(status)") } }
 
 final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
@@ -175,22 +179,50 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     static func main() async {
         do {
             let args = Array(CommandLine.arguments.dropFirst())
-            if args == ["--version"] { print("kaipu-encoded-capture/2 prepared pause-clock"); return }
-            guard (args.count == 6 || (args.count == 7 && args[6] == "--test-allow-unmatched-parent")), args[0] == "--encoded-capture-v1", let displayID = UInt32(args[1]),
+            if args == ["--version"] { print("kaipu-encoded-capture/3 source-rect continuous-clock"); return }
+            // DISPLAY WIDTH HEIGHT FPS BITRATE [--source-rect X Y W H] [--test-allow-unmatched-parent]
+            var rest = Array(args.dropFirst(6))
+            var sourceRect: CGRect?
+            if rest.first == "--source-rect" {
+                guard rest.count >= 5, let x = Double(rest[1]), let y = Double(rest[2]), let w = Double(rest[3]), let h = Double(rest[4]),
+                      x >= 0, y >= 0, w >= 2, h >= 2, x.isFinite, y.isFinite, w.isFinite, h.isFinite else { throw CaptureError(message: "Invalid --source-rect X Y W H (points, X Y >= 0, W H >= 2)") }
+                sourceRect = CGRect(x: x, y: y, width: w, height: h)
+                rest.removeFirst(5)
+            }
+            let allowUnmatchedParent = rest == ["--test-allow-unmatched-parent"]
+            guard args.count >= 6, rest.isEmpty || allowUnmatchedParent, args[0] == "--encoded-capture-v1", let displayID = UInt32(args[1]),
                   let width = Int(args[2]), let height = Int(args[3]), let fps = Int(args[4]), let bitrate = Int(args[5]),
                   width >= 2, width <= 7680, width % 2 == 0, height >= 2, height <= 7680, height % 2 == 0,
-                  fps >= 1, fps <= 60, bitrate >= 100_000, bitrate <= 100_000_000 else { throw CaptureError(message: "Usage: --encoded-capture-v1 DISPLAY WIDTH HEIGHT FPS BITRATE (video only; stdin commands: go|pause|resume|stop HOST_US)") }
+                  fps >= 1, fps <= 60, bitrate >= 100_000, bitrate <= 100_000_000 else { throw CaptureError(message: "Usage: --encoded-capture-v1 DISPLAY WIDTH HEIGHT FPS BITRATE [--source-rect X Y W H] (video only; stdin commands: go|pause|resume|stop HOST_US)") }
             guard CGPreflightScreenCaptureAccess() else { throw CaptureError(message: "Screen Recording permission unavailable; no permission requested") }
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard let display = content.displays.first(where: { $0.displayID == displayID }) else { throw CaptureError(message: "Display unavailable") }
             // Exclude this helper's parent Electron application, including floating controls.
             let excluded = content.applications.filter { $0.processID == getppid() }
-            guard !excluded.isEmpty || args.last == "--test-allow-unmatched-parent" else { throw CaptureError(message: "Cannot identify recording application for exclusion") }
+            guard !excluded.isEmpty || allowUnmatchedParent else { throw CaptureError(message: "Cannot identify recording application for exclusion") }
             let filter = SCContentFilter(display: display, excludingApplications: excluded, exceptingWindows: [])
-            let nativeW = Double(filter.contentRect.width) * Double(filter.pointPixelScale)
-            let nativeH = Double(filter.contentRect.height) * Double(filter.pointPixelScale)
-            guard Double(width) <= nativeW, Double(height) <= nativeH, abs(Double(width) / Double(height) - nativeW / nativeH) < 0.01 else { throw CaptureError(message: "Dimensions must preserve display aspect and cannot upscale") }
+            let scale = Double(filter.pointPixelScale)
+            if let rect = sourceRect {
+                guard rect.maxX <= Double(filter.contentRect.width), rect.maxY <= Double(filter.contentRect.height) else { throw CaptureError(message: "Source rect must lie inside the display") }
+            }
+            let sourcePointsW = sourceRect.map { Double($0.width) } ?? Double(filter.contentRect.width)
+            let sourcePointsH = sourceRect.map { Double($0.height) } ?? Double(filter.contentRect.height)
+            let nativeW = sourcePointsW * scale
+            let nativeH = sourcePointsH * scale
+            if sourceRect == nil {
+                // Whole display: the original rules, unchanged.
+                guard Double(width) <= nativeW, Double(height) <= nativeH, abs(Double(width) / Double(height) - nativeW / nativeH) < 0.01 else { throw CaptureError(message: "Dimensions must preserve display aspect and cannot upscale") }
+            } else {
+                // Cropped: the planner rounds each side to an even number (odd sides go UP by 1 px),
+                // so allow 2 px of slack and check the aspect on the smaller-error axis.
+                // Mirrored by sourceRectFit in src/main/recording/native/source-rect-fit.ts (tested).
+                let ratio = nativeW / nativeH
+                let aspectError = ratio >= 1 ? abs(Double(height) - Double(width) / ratio) : abs(Double(width) - Double(height) * ratio)
+                guard aspectError <= 2 else { throw CaptureError(message: "Dimensions must preserve source aspect") }
+                guard Double(width) <= nativeW + 2, Double(height) <= nativeH + 2 else { throw CaptureError(message: "Dimensions cannot upscale the source") }
+            }
             let config = SCStreamConfiguration()
+            if let sourceRect { config.sourceRect = sourceRect }
             config.showsCursor = false; config.width = width; config.height = height
             config.queueDepth = 3; config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(fps))
             config.pixelFormat = kCVPixelFormatType_32BGRA; config.capturesAudio = false

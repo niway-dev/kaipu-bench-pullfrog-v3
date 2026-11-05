@@ -208,3 +208,96 @@ it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
   },
   10000,
 );
+
+const rectRequest = (
+  width: number,
+  height: number,
+  sourceRect = { x: 0, y: 0, width: 400, height: 300 },
+) => ({
+  displayId: Number(process.env.KAIPU_NATIVE_TEST_DISPLAY),
+  width,
+  height,
+  frameRate: 30,
+  videoBitrate: 1_000_000,
+  sourceRect,
+});
+
+it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
+  "crops at the source: a 400x300 sourceRect yields a 400x300 config",
+  async () => {
+    const reader = spawnNativeVideo(
+      process.env.KAIPU_NATIVE_TEST_HELPER!,
+      rectRequest(400, 300),
+      true,
+    );
+    try {
+      await reader.ready!();
+      await reader.begin!(performance.now());
+      const frame = await reader.next();
+      expect(frame?.header).toMatchObject({ kind: "config", width: 400, height: 300 });
+    } finally {
+      await reader.cancel();
+    }
+  },
+  10000,
+);
+
+it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
+  "refuses to upscale a sourceRect and a rect with the wrong aspect",
+  async () => {
+    for (const [width, height, message] of [
+      [7680, 5760, /cannot upscale/],
+      [400, 200, /preserve source aspect/],
+    ] as const) {
+      const reader = spawnNativeVideo(
+        process.env.KAIPU_NATIVE_TEST_HELPER!,
+        rectRequest(width, height),
+        true,
+      );
+      try {
+        await expect(reader.ready!()).rejects.toThrow(message);
+      } finally {
+        await reader.cancel();
+      }
+    }
+  },
+  10000,
+);
+
+it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
+  "accepts an odd-sized area whose even-rounded output is 1 px over the exact size",
+  async () => {
+    // fitToCap rounds odd sides up: 801x451 points -> 802x452 output (at most 2 px over).
+    const reader = spawnNativeVideo(
+      process.env.KAIPU_NATIVE_TEST_HELPER!,
+      rectRequest(802, 452, { x: 0, y: 0, width: 801, height: 451 }),
+      true,
+    );
+    try {
+      await reader.ready!();
+      await reader.begin!(performance.now());
+      const frame = await reader.next();
+      expect(frame?.header).toMatchObject({ kind: "config", width: 802, height: 452 });
+    } finally {
+      await reader.cancel();
+    }
+  },
+  10000,
+);
+
+it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
+  "refuses a sourceRect that starts beyond the display",
+  async () => {
+    const reader = spawnNativeVideo(
+      process.env.KAIPU_NATIVE_TEST_HELPER!,
+      rectRequest(400, 300, { x: 100_000, y: 0, width: 400, height: 300 }),
+      true,
+    );
+    try {
+      await expect(reader.ready!()).rejects.toThrow(/must lie inside the display/);
+    } finally {
+      await reader.cancel();
+    }
+  },
+  10000,
+);
