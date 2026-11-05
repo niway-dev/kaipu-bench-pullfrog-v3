@@ -146,6 +146,31 @@ describe("unpublished states", () => {
     });
     expect(result.unpublished).toEqual(["record/a", "record/c"]);
     expect(result.reviewByEye).toEqual(["record/b"]);
+    // record/c is unpublished only by the fallback: the manifest does not mark it.
+    expect(result.errors).toEqual([
+      expect.stringMatching(/predates `unpublished`.*ui-catalog:remote/),
+    ]);
+    expect(lintFailed(result)).toBe(true);
+  });
+
+  it("does not refuse when the manifest marks every unpublished state itself", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "ui-catalog-lint-test-"));
+    writeFileSync(path.join(dir, "README.md"), "# Catalog");
+    writeFileSync(
+      path.join(dir, "manifest.json"),
+      JSON.stringify({
+        states: [
+          { id: "record/a", status: "shot", unpublished: "real windows" },
+          { id: "record/b", status: "shot" },
+        ],
+      }),
+    );
+    const result = lintOutputDir(dir, {
+      entries: [],
+      sources: [],
+      fallbackUnpublished: ["record/a"],
+    });
+    expect(result.errors).toEqual([]);
   });
 });
 

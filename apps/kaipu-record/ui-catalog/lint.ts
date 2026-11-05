@@ -204,11 +204,16 @@ export function lintOutputDir(outDir: string, options: LintOptions = {}): LintRe
     const known = manifest.states.some((state) => "embedsScreen" in state);
     // The manifest's own flags plus the catalog source's: a run that predates the field is
     // still kept private, and a flag in either place is enough.
-    unpublished = [
-      ...new Set([...unpublishedStates(manifest), ...(options.fallbackUnpublished ?? [])]),
-    ]
+    const marked = new Set(unpublishedStates(manifest));
+    unpublished = [...new Set([...marked, ...(options.fallbackUnpublished ?? [])])]
       .filter((id) => manifest.states.some((s) => s.id === id && s.status === "shot"))
       .sort();
+    // The fallback would drop an image the run's own pages still reference; refuse instead.
+    if (unpublished.some((id) => !marked.has(id))) {
+      errors.push(
+        `${outDir}: this run predates \`unpublished\`; make a new run with \`bun run ui-catalog:remote\``,
+      );
+    }
     review = (known ? flagged : (options.fallbackReview ?? [])).filter(
       (id) => !unpublished.includes(id),
     );
