@@ -1094,7 +1094,14 @@ async function stopRecording(): Promise<void> {
   window.electronAPI.recordingStop();
   // Under native a camera that was lost, or never opened, leaves no face in the screen either:
   // the Chromium wording ("recorded in the screen instead") would be false there (ADR 0047).
-  if (recording && (webcamUnavailable || webcamEnded) && activeEngine.transport === "native")
+  // Not when a recorded webcam file was dropped: that is "not saved", handled below.
+  const webcamFileDropped = recordedWebcam && !recording?.webcam;
+  if (
+    recording &&
+    (webcamUnavailable || webcamEnded) &&
+    activeEngine.transport === "native" &&
+    !webcamFileDropped
+  )
     showToast({ message: runtimeT()("record.webcamStoppedNative") });
   else if (recording && webcamUnavailable)
     showToast({ message: runtimeT()("record.webcamUnavailable") });
