@@ -58,6 +58,11 @@ describe("HistorySlider", () => {
     expect(screen.getByText("2×")).toBeInTheDocument();
   });
 
+  it("exposes the formatted value as aria-valuetext", () => {
+    const { input } = setup();
+    expect(input).toHaveAttribute("aria-valuetext", "2×");
+  });
+
   it("names the control with the label alone and describes it with the note", () => {
     render(
       <HistorySlider

@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import { WEBCAM_DEFAULTS, type WebcamLayout } from "./webcam-model";
 import {
   WEBCAM_POSITION_PRESETS,
-  WEBCAM_PRESET_MARGIN,
   clampWebcamCenter,
   webcamClipPath,
-  webcamPresetCenter,
+  webcamPresetActive,
   webcamRect,
   webcamSourceRect,
   webcamZoomFactor,
@@ -14,26 +13,55 @@ import {
 const FRAME = { width: 1920, height: 1080 };
 const layout = (patch: Partial<WebcamLayout>): WebcamLayout => ({ ...WEBCAM_DEFAULTS, ...patch });
 
+describe("webcamZoomFactor with a large bubble", () => {
+  it("is today's factor for sizes up to 0.42", () => {
+    expect(webcamZoomFactor(0.7, 2, 0.22)).toBeCloseTo(0.7);
+    expect(webcamZoomFactor(0.7, 2, 0.42)).toBeCloseTo(0.7);
+  });
+
+  it("fades the shrink linearly between 0.42 and 0.90", () => {
+    // size 0.66 is halfway: weight 0.5, so 1 - 0.3 * 0.5.
+    expect(webcamZoomFactor(0.7, 2, 0.66)).toBeCloseTo(0.85);
+  });
+
+  it("never shrinks a 0.90 bubble", () => {
+    expect(webcamZoomFactor(0.7, 2, 0.9)).toBe(1);
+    expect(webcamZoomFactor(0.3, 3, 0.9)).toBe(1);
+  });
+});
+
+describe("webcamRect at the largest size", () => {
+  it("draws a 0.90 bubble at 972 px on 1920x1080 under a 2x zoom", () => {
+    const rect = webcamRect(
+      layout({ size: 0.9, position: { x: 0.5, y: 0.5 }, scaleDuringZoom: 0.7 }),
+      FRAME,
+      2,
+    )!;
+    expect(rect.height).toBeCloseTo(972);
+    expect(rect.width).toBeCloseTo(972);
+  });
+});
+
 describe("webcamZoomFactor", () => {
   it("is 1 without a zoom, whatever scaleDuringZoom says", () => {
-    expect(webcamZoomFactor(0.7, 1)).toBe(1);
+    expect(webcamZoomFactor(0.7, 1, 0.22)).toBe(1);
   });
 
   it("reaches scaleDuringZoom at 1.5× and stays there", () => {
-    expect(webcamZoomFactor(0.7, 1.5)).toBeCloseTo(0.7);
-    expect(webcamZoomFactor(0.7, 3)).toBeCloseTo(0.7);
+    expect(webcamZoomFactor(0.7, 1.5, 0.22)).toBeCloseTo(0.7);
+    expect(webcamZoomFactor(0.7, 3, 0.22)).toBeCloseTo(0.7);
   });
 
   it("eases in between, so the bubble follows the camera's spring", () => {
-    expect(webcamZoomFactor(0.7, 1.25)).toBeCloseTo(0.85);
+    expect(webcamZoomFactor(0.7, 1.25, 0.22)).toBeCloseTo(0.85);
   });
 
   it("never shrinks when the toggle is off (scaleDuringZoom 1)", () => {
-    expect(webcamZoomFactor(1, 2.5)).toBe(1);
+    expect(webcamZoomFactor(1, 2.5, 0.22)).toBe(1);
   });
 
   it("treats a non-finite camera scale as no zoom", () => {
-    expect(webcamZoomFactor(0.7, Number.NaN)).toBe(1);
+    expect(webcamZoomFactor(0.7, Number.NaN, 0.22)).toBe(1);
   });
 });
 
@@ -124,43 +152,45 @@ describe("webcamClipPath", () => {
   });
 });
 
-describe("webcamPresetCenter", () => {
+describe("webcam presets", () => {
   it("offers nine positions", () => {
     expect(WEBCAM_POSITION_PRESETS).toHaveLength(9);
   });
 
-  it("puts the bottom-left preset snug in the corner with the margin", () => {
-    const c = webcamPresetCenter({ x: 0, y: 1 }, 0.2, FRAME);
-    const half = 108 + WEBCAM_PRESET_MARGIN * 1080;
-    expect(c.x * 1920).toBeCloseTo(half);
-    expect(c.y * 1080).toBeCloseTo(1080 - half);
+  it("reports a preset active for the raw edge and for a centre clamped to it", () => {
+    const l = { shape: "rectangle", size: 0.42 } as const;
+    const left = WEBCAM_POSITION_PRESETS.find((p) => p.id === "left")!;
+    const right = WEBCAM_POSITION_PRESETS.find((p) => p.id === "right")!;
+    expect(webcamPresetActive(left, { ...l, position: { x: 0, y: 0.5 } }, FRAME)).toBe(true);
+    // half of the shrunk box (0.7 x 0.42 x 1080 x 3/4 / 2) over the frame width: also the edge
+    expect(webcamPresetActive(left, { ...l, position: { x: 0.0775, y: 0.5 } }, FRAME)).toBe(true);
+    expect(webcamPresetActive(right, { ...l, position: { x: 0.0775, y: 0.5 } }, FRAME)).toBe(false);
+    expect(webcamPresetActive(left, { ...l, position: { x: 0.3, y: 0.5 } }, FRAME)).toBe(false);
   });
 
-  it("stores what is drawn: the preset centre survives the clamp unchanged", () => {
-    for (const preset of WEBCAM_POSITION_PRESETS) {
-      const c = webcamPresetCenter(preset, 0.3, FRAME);
-      expect(clampWebcamCenter(c, { width: 0.3 * 1080, height: 0.3 * 1080 }, FRAME)).toEqual(c);
-    }
+  it("is never active before the frame size is known", () => {
+    const l = { shape: "circle", size: 0.2, position: { x: 1, y: 0 } } as const;
+    expect(webcamPresetActive({ x: 1, y: 0 }, l, { width: 0, height: 0 })).toBe(false);
   });
+});
 
-  it("puts a rectangle snug by its own width", () => {
-    const c = webcamPresetCenter({ x: 0, y: 1 }, 0.4, FRAME, "rectangle");
-    expect(c.x * 1920).toBeCloseTo(162 + WEBCAM_PRESET_MARGIN * 1080);
-    expect(c.y * 1080).toBeCloseTo(1080 - 216 - WEBCAM_PRESET_MARGIN * 1080);
-  });
+describe("edge presets (NIW2-636)", () => {
+  // The bug: the Left/Right presets stored a centre with a margin computed for the
+  // un-shrunk bubble, so under "shrink during zoom" the smaller bubble sat ~94 px
+  // (output pixels) away from the edge it was snapped to.
+  const rectangle = { shape: "rectangle", size: 0.42, scaleDuringZoom: 0.7 } as const;
 
-  it("sizes the bubble with webcamRect's caps, so a capped bubble keeps its edge margin", () => {
-    // 0.6 of a 1920 px height is 1152 px, wider than the 1080 px frame: capped to 1080.
-    const portrait = { width: 1080, height: 1920 };
-    const c = webcamPresetCenter({ x: 0, y: 1 }, 0.6, portrait);
-    expect(c.y * 1920).toBeCloseTo(1920 - 540 - WEBCAM_PRESET_MARGIN * 1920);
-  });
-
-  it("falls back to the raw preset before the frame size is known", () => {
-    expect(webcamPresetCenter({ x: 1, y: 0 }, 0.2, { width: 0, height: 0 })).toEqual({
-      x: 1,
-      y: 0,
-    });
+  it.each([
+    ["left", 1],
+    ["right", 1],
+    ["left", 2],
+    ["right", 2],
+  ] as const)("puts the %s preset flush with the frame edge at camera scale %s", (id, scale) => {
+    const preset = WEBCAM_POSITION_PRESETS.find((p) => p.id === id)!;
+    const position = { x: preset.x, y: preset.y };
+    const rect = webcamRect({ ...rectangle, position }, FRAME, scale)!;
+    if (id === "left") expect(rect.x).toBeCloseTo(0, 3);
+    else expect(rect.x + rect.width).toBeCloseTo(FRAME.width, 3);
   });
 });
 

@@ -80,6 +80,16 @@ describe("cameraBubbleWindowInArea (main's bubble window and the overlay placeho
     });
   });
 
+  it("makes the window as wide as the shape: a 3:4 rectangle is 0.75 × size plus the pad", () => {
+    // 240 × 0.75 = 180, + 48 pad = 228 wide; still 288 tall, same bottom-left anchor.
+    expect(cameraBubbleWindowInArea(area, 240, undefined, "rectangle")).toEqual({
+      x: 132,
+      y: 240,
+      width: 228,
+      height: 288,
+    });
+  });
+
   it("shrinks a size the area cannot hold, and gives up below the minimum", () => {
     // 360 - 2 × 32 - 2 × 24 = 248 is all the area holds.
     expect(cameraBubbleWindowInArea(area, 480)?.width).toBe(248 + 48);

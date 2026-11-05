@@ -1,6 +1,6 @@
 ---
 title: "ADR 0041: The camera is a circle, a square or a 3:4 portrait rectangle, with an adjustable corner radius"
-description: The camera shape stays one list of named shapes, now circle, rounded (shown as "Square") and rectangle, plus a separate cornerRadius for the two that have corners. Size keeps meaning the bubble's height. The recorder's bubble window stays square and centres a rectangle inside it. Amends ADR 0038's square-only geometry.
+description: The camera shape stays one list of named shapes, now circle, rounded (shown as "Square") and rectangle, plus a separate cornerRadius for the two that have corners. Size keeps meaning the bubble's height. The recorder's bubble window was square; a 2026-11-05 amendment (NIW2-638) makes its width follow the shape. Amends ADR 0038's square-only geometry.
 ---
 
 # ADR 0041: The camera is a circle, a square or a 3:4 portrait rectangle, with an adjustable corner radius
@@ -86,3 +86,25 @@ preview, the MP4 composer and the GIF composer. Old settings, sidecars and sessi
 - A second rectangle (landscape, 9:16) or a free aspect is asked for: move to aspect + radius
   fields, with a migration of the stored `shape`.
 - Users report clicks blocked beside a rectangle bubble: size the window to the bubble.
+
+## Amendment 2026-11-05: the bubble window follows the shape (NIW2-638)
+
+This amendment supersedes decision 5 and the rejected alternative "A window sized to the
+rectangle". The original text above is kept as written.
+
+The reopen condition is met, in a different form than the one listed: the rectangle could not
+reach the screen edge the square reaches. With a square window the 3:4 rectangle sat inside
+transparent side bands, and the screen clamp stopped its visible edge 54 DIP from the screen
+edge while a square stopped at the 24 DIP pad. Measured on the Mac mini on 2026-11-05:
+rectangle 54 to 24 DIP after the fix, square unchanged at 24.
+
+**New rule:** the floating bubble window's width follows the shape.
+`width = round(size * aspect) + 2 * pad` and `height = size + 2 * pad`. The circle and the
+square keep aspect 1, so their window stays square.
+
+Consequences:
+
+- Changing the shape resizes the window and keeps its bottom-left corner fixed.
+- `size` is the window height minus the padding, still the bubble's height.
+- The editor's seed is unchanged: it still reads shape, corner and size from the recorded layout.
+- The transparent side strips that blocked clicks beside a rectangle are gone.

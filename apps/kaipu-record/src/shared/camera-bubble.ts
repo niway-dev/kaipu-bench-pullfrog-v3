@@ -89,18 +89,22 @@ export interface CameraBubbleRect {
  * global DIP for main, window-local DIP for the overlay's placeholder): anchored at the
  * area's bottom-left corner, growing up and to the right. A size the area cannot hold (with
  * the margins and the pad on both sides) is clamped down to what fits; `null` when not even
- * the minimum size fits. The visible bubble is these bounds inset by the pad.
+ * the minimum size fits. The visible bubble is these bounds inset by the pad on every side:
+ * the window is as wide as the shape (a 3:4 rectangle gets a narrower window than a square),
+ * so clamping the window is clamping what the user sees.
  */
 export function cameraBubbleWindowInArea(
   area: CameraBubbleRect,
   size: number,
   margin: number = CAMERA_BUBBLE_AREA_MARGIN,
+  shape: CameraBubbleShape = "rounded",
 ): CameraBubbleRect | null {
   const room = Math.min(area.width, area.height) - 2 * margin - 2 * CAMERA_BUBBLE_WINDOW_PAD;
   const fitted = Math.min(clampCameraBubbleSize(size), Math.floor(room));
   if (fitted < CAMERA_BUBBLE_MIN_SIZE) return null;
-  const side = fitted + 2 * CAMERA_BUBBLE_WINDOW_PAD;
-  return { x: area.x + margin, y: area.y + area.height - margin - side, width: side, height: side };
+  const height = fitted + 2 * CAMERA_BUBBLE_WINDOW_PAD;
+  const width = Math.round(fitted * cameraShapeAspect(shape)) + 2 * CAMERA_BUBBLE_WINDOW_PAD;
+  return { x: area.x + margin, y: area.y + area.height - margin - height, width, height };
 }
 
 /** The three named sizes the S · M · L chips pick. */

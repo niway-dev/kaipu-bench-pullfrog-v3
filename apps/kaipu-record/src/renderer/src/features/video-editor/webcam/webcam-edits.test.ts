@@ -30,7 +30,7 @@ describe("setWebcamLayout", () => {
 
   it("clamps what it is given", () => {
     const next = setWebcamLayout(withWebcam(), { size: 4, position: { x: 2, y: -1 } });
-    expect(next.webcam?.layout).toMatchObject({ size: 0.6, position: { x: 1, y: 0 } });
+    expect(next.webcam?.layout).toMatchObject({ size: 0.9, position: { x: 1, y: 0 } });
   });
 
   it("returns the same scene when nothing changes, so no undo step is pushed", () => {
@@ -63,7 +63,7 @@ describe("addWebcamSegment", () => {
     );
     expect(scene.webcam?.segments.find((s) => s.id === id)).toMatchObject({
       mode: "override",
-      layout: { size: 0.6 },
+      layout: { size: 0.9 },
     });
   });
 
@@ -108,7 +108,7 @@ describe("updateWebcamSegment", () => {
   it("merges layout fields into an override, clamped", () => {
     const { scene, id } = setup();
     const next = updateWebcamSegment(scene, id, { layout: { shadow: false, size: 5 } });
-    expect(next.webcam?.segments[0]?.layout).toEqual({ size: 0.6, shadow: false });
+    expect(next.webcam?.segments[0]?.layout).toEqual({ size: 0.9, shadow: false });
   });
 
   it("turns an override into a hidden segment and drops its layout", () => {

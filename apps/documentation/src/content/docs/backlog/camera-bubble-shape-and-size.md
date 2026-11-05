@@ -33,8 +33,9 @@ every toggle; 1c (a camera card) because it doubled the camera's visual weight.
 
 Shapes and corners (NIW2-596, [ADR 0041](/architecture/decisions/0041-camera-shape-is-circle-square-or-portrait-with-a-corner-radius/)):
 Circle · Square · Rectangle chips, and a **Corners** slider under them for the square and the
-rectangle (0 % sharp, 50 % a circle or a pill). The bubble window stays square; a rectangle is
-centred in it. The recorded layout carries the shape and the corner to the editor, where the
+rectangle (0 % sharp, 50 % a circle or a pill). The bubble window's width follows the shape
+(amended 2026-11-05, NIW2-638: `round(size * aspect) + 2 * pad`, so a rectangle reaches the same screen
+edge a square does). The recorded layout carries the shape and the corner to the editor, where the
 inspector edits both and the preview, MP4 and GIF draw the same box.
 
 Only these persist. The bubble's **position does not**: it starts at the bottom-left corner of

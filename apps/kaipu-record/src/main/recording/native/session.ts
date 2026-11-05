@@ -17,21 +17,37 @@ export function nativeHelperPath(resourcesPath: string, appPath?: string): strin
   }
   return join(resourcesPath, "app.asar.unpacked", "resources", "native", "kaipu-encoded-capture");
 }
+/** Bumped when the helper clock changes, so a stale binary is refused. */
+export const HELPER_VERSION = "kaipu-encoded-capture/3 source-rect continuous-clock";
 export async function validateNativeHelper(path: string): Promise<void> {
   const { stdout } = await promisify(execFile)(path, ["--version"], {
     timeout: 2000,
     maxBuffer: 1024,
   });
-  if (stdout.trim() !== "kaipu-encoded-capture/2 prepared pause-clock")
-    throw new Error("Unsupported native helper version");
+  if (stdout.trim() !== HELPER_VERSION) throw new Error("Unsupported native helper version");
 }
 export function validateNativeRequest(request: NativeVideoRequest): void {
+  const keys = request ? Object.keys(request).sort().join(",") : "";
   if (
-    !request ||
-    Object.keys(request).sort().join(",") !== "displayId,frameRate,height,videoBitrate,width"
+    keys !== "displayId,frameRate,height,videoBitrate,width" &&
+    keys !== "displayId,frameRate,height,sourceRect,videoBitrate,width"
   )
     throw new Error("Unsupported native capture options");
-  const { displayId, width, height, frameRate, videoBitrate } = request;
+  const { displayId, width, height, frameRate, videoBitrate, sourceRect } = request;
+  if (sourceRect !== undefined) {
+    if (
+      !sourceRect ||
+      Object.keys(sourceRect).sort().join(",") !== "height,width,x,y" ||
+      ![sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height].every(
+        Number.isSafeInteger,
+      ) ||
+      sourceRect.x < 0 ||
+      sourceRect.y < 0 ||
+      sourceRect.width < 2 ||
+      sourceRect.height < 2
+    )
+      throw new Error("Invalid native source rect");
+  }
   if (
     ![displayId, width, height, frameRate, videoBitrate].every(Number.isSafeInteger) ||
     displayId < 1 ||
@@ -66,6 +82,15 @@ export function spawnNativeVideo(
       request.height,
       request.frameRate,
       request.videoBitrate,
+      ...(request.sourceRect
+        ? [
+            "--source-rect",
+            request.sourceRect.x,
+            request.sourceRect.y,
+            request.sourceRect.width,
+            request.sourceRect.height,
+          ]
+        : []),
       ...(testAllowUnmatchedParent ? ["--test-allow-unmatched-parent"] : []),
     ].map(String),
     { stdio: ["pipe", "pipe", "pipe"] },
@@ -73,7 +98,8 @@ export function spawnNativeVideo(
   child.stdin.on("error", () => {}); // Exit/next reports pipe failures with bounded stderr.
   const frames = decodeNativeFrames(child.stdout);
   const sequence = new NativeSequence();
-  // Node hrtime and CMClock host time share macOS monotonic uptime. Bun does not.
+  // Node hrtime (libuv) and the helper's CLOCK_MONOTONIC_RAW are both mach_continuous_time,
+  // including sleep. CMClockGetHostTimeClock is not (NIW2-649). Bun does not match.
   const hostOffsetUs = Number(process.hrtime.bigint() / 1000n) - performance.now() * 1000;
   const hostAt = (ms: number) => {
     if (!Number.isFinite(ms) || Math.abs(ms - performance.now()) > 10_000)

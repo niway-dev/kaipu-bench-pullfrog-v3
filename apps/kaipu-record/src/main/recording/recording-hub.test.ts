@@ -1727,13 +1727,18 @@ describe("recording hub — camera bubble size", () => {
     registerRecordingHub(() => fakeMainWindow() as never);
   }
 
-  it("re-places the bubble when its persisted size changes, and only then", async () => {
+  it("re-places the bubble when its persisted size or shape changes, and only then", async () => {
     await setup();
     const update = mockState.ipcHandle.get(IPC_CHANNELS.updateSettings)!;
-    update({}, { cameraBubble: { shape: "rounded", size: 240, deviceId: null } });
+    update({}, { cameraBubble: { shape: "circle", size: 240, deviceId: null } });
     expect(mockState.bubble.applySize).not.toHaveBeenCalled();
-    update({}, { cameraBubble: { shape: "rounded", size: 360, deviceId: null } });
-    expect(mockState.bubble.applySize).toHaveBeenCalledOnce();
+    update({}, { cameraBubble: { shape: "circle", size: 360, deviceId: null } });
+    expect(mockState.bubble.applySize).toHaveBeenCalledTimes(1);
+    // The window is as wide as the shape: a shape change re-sizes it too (NIW2-638).
+    update({}, { cameraBubble: { shape: "rectangle", size: 360, deviceId: null } });
+    expect(mockState.bubble.applySize).toHaveBeenCalledTimes(2);
+    update({}, { cameraBubble: { shape: "rectangle", size: 360, deviceId: null } });
+    expect(mockState.bubble.applySize).toHaveBeenCalledTimes(2);
   });
 
   it("previews a grip drag and answers the applied size", async () => {

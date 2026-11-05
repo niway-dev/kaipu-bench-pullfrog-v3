@@ -13,7 +13,7 @@ import {
   clampCameraPan,
   clampCameraZoom,
 } from "@shared/camera-bubble";
-import type { WebcamLayout } from "./webcam-model";
+import { WEBCAM_LIMITS, type WebcamLayout } from "./webcam-model";
 
 export interface WebcamRect {
   /** Left edge, in the frame's units (pixels for a pixel frame). */
@@ -37,17 +37,32 @@ export interface FrameSize {
  */
 export const WEBCAM_SHRINK_FULL_AT_SCALE = 1.5;
 
+/** Bubble size up to which the zoom shrink applies in full; above it the shrink fades out. */
+export const WEBCAM_SHRINK_FADE_FROM_SIZE = 0.42;
+
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
 /**
  * The factor the bubble's side is multiplied by at camera scale `cameraScale`: 1 without a
  * zoom, `scaleDuringZoom` from {@link WEBCAM_SHRINK_FULL_AT_SCALE} up, linear in between.
+ * The shrink fades out for large bubbles: full up to {@link WEBCAM_SHRINK_FADE_FROM_SIZE},
+ * linearly gone at the maximum size, so a big bubble stays big inside a zoom.
  */
-export function webcamZoomFactor(scaleDuringZoom: number, cameraScale: number): number {
+export function webcamZoomFactor(
+  scaleDuringZoom: number,
+  cameraScale: number,
+  size: number,
+): number {
   const scale = Number.isFinite(cameraScale) ? cameraScale : 1;
   const progress = clamp((scale - 1) / (WEBCAM_SHRINK_FULL_AT_SCALE - 1), 0, 1);
-  return 1 - (1 - clamp(scaleDuringZoom, 0, 1)) * progress;
+  const today = 1 - (1 - clamp(scaleDuringZoom, 0, 1)) * progress;
+  const weight = clamp(
+    (WEBCAM_LIMITS.maxSize - size) / (WEBCAM_LIMITS.maxSize - WEBCAM_SHRINK_FADE_FROM_SIZE),
+    0,
+    1,
+  );
+  return 1 - (1 - today) * weight;
 }
 
 /**
@@ -84,7 +99,7 @@ export function webcamRect(
   if (!(frame.width > 0) || !(frame.height > 0)) return null;
   const aspect = cameraShapeAspect(layout.shape);
   const height = Math.min(
-    layout.size * frame.height * webcamZoomFactor(layout.scaleDuringZoom, cameraScale),
+    layout.size * frame.height * webcamZoomFactor(layout.scaleDuringZoom, cameraScale, layout.size),
     frame.width / aspect,
     frame.height,
   );
@@ -170,30 +185,23 @@ export const WEBCAM_POSITION_PRESETS = [
 
 export type WebcamPositionPresetId = (typeof WEBCAM_POSITION_PRESETS)[number]["id"];
 
-/** Gap kept between a preset's bubble and the frame edge, as a fraction of the frame height. */
-export const WEBCAM_PRESET_MARGIN = 0.04;
-
 /**
- * The centre a preset puts a bubble of `size` (fraction of the height) at in `frame`: snug
- * against its edges with {@link WEBCAM_PRESET_MARGIN} of air, so the stored position is the
- * one drawn (no clamp hides a difference that would surface on another preset).
+ * Whether `position` is where `preset` puts a bubble of this shape and size. A preset stores
+ * its raw edge (0, 0.5 or 1) and relies on {@link clampWebcamCenter}, so the bubble is flush
+ * with the edge whatever its drawn size is at that instant (a shrink during zoom, another
+ * shape, a new size). A centre stored for the full-size box, or one dragged to the edge,
+ * therefore counts as the same preset: both clamp to the same place.
  */
-export function webcamPresetCenter(
+export function webcamPresetActive(
   preset: { x: number; y: number },
-  size: number,
+  layout: Pick<WebcamLayout, "shape" | "size" | "position">,
   frame: FrameSize,
-  shape: CameraBubbleShape = "circle",
-): { x: number; y: number } {
-  if (!(frame.width > 0) || !(frame.height > 0)) return { x: preset.x, y: preset.y };
-  // The same caps as webcamRect: never wider than the frame nor taller, the aspect kept.
-  const aspect = cameraShapeAspect(shape);
-  const height = Math.min(size * frame.height, frame.width / aspect, frame.height);
-  const width = height * aspect;
-  const margin = WEBCAM_PRESET_MARGIN * frame.height;
-  const reach = (value: number, side: number, length: number): number => {
-    const half = side / 2 + margin;
-    if (half * 2 >= length) return 0.5;
-    return (half + value * (length - 2 * half)) / length;
-  };
-  return { x: reach(preset.x, width, frame.width), y: reach(preset.y, height, frame.height) };
+): boolean {
+  if (!(frame.width > 0) || !(frame.height > 0)) return false;
+  const aspect = cameraShapeAspect(layout.shape);
+  const height = Math.min(layout.size * frame.height, frame.width / aspect, frame.height);
+  const box = { width: height * aspect, height };
+  const here = clampWebcamCenter(layout.position, box, frame);
+  const there = clampWebcamCenter(preset, box, frame);
+  return Math.abs(here.x - there.x) < 0.005 && Math.abs(here.y - there.y) < 0.005;
 }

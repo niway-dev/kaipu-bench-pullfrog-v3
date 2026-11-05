@@ -54,12 +54,21 @@ export interface WebcamScene {
 }
 
 export const WEBCAM_LIMITS = {
-  minSize: 0.1,
-  maxSize: 0.6,
+  minSize: 0.12,
+  maxSize: 0.9,
   /** A bubble can shrink to under a third of its size inside a zoom, never vanish. */
   minScaleDuringZoom: 0.3,
   maxScaleDuringZoom: 1,
 } as const;
+
+/**
+ * The inspector's Size label: the stored range 0.12–0.90 shown as 10–90, so the owner's
+ * wording stays while the slider moves linearly over the stored size.
+ */
+export function webcamSizeLabel(size: number): number {
+  const { minSize, maxSize } = WEBCAM_LIMITS;
+  return Math.round(10 + ((size - minSize) / (maxSize - minSize)) * 80);
+}
 
 /** The bubble's default look: bottom-left, where the recorder starts it. */
 export const WEBCAM_DEFAULTS: WebcamLayout = {

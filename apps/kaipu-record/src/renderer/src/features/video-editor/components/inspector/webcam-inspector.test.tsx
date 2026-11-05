@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { WebcamEditing } from "../../webcam/use-webcam-editing";
 import { WEBCAM_DEFAULTS, type WebcamLayout } from "../../webcam/webcam-model";
-import { webcamPresetCenter } from "../../webcam/webcam-layout";
+import { webcamRect } from "../../webcam/webcam-layout";
 import { WebcamInspector, WebcamSegmentInspector } from "./webcam-inspector";
 
 const FRAME = { width: 1920, height: 1080 };
@@ -38,44 +38,8 @@ describe("WebcamInspector", () => {
     expect(edits.commitLayout).toHaveBeenCalledWith({ shape: "rounded" }, null);
   });
 
-  it("keeps a bubble snapped to a preset snapped when the shape changes its width", () => {
-    const corner = webcamPresetCenter({ x: 0, y: 1 }, 0.22, FRAME, "circle");
-    const { edits } = renderGlobal(layout({ size: 0.22, position: corner }));
-    fireEvent.click(screen.getByRole("button", { name: "Rectangle" }));
-    expect(edits.commitLayout).toHaveBeenCalledWith(
-      {
-        shape: "rectangle",
-        position: webcamPresetCenter({ x: 0, y: 1 }, 0.22, FRAME, "rectangle"),
-      },
-      null,
-    );
-  });
-
-  it("adds no position when the shape keeps the box's width (circle to square)", () => {
-    const corner = webcamPresetCenter({ x: 0, y: 1 }, 0.22, FRAME, "circle");
-    const { edits } = renderGlobal(layout({ size: 0.22, position: corner }));
-    fireEvent.click(screen.getByRole("button", { name: "Square" }));
-    expect(edits.commitLayout).toHaveBeenCalledWith({ shape: "rounded" }, null);
-  });
-
-  it("keeps the centre when several presets share it (a big bubble on a narrow frame)", () => {
-    const narrow = { width: 1080, height: 1920 };
-    const bottom = webcamPresetCenter({ x: 0.5, y: 1 }, 0.49, narrow, "circle");
-    const edits = makeEdits();
-    render(
-      <WebcamInspector
-        layout={layout({ size: 0.49, position: bottom })}
-        edits={edits}
-        frame={narrow}
-        onHideHere={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Rectangle" }));
-    expect(edits.commitLayout).toHaveBeenCalledWith({ shape: "rectangle" }, null);
-  });
-
-  it("leaves a free position where it is when the shape changes", () => {
-    const { edits } = renderGlobal(layout({ position: { x: 0.4, y: 0.6 } }));
+  it("changing the shape never rewrites the position: presets clamp to the edge by themselves", () => {
+    const { edits } = renderGlobal(layout({ size: 0.22, position: { x: 0, y: 1 } }));
     fireEvent.click(screen.getByRole("button", { name: "Rectangle" }));
     expect(edits.commitLayout).toHaveBeenCalledWith({ shape: "rectangle" }, null);
   });
@@ -93,9 +57,16 @@ describe("WebcamInspector", () => {
     expect(edits.end).toHaveBeenCalledOnce();
   });
 
+  it("labels the size slider 10% to 90% over the stored 0.12 to 0.90", () => {
+    renderGlobal(layout({ size: 0.9 }));
+    const slider = screen.getByRole("slider", { name: "Size" });
+    expect(slider.getAttribute("min")).toBe("0.12");
+    expect(slider.getAttribute("max")).toBe("0.9");
+    expect(screen.getByText("90%")).toBeTruthy();
+  });
+
   it("offers nine position presets and marks the one in use", () => {
-    const at = webcamPresetCenter({ x: 1, y: 0 }, 0.22, FRAME);
-    const { edits } = renderGlobal(layout({ size: 0.22, position: at }));
+    const { edits } = renderGlobal(layout({ size: 0.22, position: { x: 1, y: 0 } }));
     const group = screen.getByRole("group", { name: "Position" });
     expect(group.querySelectorAll("button")).toHaveLength(9);
     expect(screen.getByRole("button", { name: "Top right" })).toHaveAttribute(
@@ -103,10 +74,21 @@ describe("WebcamInspector", () => {
       "true",
     );
     fireEvent.click(screen.getByRole("button", { name: "Bottom left" }));
-    expect(edits.commitLayout).toHaveBeenCalledWith(
-      { position: webcamPresetCenter({ x: 0, y: 1 }, 0.22, FRAME) },
-      null,
-    );
+    expect(edits.commitLayout).toHaveBeenCalledWith({ position: { x: 0, y: 1 } }, null);
+  });
+
+  it("marks a preset for a position dragged to the same edge", () => {
+    // Dragged to the left edge while shrunk: the stored centre is the small box's half width.
+    renderGlobal(layout({ shape: "rectangle", size: 0.42, position: { x: 0.0775, y: 0.5 } }));
+    expect(screen.getByRole("button", { name: "Left" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("the Left preset on a rectangle sits flush at 2x zoom with shrink on (NIW2-636)", () => {
+    const l = layout({ shape: "rectangle", size: 0.42, scaleDuringZoom: 0.7 });
+    const { edits } = renderGlobal(l);
+    fireEvent.click(screen.getByRole("button", { name: "Left" }));
+    const patch = vi.mocked(edits.commitLayout).mock.calls[0]![0] as Partial<typeof l>;
+    expect(webcamRect({ ...l, ...patch }, FRAME, 2)!.x).toBeCloseTo(0, 3);
   });
 
   it("toggles mirror and shadow", () => {
