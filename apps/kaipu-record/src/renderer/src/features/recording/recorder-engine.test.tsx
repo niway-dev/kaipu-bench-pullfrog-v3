@@ -1990,6 +1990,30 @@ describe("experimental native recorder lifecycle", () => {
     expect(times.screen.quality).toBe("exact");
     expect(times.webcam).toEqual({ rendererMs: 10_040.5, quality: "exact" });
   });
+  it("keeps the take native, without a webcam file, when the camera does not open at the start", async () => {
+    const original = getUserMedia.getMockImplementation() as (
+      c: MediaStreamConstraints,
+    ) => Promise<MediaStream>;
+    getUserMedia.mockImplementation(async (c: MediaStreamConstraints) => {
+      if (c.video && !("mandatory" in (c.video as object))) throw new Error("NotReadableError");
+      return original(c);
+    });
+    const bridge = nativeBridge();
+    const onWebcamUnavailable = vi.fn(async () => {});
+    const prepared = await prepareEngine(
+      baseOptions({
+        sourceId: "screen:3:0",
+        webcam: { deviceId: "cam-1", lines: 720 },
+        onWebcamUnavailable,
+      }),
+    );
+    expect(onWebcamUnavailable).toHaveBeenCalledOnce();
+    expect(bridge.open).toHaveBeenCalled();
+    const handle = await prepared.begin();
+    expect(handle.transport).toBe("native");
+    expect(handle.webcam).toBeNull();
+    await handle.stop();
+  });
   it("exposes the chromium transport when the native helper is not used", async () => {
     const handle = await startEngine(baseOptions({ sourceId: "screen:3:0" }));
     expect(handle.transport).toBe("chromium");

@@ -916,7 +916,7 @@ app.whenReady().then(async () => {
   initMainAnalytics(getDeviceId(), getAppSettings().diagnosticsEnabled);
   onSettingsChanged((settings) => setMainAnalyticsEnabled(settings.diagnosticsEnabled));
   registerAnalyticsIpc();
-  registerNativeCaptureTransport(() => mainWindow?.webContents);
+  const nativeTransport = registerNativeCaptureTransport(() => mainWindow?.webContents);
 
   // Capture Panel → show the main window (the panel's "Open ↗" button).
   ipcMain.on("capture-panel:open-main", () => {
@@ -979,6 +979,7 @@ app.whenReady().then(async () => {
     () => mainWindow,
     (activity) => setTrayRecording(activity.active),
     setTrayCountdown,
+    nativeTransport,
   );
 
   // Global (system-wide) shortcuts. Reuse the existing start/stop paths so the

@@ -95,6 +95,7 @@ function fakeEngine(over: Partial<EngineHandle> = {}): EngineHandle {
     setNoiseSuppression: vi.fn(async () => "ok" as const),
     setSystemAudioVolume: vi.fn(() => "ok" as const),
     setDucking: vi.fn(() => "ok" as const),
+    transport: "chromium",
     webcam: null,
     endWebcam: vi.fn(),
     // The engine's default without a relay: off is refused, the store ends the file instead.

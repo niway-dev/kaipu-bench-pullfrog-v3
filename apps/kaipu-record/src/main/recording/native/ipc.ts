@@ -8,7 +8,10 @@ import { onPageGone } from "../../renderer-lifetime";
 import { nativeHelperPath, spawnNativeVideo, validateNativeHelper } from "./session";
 
 /** Explicit developer transport only. No file path or process arguments come from IPC. */
-export function registerNativeCaptureTransport(owner: () => WebContents | undefined): void {
+export function registerNativeCaptureTransport(owner: () => WebContents | undefined): {
+  /** A native session is open: the helper records the screen without any window of ours. */
+  isOpen: () => boolean;
+} {
   let reader: NativeCaptureReader | null = null;
   let opening = false;
   let generation = 0;
@@ -149,4 +152,5 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
   app.on("before-quit", () => {
     void cancel();
   });
+  return { isOpen: () => reader !== null };
 }

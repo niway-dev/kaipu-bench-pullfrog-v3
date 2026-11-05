@@ -324,6 +324,7 @@
     "selectScreenOrWindow": "Elige una pantalla o ventana",
     "errorStopped": "La grabación se detuvo por un error. Guardamos lo que se pudo.",
     "webcamUnavailable": "La cámara no estaba disponible, así que tu cara se grabó dentro de la pantalla.",
+    "webcamStoppedNative": "La cámara se detuvo: el resto del video no tiene cámara",
     "webcamNotSaved": "No pudimos guardar la grabación de la cámara, así que es posible que tu cara no aparezca en este video. La grabación de pantalla se conservó.",
     "errorStart": "No pudimos iniciar la grabación. Vuelve a intentarlo.",
     "errorSave": "No pudimos guardar la grabación.",
