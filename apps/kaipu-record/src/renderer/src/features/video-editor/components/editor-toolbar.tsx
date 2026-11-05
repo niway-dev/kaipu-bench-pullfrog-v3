@@ -231,6 +231,7 @@ function ToolFlyout({
 
   return createPortal(
     <div
+      {...uiArea("editorVideo.toolFlyout")}
       ref={menuRef}
       role="menu"
       aria-label={label}

@@ -7,7 +7,7 @@
  * Render noise: the GPU rasterizes anti-aliased edges and gradients with a little jitter
  * between two launches of the same build on the same screen. A real change (a different
  * frame, a label, a meter) moves channels by tens, or touches many pixels. A diff is noise
- * when it fits ONE of three bands, each trading size for count:
+ * when it fits ONE of four bands, each trading size for count:
  *
  * 1. Imperceptible: no channel moved by more than 2 of 255. A person cannot see it, so the
  *    number of pixels does not matter. Such pixels are also left out of the counts below.
@@ -15,6 +15,12 @@
  * 3. Larger and rarer: up to 24 per channel on at most 0.5% of the pixels AND at most 2000
  *    pixels, so a big crop cannot hide a patch the size of a thumbnail. The first shots of
  *    this catalog showed rounded-border edges off by up to 17 on a few dozen pixels.
+ * 4. Edge speckle: at most 32 pixels, by any amount, and at most 0.5% of the pixels. The
+ *    antialiased edge of a small shape (a rounded corner of the Capture button, the glyph
+ *    edges of the Library header's right-hand button) lands on a different coverage in two
+ *    launches: full `--twice` runs on 2026-11-05 showed 2 pixels off by 56, 16 off by 29 and
+ *    21 off by 29, on screens where nothing but those pixels moved. A label, a meter or a
+ *    moved edge touches more.
  *
  * Nothing is masked and nothing is rendered in software: the catalog only declines to call
  * these a difference. Tuning a band needs data from a full `--twice` run, recorded here.
@@ -25,6 +31,8 @@ export const SMALL_NOISE_MAX_FRACTION = 0.01;
 export const SPARSE_NOISE_MAX_DELTA = 24;
 export const SPARSE_NOISE_MAX_FRACTION = 0.005;
 export const SPARSE_NOISE_MAX_PIXELS = 2000;
+export const SPECKLE_MAX_PIXELS = 32;
+export const SPECKLE_MAX_FRACTION = 0.005;
 
 export interface Rgba {
   readonly width: number;
@@ -116,7 +124,8 @@ export function compareCrops(first: Rgba, second: Rgba): CropComparison {
     (visibleMax <= SMALL_NOISE_MAX_DELTA && visible <= area * SMALL_NOISE_MAX_FRACTION) ||
     (visibleMax <= SPARSE_NOISE_MAX_DELTA &&
       visible <= area * SPARSE_NOISE_MAX_FRACTION &&
-      visible <= SPARSE_NOISE_MAX_PIXELS)
+      visible <= SPARSE_NOISE_MAX_PIXELS) ||
+    (visible <= SPECKLE_MAX_PIXELS && visible <= area * SPECKLE_MAX_FRACTION)
   ) {
     return { kind: "noise", pixels, maxDelta };
   }

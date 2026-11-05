@@ -233,6 +233,7 @@ export const UI_MAP = {
       webcam: { states: ["visible"] },
       transport: { states: ["paused", "playing"] },
       toolRail: { states: ["default", "annotate", "privacy"] },
+      toolFlyout: { states: ["audio"] },
       toolbar: { states: ["default", "saving", "saved"] },
       inspector: { states: ["detection", "zoom", "mute", "webcam", "annotation", "privacy"] },
       timeline: { states: ["default"] },

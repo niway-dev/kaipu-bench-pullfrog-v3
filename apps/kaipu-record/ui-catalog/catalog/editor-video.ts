@@ -6,6 +6,13 @@ const loaded: Step = { waitFor: { video: true } };
 const rail = (name: string): Step => ({
   click: { area: "editorVideo.toolRail", part: { role: "button", name, exact: true } },
 });
+/** A row of the tool flyout, which hangs from the body, outside the rail. */
+const flyoutItem = (name: string): Step => ({
+  click: {
+    area: "editorVideo.toolFlyout",
+    part: { role: "menuitemcheckbox", name, exact: true },
+  },
+});
 /** An edit autosaves ~800 ms later; waiting for the chip keeps the next state's reset unblocked. */
 const saved: Step = {
   waitFor: { area: "editorVideo.toolbar", part: { role: "button", name: "Saved", exact: true } },
@@ -197,10 +204,22 @@ export const editorVideo = catalog(
       // The edit saved into the vault: without this the second shot finds the section hidden.
       after: [{ action: "restoreVault" }],
     },
+    "audio-menu": {
+      profile: "default",
+      how: "Open “Bug report” and press Audio in the tool rail: a menu offers Mute a section and Mute the whole recording.",
+      steps: [open(ASSETS.bugReport), loaded, rail("Audio")],
+      demonstrates: ["editorVideo.toolFlyout:audio"],
+    },
     "mute-all": {
       profile: "default",
       how: "Open “Bug report” and press Mute the whole recording: the audio lane reads muted and the edit saves.",
-      steps: [open(ASSETS.bugReport), loaded, rail("Mute the whole recording"), saved],
+      steps: [
+        open(ASSETS.bugReport),
+        loaded,
+        rail("Audio"),
+        flyoutItem("Mute the whole recording"),
+        saved,
+      ],
       demonstrates: ["editorVideo.audioLane:allMuted", "editorVideo.toolbar:saved"],
       ready: { area: "editorVideo.audioLane" },
       after: [{ action: "restoreVault" }],

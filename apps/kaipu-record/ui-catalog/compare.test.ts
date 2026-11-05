@@ -5,6 +5,7 @@ import {
   IMPERCEPTIBLE_MAX_DELTA,
   SMALL_NOISE_MAX_DELTA,
   SPARSE_NOISE_MAX_DELTA,
+  SPECKLE_MAX_PIXELS,
   type Rgba,
 } from "./compare";
 
@@ -100,10 +101,18 @@ describe("compareCrops", () => {
     expect(compareCrops(a, { ...a, data })).toMatchObject({ kind: "differs", pixels: 2001 });
   });
 
-  it("does not forgive an isolated pixel past the sparse limit", () => {
+  it("forgives edge speckle: a few pixels by any amount in a large crop", () => {
     const a = image(100, 100);
-    const b = withPixel(a, 5, 5, [100 + SPARSE_NOISE_MAX_DELTA + 1, 100, 100]);
-    expect(compareCrops(a, b)).toMatchObject({ kind: "differs", pixels: 1 });
+    let b = a;
+    for (let x = 0; x < SPECKLE_MAX_PIXELS; x++) b = withPixel(b, x, 0, [200, 100, 100]);
+    expect(compareCrops(a, b)).toMatchObject({ kind: "noise", pixels: SPECKLE_MAX_PIXELS });
+  });
+
+  it("does not forgive one pixel more than the speckle limit past the sparse limit", () => {
+    const a = image(100, 100);
+    let b = a;
+    for (let x = 0; x <= SPECKLE_MAX_PIXELS; x++) b = withPixel(b, x, 0, [200, 100, 100]);
+    expect(compareCrops(a, b)).toMatchObject({ kind: "differs", pixels: SPECKLE_MAX_PIXELS + 1 });
   });
 
   it("counts a large change that touches one channel", () => {
