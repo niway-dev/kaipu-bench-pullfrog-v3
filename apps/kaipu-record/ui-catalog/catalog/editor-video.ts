@@ -187,10 +187,8 @@ export const editorVideo = catalog(
         loaded,
         {
           press: "Enter",
-          target: {
-            area: "editorVideo.webcam",
-            part: { role: "button", name: "Webcam: drag to move it" },
-          },
+          // The area is the bubble itself (the button), not the slot around it.
+          target: { area: "editorVideo.webcam" },
         },
       ],
       demonstrates: ["editorVideo.inspector:webcam"],
