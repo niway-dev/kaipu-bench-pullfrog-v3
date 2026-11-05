@@ -1753,6 +1753,18 @@ describe("recorder-store live settings", () => {
       for (const toast of getToasts()) dismissToast(toast.id);
     });
 
+    it("a webcam encoder that fails mid-take under native says the webcam was not saved", async () => {
+      const engine = fakeEngine({
+        webcam: webcamHandle({ isUsable: () => false }),
+        transport: "native",
+      });
+      await startWith(engine, { webcam });
+      prepareEngineMock.mock.calls.at(-1)![0].onWebcamEnded!();
+      await stopAndSettle();
+      expect(getToasts().map((t) => t.message)).toEqual([messages.record.webcamNotSaved]);
+      for (const toast of getToasts()) dismissToast(toast.id);
+    });
+
     it("a camera lost during the countdown, before the take begins, is reported under native", async () => {
       prepareEngineMock.mockImplementation(async (options: EngineOptions) => {
         options.onWebcamEnded!();
