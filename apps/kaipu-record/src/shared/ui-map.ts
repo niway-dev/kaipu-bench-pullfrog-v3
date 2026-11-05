@@ -106,8 +106,15 @@ export const UI_MAP = {
         gatedBy: [{ recordingSetting: "isCameraEnabled" }, { permission: "camera" }],
       },
       cameraSettings: { states: ["open"], gatedBy: [{ recordingSetting: "isCameraEnabled" }] },
-      micNotice: { states: ["denied"], gatedBy: [{ permission: "microphone" }] },
-      cameraNotice: { states: ["denied"], gatedBy: [{ permission: "camera" }] },
+      // Drawn only when the input is on and its permission is denied.
+      micNotice: {
+        states: ["denied"],
+        gatedBy: [{ recordingSetting: "isMicrophoneEnabled" }, { permission: "microphone" }],
+      },
+      cameraNotice: {
+        states: ["denied"],
+        gatedBy: [{ recordingSetting: "isCameraEnabled" }, { permission: "camera" }],
+      },
       sourcePicker: {
         states: ["loading", "screens", "windows", "empty", "noScreenAccess"],
         gatedBy: [{ permission: "screen" }],
