@@ -30,7 +30,14 @@ import type { CaptureRect, RecordingRatio } from "@shared/types/screenshot-captu
 import { LibraryVault } from "../library/library-vault";
 import { vaultActivity, type ActivityLease } from "../library/vault-activity";
 import type { LocalRecording } from "@shared/types/library-storage";
-import { areaCapturedDisplay, pickCapturedDisplay } from "./captured-display";
+import {
+  areaCapturedDisplay,
+  displayScaleAt,
+  pickCapturedDisplay,
+  windowCapturedSpace,
+} from "./captured-display";
+import type { NativeTransportEvent } from "./native/frame-pump";
+import { WindowGeometryLog } from "./window-geometry-log";
 import { ClickHook, type HookLike } from "./click-hook";
 import { CursorTrackRegistry } from "./cursor-tracker";
 import { ControlBarWindow } from "./control-bar-window";
@@ -191,8 +198,24 @@ export function registerRecordingHub(
    * excludes the whole app by pid, so no window of ours can reach the screen file and the
    * bubble is never replaced to rejoin it.
    */
-  nativeTransport?: { isOpen: () => boolean },
+  nativeTransport?: {
+    isOpen: () => boolean;
+    /** Session events; a window take's geometry frames reach the cursor tracker through it. */
+    onEvent?: (listener: (event: NativeTransportEvent) => void) => () => void;
+  },
 ): RecordingHubHandle {
+  // The geometry of the open native window take (NIW2-645). One native session at a time, so
+  // one log: a new session replaces it, and a tracker keeps the log it started with.
+  let windowLog = new WindowGeometryLog();
+  nativeTransport?.onEvent?.((event) => {
+    if (event.type === "open") windowLog = new WindowGeometryLog();
+    else if (event.type === "frame") {
+      const h = event.frame.header;
+      if (h.kind === "geometry" && h.atMainMs !== undefined)
+        windowLog.push({ atMs: h.atMainMs, frame: h.frame, content: h.content });
+      else if (h.kind === "config") windowLog.setOutput({ width: h.width, height: h.height });
+    }
+  });
   const bar = new ControlBarWindow();
   // The bubble leaves the capture only while its face is recorded in the take's webcam file
   // (or before a take, which then records one): otherwise it stays in the screen recording.
@@ -823,6 +846,26 @@ export function registerRecordingHub(
       area?: RecordingArea | null,
     ): Promise<{ enabled: boolean }> => {
       if (endedSessions.has(sessionId)) return { enabled: false };
+      if (sourceId.startsWith("window:")) {
+        // Only a native window take has a cursor track: the Chromium window path cannot
+        // learn where the window is.
+        if (!nativeTransport?.isOpen()) return { enabled: false };
+        const frame = windowLog.latest()?.frame;
+        const space = frame
+          ? windowCapturedSpace(
+              sourceId,
+              displayScaleAt(
+                { x: frame.x + frame.width / 2, y: frame.y + frame.height / 2 },
+                screen.getAllDisplays(),
+              ),
+              windowLog,
+            )
+          : null;
+        if (!space) return { enabled: false };
+        cursorTracks.start(sessionId, space);
+        if (clickHook.ensureRunning()) clickSessions.add(sessionId);
+        return { enabled: true };
+      }
       const display = pickCapturedDisplay(
         sourceId,
         await displayIdForSource(screenSources, sourceId),

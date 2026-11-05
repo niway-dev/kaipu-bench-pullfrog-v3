@@ -23,6 +23,8 @@ export type NativeCaptureFrame = {
         kind: "geometry";
         /** Host-clock microseconds, the same clock as `config.epochUs`. */
         atUs: number;
+        /** `atUs` on main's `performance.now()` clock; set by main's session, never by the helper. */
+        atMainMs?: number;
         /** The window in screen points, origin top-left of the primary display. */
         frame: NativeRect;
         /** Where the window's pixels sit inside the fixed output frame, in output pixels. */

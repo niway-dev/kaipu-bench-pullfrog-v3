@@ -14,6 +14,7 @@ import type { CursorButton, CursorTrack } from "@shared/cursor-track";
 import { buildCursorTrack } from "./build-cursor-track";
 import { type ClockAnchor, closeOpenPause } from "./cursor-clock";
 import { CursorSampleBuffer } from "./cursor-sample-buffer";
+import type { WindowGeometryLog } from "./window-geometry-log";
 
 /**
  * 8 ms = 125 Hz. `screen.getCursorScreenPoint()` is a synchronous call on the same main
@@ -34,6 +35,11 @@ export interface CapturedDisplay {
    * normalized to it, and this records the area's origin on its display for the sidecar.
    */
   region?: { displayId: string; x: number; y: number };
+  /**
+   * A native WINDOW take (NIW2-645): samples are mapped into the output frame through the
+   * window geometry in force at each sample's time. `bounds` is then informational.
+   */
+  window?: WindowGeometryLog;
 }
 
 export interface CursorTrackerDeps {
@@ -90,8 +96,10 @@ export class CursorTracker {
 
   addClick(button: CursorButton): void {
     if (!this.stopTimer) return;
-    const p = this.normalized(this.deps.cursorPoint());
-    this.clicks.push({ t: this.deps.now(), x: p.x, y: p.y, button });
+    const now = this.deps.now();
+    const p = this.normalized(this.deps.cursorPoint(), now);
+    if (!p) return; // a window take before its first geometry has no mapping
+    this.clicks.push({ t: now, x: p.x, y: p.y, button });
   }
 
   stop(): void {
@@ -111,6 +119,8 @@ export class CursorTracker {
    */
   build(clicksAvailable: boolean, maxMs?: number): CursorTrack | null {
     if (!this.anchor || !Number.isFinite(this.anchor.t0)) return null;
+    const display = this.persistedDisplay();
+    if (!display) return null;
     const anchor = closeOpenPause(this.anchor, this.deps.now());
     return buildCursorTrack({
       raw: { t: this.samples.t, x: this.samples.x, y: this.samples.y, clicks: this.clicks },
@@ -120,21 +130,54 @@ export class CursorTracker {
       maxMs,
       truncatedAtMainMs: this.samples.truncatedAtMs,
       ...(this.display.region ? { region: this.display.region } : {}),
-      display: {
-        id: this.display.id,
-        width: this.display.bounds.width,
-        height: this.display.bounds.height,
-        scaleFactor: this.display.scaleFactor,
-      },
+      display,
     });
   }
 
-  private sample(): void {
-    const p = this.normalized(this.deps.cursorPoint());
-    this.samples.push(this.deps.now(), p.x, p.y);
+  /**
+   * The sidecar's `display`. A window take stores the output in points (pixels / scale), so
+   * the editor's aspect-ratio maths sees the recorded frame; null while the output is unknown.
+   */
+  private persistedDisplay(): CursorTrack["display"] | null {
+    const log = this.display.window;
+    if (log) {
+      const out = log.output();
+      if (!out) return null;
+      const scale = this.display.scaleFactor;
+      return {
+        id: this.display.id,
+        width: out.width / scale,
+        height: out.height / scale,
+        scaleFactor: scale,
+      };
+    }
+    return {
+      id: this.display.id,
+      width: this.display.bounds.width,
+      height: this.display.bounds.height,
+      scaleFactor: this.display.scaleFactor,
+    };
   }
 
-  private normalized(p: { x: number; y: number }): { x: number; y: number } {
+  private sample(): void {
+    const now = this.deps.now();
+    const p = this.normalized(this.deps.cursorPoint(), now);
+    if (p) this.samples.push(now, p.x, p.y);
+  }
+
+  /** Null only for a window take with no geometry (or no output size) in force at `atMs`. */
+  private normalized(p: { x: number; y: number }, atMs: number): { x: number; y: number } | null {
+    const log = this.display.window;
+    if (log) {
+      const g = log.at(atMs);
+      const out = log.output();
+      if (!g || !out) return null;
+      // Output pixels: the content rect's offset plus the pointer's offset in the window,
+      // scaled by how much the window was shrunk or grown to fit.
+      const px = g.content.x + (p.x - g.frame.x) * (g.content.width / g.frame.width);
+      const py = g.content.y + (p.y - g.frame.y) * (g.content.height / g.frame.height);
+      return { x: px / out.width, y: py / out.height };
+    }
     const b = this.display.bounds;
     return { x: (p.x - b.x) / b.width, y: (p.y - b.y) / b.height };
   }

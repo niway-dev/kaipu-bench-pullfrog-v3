@@ -8,6 +8,7 @@ import {
 import type { RecordingArea } from "@shared/types/ipc";
 import { sanitizeArea } from "../area-geometry";
 import { onPageGone } from "../../renderer-lifetime";
+import { type NativeTransportEvent, pumpFrames } from "./frame-pump";
 import { nativeHelperPath, spawnNativeVideo, validateNativeHelper } from "./session";
 
 /** Explicit developer transport only. No file path or process arguments come from IPC. */
@@ -17,7 +18,19 @@ export function registerNativeCaptureTransport(
 ): {
   /** A native session is open: the helper records the screen without any window of ours. */
   isOpen: () => boolean;
+  /** Session events for main's own consumers (the cursor tracker); `geometry` frames arrive here. */
+  onEvent: (listener: (event: NativeTransportEvent) => void) => () => void;
 } {
+  const listeners = new Set<(event: NativeTransportEvent) => void>();
+  const emit = (event: NativeTransportEvent) => {
+    for (const listener of listeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error("native transport listener failed", error);
+      }
+    }
+  };
   let reader: NativeCaptureReader | null = null;
   let opening = false;
   let generation = 0;
@@ -143,12 +156,19 @@ export function registerNativeCaptureTransport(
           detach = onPageGone(contents, () => {
             void cancel();
           });
+          emit({ type: "open" });
           try {
             await reader.ready?.();
           } catch (error) {
             await cancel();
             throw error;
           }
+          // A window take streams geometry before `go`: main reads it from here on, so the
+          // helper's stdout never fills while the renderer is not pulling yet.
+          if ("windowId" in videoRequest)
+            reader = pumpFrames(reader, (frame) =>
+              emit(frame ? { type: "frame", frame } : { type: "end" }),
+            );
           if (openedGeneration !== generation || contents.isDestroyed()) {
             await cancel();
             throw new Error("Native open cancelled");
@@ -187,5 +207,11 @@ export function registerNativeCaptureTransport(
   app.on("before-quit", () => {
     void cancel();
   });
-  return { isOpen: () => reader !== null };
+  return {
+    isOpen: () => reader !== null,
+    onEvent: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
 }

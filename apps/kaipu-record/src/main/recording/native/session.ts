@@ -237,6 +237,8 @@ export function spawnNativeVideo(
         } else sequence.accept(result.value);
         if (result.value.header.kind === "config")
           result.value.header.epochMainMs = (result.value.header.epochUs - hostOffsetUs) / 1000;
+        else if (result.value.header.kind === "geometry")
+          result.value.header.atMainMs = (result.value.header.atUs - hostOffsetUs) / 1000;
         return result.value;
       } catch (error) {
         await cancel();

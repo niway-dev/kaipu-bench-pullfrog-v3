@@ -2,12 +2,13 @@
  * Which display a capture source records — the space cursor samples are normalized to.
  * Pure: the caller passes desktopCapturer's `display_id` and `screen.getAllDisplays()`.
  *
- * Only SCREEN sources get a cursor track in v2. A `window:` source has no display
- * mapping: Electron cannot read another app's window bounds, and the window can move or
- * resize mid-recording, so there is nothing stable to normalize against.
+ * `pickCapturedDisplay` serves SCREEN sources only. A Chromium `window:` take has no cursor
+ * track: Electron cannot read another app's window bounds. A NATIVE window take gets one
+ * through `windowCapturedSpace`, from the geometry the helper streams.
  */
 import type { RecordingArea } from "@shared/types/ipc";
 import type { CapturedDisplay } from "./cursor-tracker";
+import type { WindowGeometryLog } from "./window-geometry-log";
 
 export interface DisplayLike {
   id: number;
@@ -30,6 +31,40 @@ export function pickCapturedDisplay(
     id: String(display.id),
     bounds: { ...display.bounds },
     scaleFactor: display.scaleFactor,
+  };
+}
+
+/** The scale factor of the display holding `point` (global points); the first display, else 1. */
+export function displayScaleAt(point: { x: number; y: number }, displays: DisplayLike[]): number {
+  const holder = displays.find(
+    (d) =>
+      point.x >= d.bounds.x &&
+      point.x < d.bounds.x + d.bounds.width &&
+      point.y >= d.bounds.y &&
+      point.y < d.bounds.y + d.bounds.height,
+  );
+  return (holder ?? displays[0])?.scaleFactor ?? 1;
+}
+
+/**
+ * The space a native WINDOW take's cursor is normalized to (NIW2-645): the output frame, with
+ * the window's geometry in force at each sample. Null for any other source, and until the
+ * first geometry has arrived. `bounds` is informational (the latest window frame); the
+ * tracker maps through `window`.
+ */
+export function windowCapturedSpace(
+  sourceId: string,
+  scaleFactor: number,
+  log: WindowGeometryLog,
+): CapturedDisplay | null {
+  const match = /^window:(\d+):\d+$/.exec(sourceId);
+  const latest = log.latest();
+  if (!match || !latest) return null;
+  return {
+    id: `window:${match[1]}`,
+    bounds: { ...latest.frame },
+    scaleFactor,
+    window: log,
   };
 }
 

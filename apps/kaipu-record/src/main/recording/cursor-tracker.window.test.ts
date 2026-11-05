@@ -66,9 +66,9 @@ function windowTake(frame: Rect, scale = 2) {
 describe("cursor track for a window take", () => {
   it("maps the pointer into the output frame: top-left and centre", () => {
     const { f, space, reg } = windowTake({ x: 100, y: 50, width: 400, height: 300 });
+    f.move(100, 50); // start() takes a first sample at once
     const tracker = reg.start("s", space);
     tracker.setAnchor(0, "exact");
-    f.move(100, 50);
     f.tick(16);
     f.move(300, 200);
     f.tick(16);
@@ -93,9 +93,9 @@ describe("cursor track for a window take", () => {
   it("uses the aspect-fit: a wide window leaves the bottom of the output unused", () => {
     // 800x300 window into 800x600: scale 1, content 800x300 at the top-left.
     const { f, space, reg } = windowTake({ x: 0, y: 0, width: 800, height: 300 });
+    f.move(800, 300); // the window's bottom-right corner
     const tracker = reg.start("s", space);
     tracker.setAnchor(0, "exact");
-    f.move(800, 300); // the window's bottom-right corner
     f.tick(16);
     const track = reg.finish("s", false)!;
     expect(track.x[0]).toBeCloseTo(1, 6);
@@ -104,14 +104,14 @@ describe("cursor track for a window take", () => {
 
   it("normalizes each sample against the geometry in force at its own time (move + resize)", () => {
     const { f, log, space, reg } = windowTake({ x: 100, y: 50, width: 400, height: 300 });
-    const tracker = reg.start("s", space);
-    tracker.setAnchor(0, "exact");
     // The pointer never moves: (300, 200), the window centre at first.
     f.move(300, 200);
+    const tracker = reg.start("s", space);
+    tracker.setAnchor(0, "exact");
     f.tick(40);
-    log.push(geo(40, { x: 200, y: 50, width: 400, height: 300 })); // the window moves right
+    log.push(geo(44, { x: 200, y: 50, width: 400, height: 300 })); // the window moves right
     f.tick(40);
-    log.push(geo(80, { x: 100, y: 50, width: 800, height: 300 })); // resize to 800x300, scale 1
+    log.push(geo(84, { x: 100, y: 50, width: 800, height: 300 })); // resize to 800x300, scale 1
     f.tick(40);
     const track = reg.finish("s", false)!;
     const xAt = (t: number) => track.x[track.t.indexOf(t)];
@@ -120,11 +120,11 @@ describe("cursor track for a window take", () => {
     expect(xAt(0)).toBeCloseTo(0.5, 6);
     expect(yAt(0)).toBeCloseTo(0.5, 6);
     // After the move: x = (300 - 200) * 2 / 800 = 0.25.
-    expect(xAt(40)).toBeCloseTo(0.25, 6);
-    expect(yAt(40)).toBeCloseTo(0.5, 6);
+    expect(xAt(48)).toBeCloseTo(0.25, 6);
+    expect(yAt(48)).toBeCloseTo(0.5, 6);
     // After the resize: x = (300 - 100) * 1 / 800 = 0.25, y = (200 - 50) / 600 = 0.25.
-    expect(xAt(80)).toBeCloseTo(0.25, 6);
-    expect(yAt(80)).toBeCloseTo(0.25, 6);
+    expect(xAt(88)).toBeCloseTo(0.25, 6);
+    expect(yAt(88)).toBeCloseTo(0.25, 6);
   });
 
   it("a click during a resize lands on the geometry in force at the click", () => {
