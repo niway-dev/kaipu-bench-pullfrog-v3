@@ -609,6 +609,7 @@ describe("status", () => {
   it("clones without any prompt: BatchMode ssh, appended to an existing GIT_SSH_COMMAND", () => {
     expect(statusCloneEnv({})).toMatchObject({
       GIT_TERMINAL_PROMPT: "0",
+      GIT_ASKPASS: "",
       GIT_SSH_COMMAND: "ssh -o BatchMode=yes -o ConnectTimeout=5",
     });
     expect(statusCloneEnv({ GIT_SSH_COMMAND: "ssh -i /k" }).GIT_SSH_COMMAND).toBe(

@@ -86,6 +86,7 @@ export function statusCloneEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...base,
     GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "",
     GIT_SSH_COMMAND: existing ? `${existing} -o BatchMode=yes -o ConnectTimeout=5` : BATCH_SSH,
   };
 }
