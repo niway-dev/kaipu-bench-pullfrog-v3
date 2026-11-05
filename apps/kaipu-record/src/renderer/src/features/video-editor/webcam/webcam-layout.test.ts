@@ -164,6 +164,26 @@ describe("webcamPresetCenter", () => {
   });
 });
 
+describe("edge presets (NIW2-636)", () => {
+  // The bug: the Left/Right presets stored a centre with a margin computed for the
+  // un-shrunk bubble, so under "shrink during zoom" the smaller bubble sat ~94 px
+  // (output pixels) away from the edge it was snapped to.
+  const rectangle = { shape: "rectangle", size: 0.42, scaleDuringZoom: 0.7 } as const;
+
+  it.each([
+    ["left", 1],
+    ["right", 1],
+    ["left", 2],
+    ["right", 2],
+  ] as const)("puts the %s preset flush with the frame edge at camera scale %s", (id, scale) => {
+    const preset = WEBCAM_POSITION_PRESETS.find((p) => p.id === id)!;
+    const position = webcamPresetCenter(preset, rectangle.size, FRAME, rectangle.shape);
+    const rect = webcamRect({ ...rectangle, position }, FRAME, scale)!;
+    if (id === "left") expect(rect.x).toBeCloseTo(0, 3);
+    else expect(rect.x + rect.width).toBeCloseTo(FRAME.width, 3);
+  });
+});
+
 describe("webcamSourceRect", () => {
   const IMAGE = { width: 1280, height: 720 };
 
