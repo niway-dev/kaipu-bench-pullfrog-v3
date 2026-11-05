@@ -1207,11 +1207,7 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
       // Taken here, not while preparing: during a countdown the screen still shows the app.
       // In the background: the take starts without it, and stop waits for it before the
       // tracks end.
-      const thumbnail = captureThumbnail(
-        screenStream,
-        target,
-        native ? areaPlan?.source : undefined,
-      ).then((image) => {
+      const thumbnail = captureThumbnail(screenStream, target, areaPlan?.source).then((image) => {
         markRecordTiming("captureThumbnail resolved");
         return image;
       });
@@ -1333,9 +1329,10 @@ function deadlineIn(ms: number): { expired: Promise<"timeout">; clear(): void } 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * `source` (physical pixels of the stream) is set only when the stream is the whole display
- * but the take records an area: Chromium's compositor track is already cropped, a native
- * take's duplicate Chromium stream is not, so the poster draws just the area (decision 14).
+ * `source` (physical pixels of the stream) is set when the take records an area. The stream
+ * passed here is always the whole display: Chromium's compositor crops only the encoded
+ * track, and a native take's duplicate stream is uncropped too, so the poster draws just
+ * the area (decision 14).
  */
 export async function captureThumbnail(
   stream: MediaStream,

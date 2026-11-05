@@ -5,12 +5,16 @@ import {
   type NativeOpenRequest,
   type NativeVideoRequest,
 } from "../../../shared/native-capture";
+import type { RecordingArea } from "@shared/types/ipc";
 import { sanitizeArea } from "../area-geometry";
 import { onPageGone } from "../../renderer-lifetime";
 import { nativeHelperPath, spawnNativeVideo, validateNativeHelper } from "./session";
 
 /** Explicit developer transport only. No file path or process arguments come from IPC. */
-export function registerNativeCaptureTransport(owner: () => WebContents | undefined): void {
+export function registerNativeCaptureTransport(
+  owner: () => WebContents | undefined,
+  hubArea: () => RecordingArea | null | undefined = () => undefined,
+): void {
   let reader: NativeCaptureReader | null = null;
   let opening = false;
   let generation = 0;
@@ -87,7 +91,17 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
           )
             throw new Error("Native transport unavailable");
           if (typeof request !== "object") throw new Error("Invalid request");
-          const { sourceId, area, ...rest } = request;
+          // `displayId` and `sourceRect` are main's to set; whatever the renderer sent is dropped.
+          const {
+            sourceId,
+            area,
+            displayId: _d,
+            sourceRect: _r,
+            ...rest
+          } = request as NativeOpenRequest & {
+            displayId?: unknown;
+            sourceRect?: unknown;
+          };
           const videoRequest = rest as NativeVideoRequest;
           if (sourceId) {
             if (!sourceId.startsWith("screen:")) throw new Error("Native requires whole display");
@@ -105,7 +119,17 @@ export function registerNativeCaptureTransport(owner: () => WebContents | undefi
               const display = screen
                 .getAllDisplays()
                 .find((candidate) => candidate.id === videoRequest.displayId);
-              const safe = display ? sanitizeArea(area, display) : null;
+              // The hub's area is the source of truth: the cursor track is normalized to it.
+              // A renderer copy that differs would draw the cursor offset, so refuse and let
+              // the take fall back to Chromium.
+              const chosen = hubArea();
+              if (
+                !chosen ||
+                chosen.displayId !== area.displayId ||
+                JSON.stringify(chosen.rect) !== JSON.stringify(area.rect)
+              )
+                throw new Error("Native area differs from the recording area");
+              const safe = display ? sanitizeArea(chosen, display) : null;
               if (!safe) throw new Error("Native area is not on the captured display");
               videoRequest.sourceRect = safe.rect;
             }
