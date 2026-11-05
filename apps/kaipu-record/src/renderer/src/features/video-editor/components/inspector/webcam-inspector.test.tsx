@@ -93,6 +93,14 @@ describe("WebcamInspector", () => {
     expect(edits.end).toHaveBeenCalledOnce();
   });
 
+  it("labels the size slider 10% to 90% over the stored 0.12 to 0.90", () => {
+    renderGlobal(layout({ size: 0.9 }));
+    const slider = screen.getByRole("slider", { name: "Size" });
+    expect(slider.getAttribute("min")).toBe("0.12");
+    expect(slider.getAttribute("max")).toBe("0.9");
+    expect(screen.getByText("90%")).toBeTruthy();
+  });
+
   it("offers nine position presets and marks the one in use", () => {
     const at = webcamPresetCenter({ x: 1, y: 0 }, 0.22, FRAME);
     const { edits } = renderGlobal(layout({ size: 0.22, position: at }));

@@ -530,7 +530,7 @@ describe("webcam layer", () => {
       segments: [],
     })!.scene.webcam!;
     expect(layer.layout).toMatchObject({
-      size: 0.6,
+      size: 0.9,
       position: { x: 0, y: 1 },
       scaleDuringZoom: 0.3,
       framing: { zoom: 3, x: 1, y: -1 },
@@ -549,7 +549,7 @@ describe("webcam layer", () => {
         start: 6,
         end: 9,
         mode: "override",
-        layout: { size: 0.1, position: { x: 1, y: 0.5 } },
+        layout: { size: 0.12, position: { x: 1, y: 0.5 } },
       },
     ]);
   });

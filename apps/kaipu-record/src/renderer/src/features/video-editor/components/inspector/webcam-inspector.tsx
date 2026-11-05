@@ -24,6 +24,7 @@ import type { WebcamEditing } from "../../webcam/use-webcam-editing";
 import {
   WEBCAM_DEFAULTS,
   WEBCAM_LIMITS,
+  webcamSizeLabel,
   type WebcamLayout,
   type WebcamSegment,
 } from "../../webcam/webcam-model";
@@ -140,7 +141,7 @@ function WebcamControls({
         min={WEBCAM_LIMITS.minSize}
         max={WEBCAM_LIMITS.maxSize}
         step={0.01}
-        format={(v) => `${Math.round(v * 100)}%`}
+        format={(v) => `${webcamSizeLabel(v)}%`}
         onBegin={edits.begin}
         onLive={(size) => live({ size })}
         onEnd={edits.end}
