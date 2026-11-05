@@ -151,7 +151,10 @@ test("webcam: editor size range, edge presets and drag clamp under a 2x zoom", a
   };
 
   const preset = async (name: "Left" | "Right"): Promise<void> => {
-    await page.getByRole("group", { name: "Position" }).getByRole("button", { name }).click();
+    await page
+      .getByRole("group", { name: "Position" })
+      .getByRole("button", { name, exact: true })
+      .click();
   };
 
   try {
