@@ -1973,9 +1973,12 @@ describe("experimental native recorder lifecycle", () => {
   });
   it("opens the native helper with a webcam and starts the webcam output on the same clock", async () => {
     const bridge = nativeBridge();
+    const clockNow = window.electronAPI.cursorClockNow;
+    window.electronAPI.cursorClockNow = async () => performance.now() + 500;
     const prepared = await prepareEngine(
       baseOptions({ sourceId: "screen:3:0", webcam: { deviceId: "cam-1", lines: 720 } }),
     );
+    window.electronAPI.cursorClockNow = clockNow;
     expect(bridge.open).toHaveBeenCalled();
     const handle = await prepared.begin();
     expect(handle.transport).toBe("native");
@@ -1987,7 +1990,11 @@ describe("experimental native recorder lifecycle", () => {
     webcamOutput!._firstMediaStreamTimestamp = 10.0405;
     await handle.stop();
     const times = await handle.webcam!.startTimesAfterStop();
+    // The screen's t0 is the helper's epoch on the renderer clock: epochMainMs minus the
+    // measured main-vs-renderer clock offset (here main runs 500 ms ahead).
+    const epochMainMs = (await bridge.next.mock.results[0]!.value).header.epochMainMs;
     expect(times.screen.quality).toBe("exact");
+    expect(Math.abs(times.screen.rendererMs - (epochMainMs - 500))).toBeLessThan(5);
     expect(times.webcam).toEqual({ rendererMs: 10_040.5, quality: "exact" });
   });
   it("keeps the take native, without a webcam file, when the camera does not open at the start", async () => {

@@ -1753,6 +1753,31 @@ describe("recorder-store live settings", () => {
       for (const toast of getToasts()) dismissToast(toast.id);
     });
 
+    it("a camera lost during the countdown, before the take begins, is reported under native", async () => {
+      prepareEngineMock.mockImplementation(async (options: EngineOptions) => {
+        options.onWebcamEnded!();
+        return fakePrepared(fakeEngine({ transport: "native" }));
+      });
+      store.requestStartRecording(() => ({ ...input, webcam }));
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(store.getRecorderSnapshot().status).toBe("recording");
+      await stopAndSettle();
+      expect(getToasts().map((t) => t.message)).toEqual([messages.record.webcamStoppedNative]);
+      for (const toast of getToasts()) dismissToast(toast.id);
+    });
+
+    it("a camera that failed to open at the start of a native take says the camera stopped", async () => {
+      prepareEngineMock.mockImplementation(async (options: EngineOptions) => {
+        await options.onWebcamUnavailable!();
+        return fakePrepared(fakeEngine({ webcam: null, transport: "native" }));
+      });
+      store.requestStartRecording(() => ({ ...input, webcam }));
+      await vi.advanceTimersByTimeAsync(3000);
+      await stopAndSettle();
+      expect(getToasts().map((t) => t.message)).toEqual([messages.record.webcamStoppedNative]);
+      for (const toast of getToasts()) dismissToast(toast.id);
+    });
+
     it("a webcam that ends under Chromium says nothing: the face is in the screen", async () => {
       const engine = fakeEngine({ webcam: webcamHandle(), transport: "chromium" });
       await startWith(engine, { webcam });
