@@ -179,8 +179,16 @@ it("reads geometry before config and between packets, then a clean end", async (
   const reader = spawnNativeVideo(path, windowRequest);
   const kinds: string[] = [];
   await reader.ready!();
-  for (let f = await reader.next(); f; f = await reader.next()) kinds.push(f.header.kind);
+  const atMainMs: number[] = [];
+  for (let f = await reader.next(); f; f = await reader.next()) {
+    kinds.push(f.header.kind);
+    if (f.header.kind === "geometry") atMainMs.push(f.header.atMainMs as number);
+  }
   expect(kinds).toEqual(["geometry", "config", "geometry", "packet", "end"]);
+  // Geometry is stamped on the main clock like config, so the tracker can compare it with
+  // its own samples: the same offset applies, so the 7 us gap survives.
+  expect(atMainMs.every(Number.isFinite)).toBe(true);
+  expect(atMainMs[1] - atMainMs[0]).toBeCloseTo(0.007, 6);
 });
 it("times out a helper that closes stdout after end but never exits", async () => {
   const frame = (header: object, payload: number[] = []) => {

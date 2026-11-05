@@ -993,6 +993,82 @@ describe("recording hub — a Dock dropped by a floating panel comes back", () =
     await abort({}, "session-1");
   });
 
+  describe("cursor track for a native window take (NIW2-645)", () => {
+    const geometryFrame = (atUs: number) => ({
+      header: {
+        kind: "geometry" as const,
+        atUs,
+        atMainMs: atUs / 1000,
+        frame: { x: 100, y: 50, width: 400, height: 300 },
+        content: { x: 0, y: 0, width: 800, height: 600 },
+      },
+      payload: new Uint8Array(),
+    });
+    const setup = async (open: boolean) => {
+      const { registerSettings } = await import("../infrastructure/settings-store");
+      const { registerRecordingHub } = await import("./recording-hub");
+      registerSettings();
+      let listener: ((event: unknown) => void) | undefined;
+      const transport = {
+        isOpen: () => open,
+        onEvent: (l: (event: unknown) => void) => {
+          listener = l;
+          return () => {};
+        },
+      };
+      registerRecordingHub(
+        () => fakeMainWindow() as never,
+        undefined,
+        undefined,
+        transport as never,
+      );
+      mockState.displays = [{ id: 1, bounds: { x: 0, y: 0, width: 1512, height: 982 } }];
+      const create = mockState.ipcHandle.get(IPC_CHANNELS.recordingCreate)!;
+      const trackStart = mockState.ipcHandle.get(IPC_CHANNELS.cursorTrackStart)!;
+      const abort = mockState.ipcHandle.get(IPC_CHANNELS.recordingAbort)!;
+      await create({}, "session-1");
+      return { emit: (e: unknown) => listener?.(e), trackStart, abort };
+    };
+
+    it("tracks once a geometry has arrived", async () => {
+      const t = await setup(true);
+      t.emit({ type: "open" });
+      t.emit({ type: "frame", frame: geometryFrame(1000) });
+      await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
+        enabled: true,
+      });
+      await t.abort({}, "session-1");
+    });
+
+    it("does not track before any geometry", async () => {
+      const t = await setup(true);
+      t.emit({ type: "open" });
+      await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
+        enabled: false,
+      });
+      await t.abort({}, "session-1");
+    });
+
+    it("does not track a window when no native session is open (Chromium path)", async () => {
+      const t = await setup(false);
+      t.emit({ type: "frame", frame: geometryFrame(1000) });
+      await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
+        enabled: false,
+      });
+      await t.abort({}, "session-1");
+    });
+
+    it("forgets the geometry of a previous native session on open", async () => {
+      const t = await setup(true);
+      t.emit({ type: "frame", frame: geometryFrame(1000) });
+      t.emit({ type: "open" });
+      await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
+        enabled: false,
+      });
+      await t.abort({}, "session-1");
+    });
+  });
+
   it("a cursor track for a take that already ended is refused without a display lookup", async () => {
     const { registerSettings } = await import("../infrastructure/settings-store");
     const { registerRecordingHub } = await import("./recording-hub");
