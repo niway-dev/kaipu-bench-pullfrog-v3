@@ -40,6 +40,42 @@ describe("WindowGeometryLog", () => {
     expect(log.size).toBe(1);
   });
 
+  it("drops a late duplicate of the geometry that follows it, too (S4)", () => {
+    const log = new WindowGeometryLog();
+    log.push({ atMs: 100, frame: rect(10), content });
+    log.push({ atMs: 300, frame: rect(30), content });
+    log.push({ atMs: 200, frame: rect(30), content }); // arrives late, same as what follows
+    expect(log.size).toBe(2);
+    expect(log.at(250)?.frame.x).toBe(30);
+    expect(log.at(150)?.frame.x).toBe(10);
+  });
+
+  it("lists the geometry changes strictly between two times", () => {
+    const log = new WindowGeometryLog();
+    for (const [at, x] of [
+      [100, 10],
+      [200, 20],
+      [300, 30],
+    ])
+      log.push({ atMs: at, frame: rect(x), content });
+    expect(log.between(100, 300).map((g) => g.atMs)).toEqual([200]);
+    expect(log.between(0, 1000).map((g) => g.atMs)).toEqual([100, 200, 300]);
+    expect(log.between(300, 400)).toEqual([]);
+  });
+
+  it("holds the display scale once learned, and can be reset for a new session", () => {
+    const log = new WindowGeometryLog();
+    expect(log.scaleFactor()).toBeNull();
+    log.setScaleFactor(2);
+    log.setOutput({ width: 4, height: 4 });
+    log.push({ atMs: 1, frame: rect(1), content });
+    expect(log.scaleFactor()).toBe(2);
+    log.reset();
+    expect(log.scaleFactor()).toBeNull();
+    expect(log.output()).toBeNull();
+    expect(log.latest()).toBeNull();
+  });
+
   it("holds the output size once config is known", () => {
     const log = new WindowGeometryLog();
     log.setOutput({ width: 800, height: 600 });

@@ -12,8 +12,8 @@ describe("windowCapturedSpace", () => {
     expect(windowCapturedSpace("window:abc:0", 2, log)).toBeNull();
   });
 
-  it("is null until a geometry is known", () => {
-    expect(windowCapturedSpace("window:42:0", 2, new WindowGeometryLog())).toBeNull();
+  it("exists before any geometry: cursor tracking starts before the native session opens", () => {
+    expect(windowCapturedSpace("window:42:0", 2, new WindowGeometryLog())?.id).toBe("window:42");
   });
 
   it("names the window and carries the log", () => {

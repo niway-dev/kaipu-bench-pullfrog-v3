@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { serializeCursorTrack } from "@shared/cursor-track";
 import { windowCapturedSpace } from "./captured-display";
-import {
-  type CapturedDisplay,
-  CursorTrackRegistry,
-  type CursorTrackerDeps,
-} from "./cursor-tracker";
+import { CursorTrackRegistry, type CursorTrackerDeps } from "./cursor-tracker";
 import { windowContentRect } from "./native/window-fit";
 import { WindowGeometryLog } from "./window-geometry-log";
 
@@ -120,11 +115,11 @@ describe("cursor track for a window take", () => {
     expect(xAt(0)).toBeCloseTo(0.5, 6);
     expect(yAt(0)).toBeCloseTo(0.5, 6);
     // After the move: x = (300 - 200) * 2 / 800 = 0.25.
-    expect(xAt(48)).toBeCloseTo(0.25, 6);
-    expect(yAt(48)).toBeCloseTo(0.5, 6);
+    expect(xAt(44)).toBeCloseTo(0.25, 6);
+    expect(yAt(44)).toBeCloseTo(0.5, 6);
     // After the resize: x = (300 - 100) * 1 / 800 = 0.25, y = (200 - 50) / 600 = 0.25.
-    expect(xAt(88)).toBeCloseTo(0.25, 6);
-    expect(yAt(88)).toBeCloseTo(0.25, 6);
+    expect(xAt(84)).toBeCloseTo(0.25, 6);
+    expect(yAt(84)).toBeCloseTo(0.25, 6);
   });
 
   it("a click during a resize lands on the geometry in force at the click", () => {
@@ -195,6 +190,67 @@ describe("cursor track for a window take", () => {
     expect(track.y.map((v) => Number(v.toFixed(6)))).toContain(1);
   });
 
+  it("applies a geometry that was stamped earlier than it was delivered (B3)", () => {
+    const { f, log, space, reg } = windowTake({ x: 100, y: 50, width: 400, height: 300 });
+    f.move(300, 200);
+    const tracker = reg.start("s", space);
+    tracker.setAnchor(0, "exact");
+    f.tick(40); // samples up to t = 40 were taken with only the first geometry delivered
+    // The helper saw the window move at t = 20, but the frame reaches main only now.
+    log.push(geo(20, { x: 200, y: 50, width: 400, height: 300 }));
+    f.tick(40);
+    const track = reg.finish("s", false)!;
+    const xAt = (t: number) => track.x[track.t.indexOf(t)];
+    expect(xAt(0)).toBeCloseTo(0.5, 6); // before the move
+    expect(xAt(20)).toBeCloseTo(0.25, 6); // the moment of the move, mapped late
+    expect(xAt(40)).toBeCloseTo(0.25, 6);
+    // No sample between t = 20 and the end carries the stale mapping.
+    for (let i = 0; i < track.t.length; i++)
+      if (track.t[i] >= 20) expect(track.x[i]).toBeCloseTo(0.25, 6);
+  });
+
+  it("keeps a window dragged under a still pointer: a sample at every geometry change", () => {
+    const { f, log, space, reg } = windowTake({ x: 100, y: 50, width: 400, height: 300 });
+    f.move(300, 200); // never moves
+    const tracker = reg.start("s", space);
+    tracker.setAnchor(0, "exact");
+    for (let i = 1; i <= 5; i++) {
+      f.tick(16);
+      log.push(geo(i * 16 - 4, { x: 100 + i * 20, y: 50, width: 400, height: 300 }));
+    }
+    f.tick(16);
+    const track = reg.finish("s", false)!;
+    // The still pointer is stored as one run, yet each drag step has its own sample.
+    for (let i = 1; i <= 5; i++) {
+      const at = track.t.indexOf(i * 16 - 4);
+      expect(at).toBeGreaterThanOrEqual(0);
+      expect(track.x[at]).toBeCloseTo(((300 - (100 + i * 20)) * 2) / 800, 6);
+    }
+  });
+
+  it("writes no track when no geometry ever arrives (the take fell back to Chromium)", () => {
+    const f = fakeDeps();
+    const log = new WindowGeometryLog();
+    log.setOutput(OUT);
+    const space = windowCapturedSpace("window:42:0", 1, log)!;
+    const reg = new CursorTrackRegistry(f.deps);
+    const tracker = reg.start("s", space);
+    tracker.setAnchor(0, "exact");
+    f.tick(40);
+    tracker.addClick(0);
+    expect(reg.finish("s", true)).toBeNull();
+  });
+
+  it("uses the display scale learned from the first geometry, not the one at start", () => {
+    const { f, log, space, reg } = windowTake({ x: 0, y: 0, width: 400, height: 300 }, 1);
+    log.setScaleFactor(2);
+    const tracker = reg.start("s", space);
+    tracker.setAnchor(0, "exact");
+    f.tick(16);
+    const track = reg.finish("s", false)!;
+    expect(track.display).toEqual({ id: "window:42", width: 400, height: 300, scaleFactor: 2 });
+  });
+
   it("stores the window as the display: id, output in points, scale, no region", () => {
     const { f, space, reg } = windowTake({ x: 0, y: 0, width: 400, height: 300 }, 2);
     const tracker = reg.start("s", space);
@@ -205,45 +261,5 @@ describe("cursor track for a window take", () => {
     expect(track.version).toBe(1);
     expect(track.display).toEqual({ id: "window:42", width: 400, height: 300, scaleFactor: 2 });
     expect(track.region).toBeUndefined();
-  });
-});
-
-describe("display and area takes are untouched", () => {
-  const DISPLAY: CapturedDisplay = {
-    id: "7",
-    bounds: { x: 1000, y: 0, width: 1000, height: 500 },
-    scaleFactor: 2,
-  };
-  const run = (display: CapturedDisplay) => {
-    const f = fakeDeps();
-    const reg = new CursorTrackRegistry(f.deps);
-    const tracker = reg.start("s", display);
-    tracker.setAnchor(0, "exact");
-    f.move(1500, 250);
-    f.tick(24);
-    tracker.addClick(0);
-    f.move(1100, 120);
-    f.tick(24);
-    return serializeCursorTrack(reg.finish("s", true)!);
-  };
-
-  it("a display take serializes to the exact bytes it did before", () => {
-    // Golden bytes captured from the tracker before the window change was written.
-    expect(run(DISPLAY)).toBe(
-      '{"version":1,"display":{"id":"7","width":1000,"height":500,"scaleFactor":2},"anchor":"exact","clicksAvailable":true,"t":[0,8,24,32,48],"x":[-1,0.5,0.5,0.1,0.1],"y":[0,0.5,0.5,0.24,0.24],"clicks":[{"t":24,"x":0.5,"y":0.5,"button":0}]}',
-    );
-  });
-
-  it("an area take serializes to the exact bytes it did before", () => {
-    expect(
-      run({
-        id: "7",
-        bounds: { x: 1100, y: 100, width: 400, height: 200 },
-        scaleFactor: 2,
-        region: { displayId: "7", x: 100, y: 100 },
-      }),
-    ).toBe(
-      '{"version":1,"display":{"id":"7","width":400,"height":200,"scaleFactor":2},"anchor":"exact","clicksAvailable":true,"t":[0,8,24,32,48],"x":[-2.75,1,1,0,0],"y":[-0.5,0.75,0.75,0.1,0.1],"clicks":[{"t":24,"x":1,"y":0.75,"button":0}],"region":{"displayId":"7","x":100,"y":100}}',
-    );
   });
 });

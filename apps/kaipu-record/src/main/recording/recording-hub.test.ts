@@ -1030,42 +1030,57 @@ describe("recording hub — a Dock dropped by a floating panel comes back", () =
       return { emit: (e: unknown) => listener?.(e), trackStart, abort };
     };
 
-    it("tracks once a geometry has arrived", async () => {
-      const t = await setup(true);
-      t.emit({ type: "open" });
-      t.emit({ type: "frame", frame: geometryFrame(1000) });
+    const anchorTake = (id: string) =>
+      mockState.ipcOn.get(IPC_CHANNELS.cursorTrackAnchor)!({}, id, 0, "exact");
+    const discardSpy = async () => {
+      const { CursorTrackRegistry } = await import("./cursor-tracker");
+      return vi.spyOn(CursorTrackRegistry.prototype, "discard");
+    };
+
+    it("enables tracking before the native session opens or any geometry exists (B1)", async () => {
+      // The recorder asks first: engine waits for this answer BEFORE bridge.open.
+      const t = await setup(false);
       await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
         enabled: true,
       });
       await t.abort({}, "session-1");
     });
 
-    it("does not track before any geometry", async () => {
-      const t = await setup(true);
-      t.emit({ type: "open" });
-      await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
-        enabled: false,
-      });
-      await t.abort({}, "session-1");
-    });
-
-    it("does not track a window when no native session is open (Chromium path)", async () => {
+    it("keeps the track through the real ordering: cursor start, native open, geometry, anchor", async () => {
       const t = await setup(false);
-      t.emit({ type: "frame", frame: geometryFrame(1000) });
+      const discard = await discardSpy();
       await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
-        enabled: false,
+        enabled: true,
       });
+      t.emit({ type: "open" });
+      t.emit({ type: "frame", frame: geometryFrame(1000) });
+      anchorTake("session-1");
+      expect(discard).not.toHaveBeenCalledWith("session-1");
       await t.abort({}, "session-1");
     });
 
-    it("forgets the geometry of a previous native session on open", async () => {
-      const t = await setup(true);
-      t.emit({ type: "frame", frame: geometryFrame(1000) });
-      t.emit({ type: "open" });
-      await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
-        enabled: false,
-      });
+    it("discards the tracker at the anchor when no geometry arrived (Chromium fallback)", async () => {
+      const t = await setup(false);
+      const discard = await discardSpy();
+      await t.trackStart({}, "session-1", "window:42:0");
+      t.emit({ type: "open" }); // the native session opened, but no geometry followed
+      anchorTake("session-1");
+      expect(discard).toHaveBeenCalledWith("session-1");
       await t.abort({}, "session-1");
+    });
+
+    it("a second take does not inherit the first take's geometry", async () => {
+      const t = await setup(false);
+      const discard = await discardSpy();
+      await t.trackStart({}, "session-1", "window:42:0");
+      t.emit({ type: "frame", frame: geometryFrame(1000) });
+      await t.abort({}, "session-1");
+      const create = mockState.ipcHandle.get(IPC_CHANNELS.recordingCreate)!;
+      await create({}, "session-2");
+      await t.trackStart({}, "session-2", "window:42:0");
+      anchorTake("session-2");
+      expect(discard).toHaveBeenCalledWith("session-2");
+      await t.abort({}, "session-2");
     });
   });
 
