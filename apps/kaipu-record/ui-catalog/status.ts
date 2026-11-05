@@ -9,6 +9,7 @@ import {
   checkRemote,
   git,
   makeTempDir,
+  normalizeRemote,
   manifestDate,
   readCatalogManifest,
 } from "./catalog-repo";
@@ -28,7 +29,7 @@ export function parseStatusArgs(argv: readonly string[]): { remote: string } | {
     if (arg === "--remote") {
       const value = argv[++i];
       if (!value) return { error: "--remote needs a value" };
-      remote = value;
+      remote = normalizeRemote(value);
     } else return { error: `unknown argument: ${arg}` };
   }
   return { remote };

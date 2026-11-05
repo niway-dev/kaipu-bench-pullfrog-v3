@@ -250,6 +250,25 @@ describe("publish", { timeout: 30_000 }, () => {
     remote = bareRepo();
   });
 
+  it("accepts a relative local remote, resolved once against the cwd", async () => {
+    const relative = `./${path.relative(process.cwd(), remote)}`;
+    expect(relative).toMatch(/^\.\.?\//);
+    expect(parsePublishArgs(["--remote", relative])).toMatchObject({ remote });
+    expect(parseStatusArgs(["--remote", relative])).toEqual({ remote });
+    const manifest = manifestOf("11111111", "2026-11-04T10:00:00Z");
+    const result = await publish({
+      isAncestor: () => true,
+      outDir: outputFolder(manifest),
+      remote: relative,
+      push: true,
+      force: false,
+      identity: IDENTITY,
+      lint: cleanLint,
+    });
+    expect(result.status).toBe("published");
+    expect((await readRemoteManifest(remote))?.app.shortSha).toBe("11111111");
+  });
+
   it("commits the four published items to an empty repository, and only with --push pushes", async () => {
     const manifest = manifestOf("11111111", "2026-11-04T10:00:00Z");
     const out = outputFolder(manifest);

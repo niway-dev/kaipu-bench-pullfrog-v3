@@ -14,6 +14,7 @@ import {
   CATALOG_BRANCH,
   DEFAULT_REMOTE,
   checkRemote,
+  normalizeRemote,
   cloneCatalog,
   git,
   manifestDate,
@@ -91,7 +92,7 @@ export function parsePublishArgs(argv: readonly string[]): PublishArgs | { error
     else if (arg === "--remote" || arg === "--author") {
       const value = argv[++i];
       if (!value) return { error: `${arg} needs a value` };
-      if (arg === "--remote") remote = value;
+      if (arg === "--remote") remote = normalizeRemote(value);
       else author = value;
     } else if (arg.startsWith("-")) return { error: `unknown argument: ${arg}` };
     else if (outDir === undefined) outDir = arg;
@@ -196,7 +197,8 @@ export type PublishResult =
   | { status: "refused"; reason: string };
 
 export async function publish(options: PublishOptions): Promise<PublishResult> {
-  const { outDir, remote } = options;
+  const { outDir } = options;
+  const remote = normalizeRemote(options.remote);
   const linted = await (options.lint ?? lintDir)(outDir);
   if (lintFailed(linted)) {
     printLint(linted, outDir);

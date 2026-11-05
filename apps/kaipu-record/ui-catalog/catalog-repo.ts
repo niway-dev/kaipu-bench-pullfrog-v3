@@ -75,6 +75,15 @@ function commonDirOf(cwd: string): string | null {
   }
 }
 
+/**
+ * A relative local path (`./x`, `../x`) as an absolute one, resolved once against the
+ * current folder. Clone runs in another cwd and git reports an absolute origin, so the raw
+ * relative form would point to a different folder (or compare unequal) further on.
+ */
+export function normalizeRemote(remote: string): string {
+  return /^(\.\/|\.\.\/)/.test(remote) ? path.resolve(remote) : remote;
+}
+
 /** A local remote is a path, or a file:// URL; anything else is not local. */
 function localRemotePath(remote: string): string | null {
   if (remote.startsWith("file://")) {
