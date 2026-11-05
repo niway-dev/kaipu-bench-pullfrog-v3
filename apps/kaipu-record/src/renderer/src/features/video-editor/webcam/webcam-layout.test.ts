@@ -14,6 +14,35 @@ import {
 const FRAME = { width: 1920, height: 1080 };
 const layout = (patch: Partial<WebcamLayout>): WebcamLayout => ({ ...WEBCAM_DEFAULTS, ...patch });
 
+describe("webcamZoomFactor with a large bubble", () => {
+  it("is today's factor for sizes up to 0.42", () => {
+    expect(webcamZoomFactor(0.7, 2, 0.22)).toBeCloseTo(0.7);
+    expect(webcamZoomFactor(0.7, 2, 0.42)).toBeCloseTo(0.7);
+  });
+
+  it("fades the shrink linearly between 0.42 and 0.90", () => {
+    // size 0.66 is halfway: weight 0.5, so 1 - 0.3 * 0.5.
+    expect(webcamZoomFactor(0.7, 2, 0.66)).toBeCloseTo(0.85);
+  });
+
+  it("never shrinks a 0.90 bubble", () => {
+    expect(webcamZoomFactor(0.7, 2, 0.9)).toBe(1);
+    expect(webcamZoomFactor(0.3, 3, 0.9)).toBe(1);
+  });
+});
+
+describe("webcamRect at the largest size", () => {
+  it("draws a 0.90 bubble at 972 px on 1920x1080 under a 2x zoom", () => {
+    const rect = webcamRect(
+      layout({ size: 0.9, position: { x: 0.5, y: 0.5 }, scaleDuringZoom: 0.7 }),
+      FRAME,
+      2,
+    )!;
+    expect(rect.height).toBeCloseTo(972);
+    expect(rect.width).toBeCloseTo(972);
+  });
+});
+
 describe("webcamZoomFactor", () => {
   it("is 1 without a zoom, whatever scaleDuringZoom says", () => {
     expect(webcamZoomFactor(0.7, 1)).toBe(1);

@@ -7,6 +7,7 @@ import {
   clampWebcamPatch,
   seedWebcamScene,
   webcamAt,
+  webcamSizeLabel,
   type WebcamLayout,
   type WebcamScene,
 } from "./webcam-model";
@@ -72,7 +73,7 @@ describe("seedWebcamScene", () => {
     const size = (dip: number) =>
       seedWebcamScene(track({ ...DEFAULT_CAMERA_BUBBLE, size: dip }))?.layout.size;
     expect(size(270)).toBe(0.25);
-    expect(size(120)).toBeCloseTo(0.111, 3);
+    expect(size(120)).toBe(WEBCAM_LIMITS.minSize);
     expect(size(60)).toBe(WEBCAM_LIMITS.minSize);
   });
 
@@ -142,6 +143,28 @@ describe("seedWebcamScene: camera-off gaps", () => {
 
   it("seeds no segment for a take whose camera stayed on", () => {
     expect(seedWebcamScene(track())?.segments).toEqual([]);
+  });
+});
+
+describe("WEBCAM_LIMITS size range", () => {
+  it("is 0.12 to 0.90", () => {
+    expect(WEBCAM_LIMITS.minSize).toBe(0.12);
+    expect(WEBCAM_LIMITS.maxSize).toBe(0.9);
+    expect(WEBCAM_DEFAULTS.size).toBe(0.22);
+  });
+
+  it("clamps an old stored size up and an oversize down", () => {
+    expect(clampWebcamPatch({ size: 0.1 }).size).toBe(0.12);
+    expect(clampWebcamPatch({ size: 0.6 }).size).toBe(0.6);
+    expect(clampWebcamPatch({ size: 1.5 }).size).toBe(0.9);
+  });
+});
+
+describe("webcamSizeLabel", () => {
+  it("maps the stored range linearly onto 10 to 90", () => {
+    expect(webcamSizeLabel(0.12)).toBe(10);
+    expect(webcamSizeLabel(0.51)).toBe(50);
+    expect(webcamSizeLabel(0.9)).toBe(90);
   });
 });
 
