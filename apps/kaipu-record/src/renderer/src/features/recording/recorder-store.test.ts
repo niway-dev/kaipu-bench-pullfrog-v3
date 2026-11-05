@@ -668,6 +668,24 @@ describe("recorder-store", () => {
     );
   });
 
+  it("a source closed by the helper (a window closing) stops and saves the take, with no error", async () => {
+    let onSourceClosed: (() => void) | undefined;
+    prepareEngineMock.mockImplementation(async (opts) => {
+      onSourceClosed = opts.onSourceClosed;
+      return fakePrepared();
+    });
+    store.requestStartRecording(() => input);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(store.getRecorderSnapshot().status).toBe("recording");
+
+    onSourceClosed?.();
+    await vi.advanceTimersByTimeAsync(700);
+
+    expect(store.getRecorderSnapshot()).toEqual({ status: "idle", countdown: null });
+    expect(reportErrorMock).not.toHaveBeenCalled();
+    expect(window.electronAPI.recordingFinalize).toHaveBeenCalledOnce();
+  });
+
   it("an engine that fails during the countdown fails the start when it ends instead of recording", async () => {
     const prepared = fakePrepared();
     prepareEngineMock.mockImplementation(async (opts) => {
