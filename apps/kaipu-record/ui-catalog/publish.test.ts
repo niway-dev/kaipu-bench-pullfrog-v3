@@ -51,7 +51,27 @@ function manifestOf(sha: string, generatedAt: string, version = "0.16.0"): Manif
   return {
     app: { name: "kaipu-record", version, sha: sha.padEnd(40, "0"), shortSha: sha },
     generatedAt,
+    runner: { label: "macmini", macos: "27.0.1", scaleFactor: 1, display: "1920×1080" },
+    options: { only: null, twice: false },
+    profiles: [],
+    screens: [
+      {
+        id: "record",
+        kind: "route",
+        where: "#/",
+        windowSize: null,
+        areas: [{ id: "record.mic", states: ["on"], gates: [] }],
+        notCapturable: {},
+        oneSided: {},
+        notRun: [],
+        covered: true,
+        complete: true,
+      },
+    ],
     states: [],
+    knownVariable: [],
+    failures: [],
+    nativeNotCapturable: [],
   } as unknown as Manifest;
 }
 
@@ -250,9 +270,12 @@ describe("publish", { timeout: 30_000 }, () => {
     const files = git(result.cloneDir, "ls-files").split("\n");
     expect(files).toEqual([
       "README.md",
-      "areas/record/mic.png",
       "manifest.json",
-      "screens/record/page.png",
+      "versions/0.16.0/README.md",
+      "versions/0.16.0/areas/record/mic.png",
+      "versions/0.16.0/manifest.json",
+      "versions/0.16.0/record.md",
+      "versions/0.16.0/screens/record/page.png",
     ]);
     // Not pushed: the bare repository still has no commits.
     expect(() => git(remote, "rev-parse", "main")).toThrow();
@@ -303,10 +326,10 @@ describe("publish", { timeout: 30_000 }, () => {
     });
     expect(result.status).toBe("published");
     const files = git(remote, "ls-tree", "-r", "--name-only", "main").split("\n");
-    expect(files).toContain("screens/record/page.png");
-    expect(files).toContain("areas/record/mic.png");
-    expect(files).not.toContain("screens/record/windows.png");
-    expect(files).not.toContain("areas/record/picker.png");
+    expect(files).toContain("versions/0.16.0/screens/record/page.png");
+    expect(files).toContain("versions/0.16.0/areas/record/mic.png");
+    expect(files).not.toContain("versions/0.16.0/screens/record/windows.png");
+    expect(files).not.toContain("versions/0.16.0/areas/record/picker.png");
   });
 
   it("replaces the previous images and reports an identical republish as unchanged", async () => {
@@ -346,7 +369,81 @@ describe("publish", { timeout: 30_000 }, () => {
       "catalog: kaipu-record 0.17.0 2026-11-05 @ 22222222",
       "catalog: kaipu-record 0.16.0 2026-11-04 @ 11111111",
     ]);
-    expect(git(remote, "show", "main:screens/record/page.png")).toBe("22222222");
+    expect(git(remote, "show", "main:versions/0.17.0/screens/record/page.png")).toBe("22222222");
+    expect(git(remote, "show", "main:versions/0.16.0/screens/record/page.png")).toBe("11111111");
+  });
+
+  it("keeps one folder per version: a recount replaces its folder, a new version adds one, legacy files go", async () => {
+    const run = (out: string) =>
+      publish({
+        isAncestor: () => true,
+        outDir: out,
+        remote,
+        push: true,
+        force: false,
+        identity: IDENTITY,
+        lint: cleanLint,
+      });
+    // The old flat layout, as the repository holds it today.
+    const seed = mkdtempSync(path.join(tmpdir(), "ui-catalog-seed-"));
+    git(seed, "init", "--quiet", "-b", "main");
+    mkdirSync(path.join(seed, "screens", "record"), { recursive: true });
+    mkdirSync(path.join(seed, "areas", "record"), { recursive: true });
+    writeFileSync(path.join(seed, "screens", "record", "page.png"), "legacy");
+    writeFileSync(path.join(seed, "areas", "record", "mic.png"), "legacy");
+    writeFileSync(path.join(seed, "README.md"), "# old");
+    writeFileSync(
+      path.join(seed, "manifest.json"),
+      JSON.stringify(manifestOf("00000000", "2026-11-03T10:00:00Z", "0.15.0")),
+    );
+    git(seed, "add", ".");
+    git(
+      seed,
+      "-c",
+      "user.name=t",
+      "-c",
+      "user.email=t@example.test",
+      "commit",
+      "--quiet",
+      "-m",
+      "legacy",
+    );
+    git(seed, "push", "--quiet", remote, "HEAD:main");
+
+    const a = outputFolder(manifestOf("11111111", "2026-11-04T10:00:00Z", "0.16.0"));
+    expect((await run(a)).status).toBe("published");
+    let files = git(remote, "ls-tree", "-r", "--name-only", "main").split("\n");
+    expect(files.filter((f) => f.startsWith("screens/") || f.startsWith("areas/"))).toEqual([]);
+
+    // A recount of the same version: another SHA, the folder is replaced.
+    const recount = outputFolder(manifestOf("33333333", "2026-11-04T15:00:00Z", "0.16.0"));
+    expect((await run(recount)).status).toBe("published");
+    expect(git(remote, "show", "main:versions/0.16.0/screens/record/page.png")).toBe("33333333");
+
+    const b = outputFolder(manifestOf("22222222", "2026-11-05T10:00:00Z", "0.17.0"));
+    expect((await run(b)).status).toBe("published");
+    files = git(remote, "ls-tree", "-r", "--name-only", "main").split("\n");
+    expect(files).toEqual([
+      "README.md",
+      "manifest.json",
+      "versions/0.16.0/README.md",
+      "versions/0.16.0/areas/record/mic.png",
+      "versions/0.16.0/manifest.json",
+      "versions/0.16.0/record.md",
+      "versions/0.16.0/screens/record/page.png",
+      "versions/0.17.0/README.md",
+      "versions/0.17.0/areas/record/mic.png",
+      "versions/0.17.0/manifest.json",
+      "versions/0.17.0/record.md",
+      "versions/0.17.0/screens/record/page.png",
+    ]);
+    const root = git(remote, "show", "main:README.md");
+    expect(root.indexOf("versions/0.17.0/README.md")).toBeGreaterThan(-1);
+    expect(root.indexOf("versions/0.17.0/README.md")).toBeLessThan(
+      root.indexOf("versions/0.16.0/README.md"),
+    );
+    expect(JSON.parse(git(remote, "show", "main:manifest.json")).app.version).toBe("0.17.0");
+    expect(git(remote, "show", "main:versions/0.17.0/README.md")).toContain("(record.md)");
   });
 
   it("refuses an older run without --force and allows it with --force", async () => {

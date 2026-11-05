@@ -1,5 +1,6 @@
 import { ASSETS } from "../fixtures/seed-vault";
 import { catalog, type Step } from "../types";
+import { nc } from "./not-capturable";
 
 /** Open “Walkthrough 1” in Export, pick a destination and press its Export button. */
 const startExport = (destination: string, options: Step[] = []): Step[] => [
@@ -173,14 +174,28 @@ export const shell = catalog(
   },
   {
     notCapturable: {
-      "shell.exportCard:error": "needs an export that fails",
-      "shell.updateBanner:ready":
+      "shell.exportCard:error": nc("inducedFailure", "needs an export that fails"),
+      "shell.updateBanner:ready": nc(
+        "needsApi",
         "needs a downloaded update; an unpackaged build has no update feed",
-      "shell.versionBanner:soft": "the version gate reads the API; the catalog runs offline",
-      "shell.versionOverlay:hard": "the version gate reads the API; the catalog runs offline",
-      "shell.reconcileDialog:scanning": "a transient state while the folder is read",
-      "shell.reconcileDialog:fixing": "a transient state while files are renamed",
-      "shell.routeError:default": "drawn only when a page throws while rendering",
+      ),
+      "shell.versionBanner:soft": nc(
+        "needsApi",
+        "the version gate reads the API; the catalog runs offline",
+      ),
+      "shell.versionOverlay:hard": nc(
+        "needsApi",
+        "the version gate reads the API; the catalog runs offline",
+      ),
+      "shell.reconcileDialog:scanning": nc(
+        "transient",
+        "a transient state while the folder is read",
+      ),
+      "shell.reconcileDialog:fixing": nc("transient", "a transient state while files are renamed"),
+      "shell.routeError:default": nc(
+        "inducedFailure",
+        "drawn only when a page throws while rendering",
+      ),
     },
   },
 );

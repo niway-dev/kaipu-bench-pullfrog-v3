@@ -1,4 +1,5 @@
 import { catalog, type Step } from "../../types";
+import { nc } from "../not-capturable";
 
 /** With one display, Screen mode captures it at once: no overlay, no system selector. */
 const captureScreen: Step = { call: "requestCaptureScreenshot", args: ["screen"], on: "main" };
@@ -75,7 +76,7 @@ export const captureToast = catalog(
   },
   {
     notCapturable: {
-      "captureToast.root:notSaved": "needs a capture whose save fails",
+      "captureToast.root:notSaved": nc("inducedFailure", "needs a capture whose save fails"),
     },
     oneSided: {
       "captureToast.card":

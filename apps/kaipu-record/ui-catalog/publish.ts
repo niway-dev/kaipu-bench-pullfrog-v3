@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, readFileSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -21,6 +29,7 @@ import {
   repoRootOf,
 } from "./lint";
 import type { Manifest } from "./manifest";
+import { renderRootIndex, renderVersionPages, newestFirst } from "./readme";
 import { compareVersions } from "./status";
 
 /**
@@ -32,8 +41,23 @@ import { compareVersions } from "./status";
  * only when asked. The monorepo is read for the commit identity and never written.
  */
 
-/** What is copied into the catalog repository, and nothing else. */
-const PUBLISHED = ["screens", "areas", "manifest.json", "README.md"] as const;
+/** What a run's folder must hold to be published; the images and manifest are copied under `versions/<version>/`. */
+const REQUIRED = ["screens", "areas", "manifest.json", "README.md"] as const;
+/** What is copied from a run's folder into its version folder; the pages are rendered from the manifest. */
+const COPIED = ["screens", "areas", "manifest.json"] as const;
+/** The flat layout the repository had before versions; the first versioned publish removes it. */
+const LEGACY = ["screens", "areas"] as const;
+const VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+-]*$/;
+
+/** Every `versions/*\/manifest.json` in the clone. */
+export function readVersionManifests(cloneDir: string): Manifest[] {
+  const root = path.join(cloneDir, "versions");
+  if (!existsSync(root)) return [];
+  return readdirSync(root)
+    .map((name) => path.join(root, name, "manifest.json"))
+    .filter((file) => existsSync(file))
+    .map((file) => JSON.parse(readFileSync(file, "utf8")) as Manifest);
+}
 
 export interface PublishArgs {
   readonly outDir?: string;
@@ -189,7 +213,13 @@ export async function publish(options: PublishOptions): Promise<PublishResult> {
       reason: `the folder is named ${folder} but its manifest is of ${manifest.app.shortSha}`,
     };
   }
-  for (const item of PUBLISHED) {
+  if (!VERSION_PATTERN.test(manifest.app.version)) {
+    return {
+      status: "refused",
+      reason: `"${manifest.app.version}" is not a usable version folder name`,
+    };
+  }
+  for (const item of REQUIRED) {
     if (!existsSync(path.join(outDir, item))) {
       return { status: "refused", reason: `${path.join(outDir, item)} is missing` };
     }
@@ -213,9 +243,16 @@ export async function publish(options: PublishOptions): Promise<PublishResult> {
 
   // An empty repository has no branch yet: start it on the catalog's branch.
   git(cloneDir, ["checkout", "--quiet", "-B", CATALOG_BRANCH]);
-  for (const item of PUBLISHED) {
-    rmSync(path.join(cloneDir, item), { recursive: true, force: true });
-    cpSync(path.join(outDir, item), path.join(cloneDir, item), { recursive: true });
+  // Only this version's folder is replaced; the other versions stay as they are.
+  const versionRel = path.posix.join("versions", manifest.app.version);
+  const versionDir = path.join(cloneDir, versionRel);
+  rmSync(versionDir, { recursive: true, force: true });
+  mkdirSync(versionDir, { recursive: true });
+  for (const item of COPIED) {
+    cpSync(path.join(outDir, item), path.join(versionDir, item), { recursive: true });
+  }
+  for (const [name, text] of Object.entries(renderVersionPages(manifest))) {
+    writeFileSync(path.join(versionDir, name), text);
   }
   // Unpublished states are shot locally and never leave this machine: drop their images.
   const unpublishedIds = new Set([...linted.unpublished, ...unpublishedStates(manifest)]);
@@ -223,10 +260,20 @@ export async function publish(options: PublishOptions): Promise<PublishResult> {
     if (!unpublishedIds.has(state.id)) continue;
     const files = [state.window?.file, ...state.areasFound.map((a) => a.file)];
     for (const file of files) {
-      if (file) rmSync(path.join(cloneDir, file), { force: true });
+      if (file) rmSync(path.join(versionDir, file), { force: true });
     }
   }
-  git(cloneDir, ["add", "--", ...PUBLISHED]);
+  // The flat layout of the first publishes goes away; the root index and manifest are rebuilt.
+  for (const legacy of LEGACY)
+    rmSync(path.join(cloneDir, legacy), { recursive: true, force: true });
+  const versions = newestFirst(readVersionManifests(cloneDir));
+  writeFileSync(path.join(cloneDir, "README.md"), renderRootIndex(versions));
+  cpSync(
+    path.join(cloneDir, "versions", (versions[0] as Manifest).app.version, "manifest.json"),
+    path.join(cloneDir, "manifest.json"),
+  );
+  // A temp clone of the catalog, never the monorepo: staging everything is safe here.
+  git(cloneDir, ["add", "-A"]);
   if (git(cloneDir, ["status", "--porcelain"]) === "") return { status: "unchanged", cloneDir };
 
   const message = commitMessage(manifest);

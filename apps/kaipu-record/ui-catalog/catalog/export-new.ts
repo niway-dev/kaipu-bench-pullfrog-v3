@@ -1,4 +1,5 @@
 import { catalog } from "../types";
+import { nc } from "./not-capturable";
 
 /**
  * Export with no video (`#/export`): the door for any video, with the Library picker and the
@@ -21,9 +22,18 @@ export const exportNew = catalog(
   },
   {
     notCapturable: {
-      "exportNew.page:dragging": "a transient state while a file is dragged over the window",
-      "exportNew.dropZone:dragging": "a transient state while a file is dragged over the window",
-      "exportNew.dropZone:importing": "a transient state while a dropped video is brought in",
+      "exportNew.page:dragging": nc(
+        "transient",
+        "a transient state while a file is dragged over the window",
+      ),
+      "exportNew.dropZone:dragging": nc(
+        "transient",
+        "a transient state while a file is dragged over the window",
+      ),
+      "exportNew.dropZone:importing": nc(
+        "transient",
+        "a transient state while a dropped video is brought in",
+      ),
     },
   },
 );

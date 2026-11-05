@@ -1,4 +1,5 @@
 import { catalog, type Step } from "../../types";
+import { nc } from "../not-capturable";
 
 // Every pick here ends with Escape (cancelled). Screen mode is absent on purpose: with one
 // display it skips the overlay and starts a take or a capture at once.
@@ -98,18 +99,30 @@ export const captureOverlay = catalog(
   },
   {
     notCapturable: {
-      "captureOverlay.windowPicker:noWindow":
+      "captureOverlay.windowPicker:noWindow": nc(
+        "platform",
         "Window mode on macOS is the system selector (ADR 0022); the picker is drawn on Windows only",
-      "captureOverlay.windowPicker:hovered":
+      ),
+      "captureOverlay.windowPicker:hovered": nc(
+        "platform",
         "Window mode on macOS is the system selector (ADR 0022); the picker is drawn on Windows only",
-      "captureOverlay.screenCard:screenshot":
+      ),
+      "captureOverlay.screenCard:screenshot": nc(
+        "platform",
         "the chooser needs two displays; with one (the runner has one) Screen mode takes it directly",
-      "captureOverlay.screenCard:record":
+      ),
+      "captureOverlay.screenCard:record": nc(
+        "platform",
         "the chooser needs two displays; with one (the runner has one) Screen mode takes it directly",
-      "captureOverlay.screenCard:highlighted":
+      ),
+      "captureOverlay.screenCard:highlighted": nc(
+        "platform",
         "the chooser needs two displays; with one (the runner has one) Screen mode takes it directly",
-      "captureOverlay.hintPill:pick":
+      ),
+      "captureOverlay.hintPill:pick": nc(
+        "needsSetup",
         "drawn over the display chooser or the window picker, neither of which the runner can show",
+      ),
     },
   },
 );

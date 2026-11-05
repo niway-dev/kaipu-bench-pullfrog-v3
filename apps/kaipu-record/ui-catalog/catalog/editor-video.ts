@@ -1,5 +1,6 @@
 import { ASSETS } from "../fixtures/seed-vault";
 import { catalog, type Step } from "../types";
+import { nc } from "./not-capturable";
 
 const open = (assetId: string): Step => ({ navigate: `/editor/video/${assetId}` });
 const loaded: Step = { waitFor: { video: true } };
@@ -245,8 +246,10 @@ export const editorVideo = catalog(
   },
   {
     notCapturable: {
-      "editorVideo.toolbar:saving":
+      "editorVideo.toolbar:saving": nc(
+        "transient",
         "held for ~800 ms after an edit, until the autosave writes; a shot would race it",
+      ),
     },
   },
 );

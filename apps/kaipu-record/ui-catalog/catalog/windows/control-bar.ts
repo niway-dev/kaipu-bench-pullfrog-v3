@@ -1,4 +1,5 @@
 import { catalog, type Step } from "../../types";
+import { nc } from "../not-capturable";
 
 /** The bar says "Starting…" until the first frame; the states are after that. */
 const settled: Step[] = [
@@ -40,10 +41,15 @@ export const controlBar = catalog(
   },
   {
     notCapturable: {
-      "controlBar.bar:starting": "a transient state between the countdown and the first frame",
-      "controlBar.bar:saving": "a transient state while the take is written",
-      "controlBar.mode:window":
+      "controlBar.bar:starting": nc(
+        "transient",
+        "a transient state between the countdown and the first frame",
+      ),
+      "controlBar.bar:saving": nc("transient", "a transient state while the take is written"),
+      "controlBar.mode:window": nc(
+        "platform",
         "needs a take of one window; the runner's window list is not stable between runs",
+      ),
     },
   },
 );

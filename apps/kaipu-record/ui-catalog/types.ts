@@ -1,6 +1,7 @@
 import type { AreaId, Gate, ScreenId, StateId, WindowKind } from "../src/shared/ui-map";
 import type { KaipuElectronAPI } from "../src/shared/types/electron-api";
 import { WINDOW_PRESETS } from "../src/shared/window-size";
+import type { NotCapturable } from "./catalog/not-capturable";
 import type { ProfileName } from "./profiles";
 
 /**
@@ -212,7 +213,7 @@ export interface ScreenCatalog<S extends ScreenId = ScreenId> {
   readonly screen: S;
   readonly states: Readonly<Record<string, CatalogState<S>>>;
   /** Map states no catalog state can show, each with the reason the README prints. */
-  readonly notCapturable: Readonly<Partial<Record<StateIn<S>, string>>>;
+  readonly notCapturable: Readonly<Partial<Record<StateIn<S>, NotCapturable>>>;
   /**
    * Gated areas whose other side has no look of its own (the area simply is not drawn),
    * with that reason: `{ "record.countdown": "with 0 s there is no countdown" }`.
@@ -221,7 +222,7 @@ export interface ScreenCatalog<S extends ScreenId = ScreenId> {
 }
 
 export interface CatalogExtras<S extends ScreenId> {
-  readonly notCapturable?: Partial<Record<StateIn<S>, string>>;
+  readonly notCapturable?: Partial<Record<StateIn<S>, NotCapturable>>;
   readonly oneSided?: Partial<Record<AreaIn<S>, string>>;
 }
 
@@ -246,7 +247,7 @@ export function catalog<S extends ScreenId>(
   return {
     screen,
     states,
-    notCapturable: extras.notCapturable ?? ({} as Partial<Record<StateIn<S>, string>>),
+    notCapturable: extras.notCapturable ?? ({} as Partial<Record<StateIn<S>, NotCapturable>>),
     oneSided: extras.oneSided ?? ({} as Partial<Record<AreaIn<S>, string>>),
   };
 }

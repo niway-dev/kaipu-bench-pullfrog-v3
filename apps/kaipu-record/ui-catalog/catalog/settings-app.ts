@@ -1,4 +1,5 @@
 import { catalog, type Step } from "../types";
+import { nc } from "./not-capturable";
 
 const page: Step = { navigate: "/settings/app" };
 const dock = (on: boolean): Step => ({ call: "updateSettings", args: [{ showInDock: on }] });
@@ -29,10 +30,14 @@ export const settingsApp = catalog(
   },
   {
     notCapturable: {
-      "settingsApp.updates:available":
+      "settingsApp.updates:available": nc(
+        "needsApi",
         "needs an update feed; an unpackaged build has none (the Developer page that forces it is not in a production build)",
-      "settingsApp.updates:ready":
+      ),
+      "settingsApp.updates:ready": nc(
+        "needsApi",
         "needs a downloaded update; an unpackaged build has no update feed",
+      ),
     },
   },
 );

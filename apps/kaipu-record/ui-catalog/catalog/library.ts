@@ -1,4 +1,5 @@
 import { catalog, type Step } from "../types";
+import { nc } from "./not-capturable";
 
 const library: Step = { navigate: "/library" };
 const listView: Step = {
@@ -190,11 +191,20 @@ export const libraryCatalog = catalog(
   },
   {
     notCapturable: {
-      "library.page:loading": "a transient state while the vault is listed",
-      "library.emptyState:loading": "a transient state while the vault is listed",
-      "library.videoCard:cloudOnly": "needs a cloud-only item; the catalog runs offline",
-      "library.readyCopyCard:ready": "shown only right after an export makes a copy",
-      "library.selectionBar:moving": "a transient state while items move between workspaces",
+      "library.page:loading": nc("transient", "a transient state while the vault is listed"),
+      "library.emptyState:loading": nc("transient", "a transient state while the vault is listed"),
+      "library.videoCard:cloudOnly": nc(
+        "needsApi",
+        "needs a cloud-only item; the catalog runs offline",
+      ),
+      "library.readyCopyCard:ready": nc(
+        "needsSetup",
+        "shown only right after an export makes a copy",
+      ),
+      "library.selectionBar:moving": nc(
+        "transient",
+        "a transient state while items move between workspaces",
+      ),
     },
     oneSided: {
       "library.storageFilter":

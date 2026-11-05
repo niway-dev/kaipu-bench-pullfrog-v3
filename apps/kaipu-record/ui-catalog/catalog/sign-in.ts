@@ -1,4 +1,5 @@
 import { catalog, type Step } from "../types";
+import { nc } from "./not-capturable";
 
 const page: Step = { navigate: "/sign-in" };
 const start: Step = {
@@ -40,10 +41,14 @@ export const signIn = catalog(
   },
   {
     notCapturable: {
-      "signIn.error:invalidCode":
+      "signIn.error:invalidCode": nc(
+        "needsApi",
         "needs the API to reject a code; the catalog runs offline (a runner with network gets this look, one without gets the network error)",
-      "signIn.error:network":
+      ),
+      "signIn.error:network": nc(
+        "needsApi",
         "needs the API to be unreachable on purpose; the runner's network decides which error a pasted code gets",
+      ),
     },
   },
 );

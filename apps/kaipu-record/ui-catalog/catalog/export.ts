@@ -1,5 +1,6 @@
 import { ASSETS } from "../fixtures/seed-vault";
 import { catalog, type Step } from "../types";
+import { nc } from "./not-capturable";
 
 const open = (assetId: string): Step => ({ navigate: `/export/${assetId}` });
 const pick = (name: string): Step => ({
@@ -55,8 +56,10 @@ export const exportCatalog = catalog(
   },
   {
     notCapturable: {
-      "export.page:loading":
+      "export.page:loading": nc(
+        "transient",
         "a transient state while the Library is listed and the recording is read",
+      ),
     },
   },
 );

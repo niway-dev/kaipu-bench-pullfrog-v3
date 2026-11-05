@@ -1,4 +1,5 @@
 import type { Gate, ScreenId } from "../src/shared/ui-map";
+import type { NotCapturableKind } from "./catalog/not-capturable";
 import type { KnownVariable } from "./types";
 
 /**
@@ -28,6 +29,8 @@ export interface ManifestScreen {
   readonly areas: readonly ManifestArea[];
   /** Map states declared not capturable, with the reason. */
   readonly notCapturable: Readonly<Record<string, string>>;
+  /** Kind of each `notCapturable` entry, same keys; absent in a manifest from before kinds. */
+  readonly notCapturableKinds?: Readonly<Record<string, NotCapturableKind>>;
   /** Gated areas whose other side draws nothing, with the reason. */
   readonly oneSided: Readonly<Record<string, string>>;
   /** Map states the catalog shows, but only in states this run skipped (`--only`). */
@@ -57,6 +60,8 @@ export interface ManifestState {
   readonly status: StateStatus;
   /** Not capturable or failed: why. */
   readonly reason?: string;
+  /** Not capturable (a permission) or failed: the kind of the reason, for the README's next step. */
+  readonly reasonKind?: NotCapturableKind;
   readonly demonstrates: readonly string[];
   /** The image embeds real screen content: `ui-catalog:lint` lists it for a look by eye. */
   readonly embedsScreen?: boolean;

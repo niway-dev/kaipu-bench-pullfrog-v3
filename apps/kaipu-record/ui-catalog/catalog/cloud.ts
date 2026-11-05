@@ -1,4 +1,5 @@
 import { catalog, type Step } from "../types";
+import { nc } from "./not-capturable";
 
 const page: Step = { navigate: "/cloud" };
 const mode = (value: string): Step => ({ call: "updateSettings", args: [{ uploadMode: value }] });
@@ -32,13 +33,19 @@ export const cloud = catalog(
   },
   {
     notCapturable: {
-      "cloud.page:signedIn": OFFLINE,
-      "cloud.page:loading": "a transient state until the first account status arrives",
-      "cloud.account:unknown": `${OFFLINE}: a stored session with the API unreachable needs a real sign-in first`,
-      "cloud.account:signedIn": OFFLINE,
-      "cloud.usage:shown": OFFLINE,
-      "cloud.usage:stale": OFFLINE,
-      "cloud.usage:unavailable": OFFLINE,
+      "cloud.page:signedIn": nc("needsApi", OFFLINE),
+      "cloud.page:loading": nc(
+        "transient",
+        "a transient state until the first account status arrives",
+      ),
+      "cloud.account:unknown": nc(
+        "needsApi",
+        `${OFFLINE}: a stored session with the API unreachable needs a real sign-in first`,
+      ),
+      "cloud.account:signedIn": nc("needsApi", OFFLINE),
+      "cloud.usage:shown": nc("needsApi", OFFLINE),
+      "cloud.usage:stale": nc("needsApi", OFFLINE),
+      "cloud.usage:unavailable": nc("needsApi", OFFLINE),
     },
     oneSided: {
       "cloud.account": "the signed-in side needs the API; the catalog runs offline",

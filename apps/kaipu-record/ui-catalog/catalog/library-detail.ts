@@ -1,5 +1,6 @@
 import { ASSETS } from "../fixtures/seed-vault";
 import { catalog } from "../types";
+import { nc } from "./not-capturable";
 
 const detail = (assetId: string) => ({ navigate: `/library/${assetId}` }) as const;
 
@@ -78,15 +79,28 @@ export const libraryDetail = catalog(
   },
   {
     notCapturable: {
-      "libraryDetail.missing:notFound":
+      "libraryDetail.missing:notFound": nc(
+        "needsSetup",
         "drawn for one frame at most: a missing item re-lists once, then the page falls back to the Library (use-missing-recording-recovery.ts)",
-      "libraryDetail.page:loading": "a transient state before the item is listed",
-      "libraryDetail.details:stale": "needs an export of an edit that was edited again afterwards",
-      "libraryDetail.preview:unavailable": "needs a cloud-only item; the catalog runs offline",
-      "libraryDetail.actions:cloudOnly": "needs a cloud-only item; the catalog runs offline",
-      "libraryDetail.copies:running": "a transient state while a copy is exported",
-      "libraryDetail.postRecordingCard:fresh":
+      ),
+      "libraryDetail.page:loading": nc("transient", "a transient state before the item is listed"),
+      "libraryDetail.details:stale": nc(
+        "needsSetup",
+        "needs an export of an edit that was edited again afterwards",
+      ),
+      "libraryDetail.preview:unavailable": nc(
+        "needsApi",
+        "needs a cloud-only item; the catalog runs offline",
+      ),
+      "libraryDetail.actions:cloudOnly": nc(
+        "needsApi",
+        "needs a cloud-only item; the catalog runs offline",
+      ),
+      "libraryDetail.copies:running": nc("transient", "a transient state while a copy is exported"),
+      "libraryDetail.postRecordingCard:fresh": nc(
+        "needsSetup",
         "shown only after a take heavier than 10 MB; the catalog's takes are seconds long",
+      ),
     },
     oneSided: {
       "libraryDetail.postRecordingCard": "with the setting off, no card is drawn",

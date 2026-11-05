@@ -1,4 +1,5 @@
 import { catalog, type Step } from "../types";
+import { nc } from "./not-capturable";
 
 const micOff: Step = { call: "updateRecordingSettings", args: [{ isMicrophoneEnabled: false }] };
 const audioOn: Step = { call: "updateRecordingSettings", args: [{ isSystemAudioEnabled: true }] };
@@ -250,9 +251,11 @@ export const record = catalog(
   },
   {
     notCapturable: {
-      "record.sourcePicker:loading": "a transient state while sources are listed",
-      "record.audio:unavailable":
+      "record.sourcePicker:loading": nc("transient", "a transient state while sources are listed"),
+      "record.audio:unavailable": nc(
+        "inducedFailure",
         "only during a take whose system audio could not be captured, which the runner cannot force",
+      ),
     },
     oneSided: {
       "record.countdown": "with `recordingCountdownSeconds` 0 there is no countdown to draw",

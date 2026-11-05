@@ -43,6 +43,7 @@ import {
 } from "./manifest";
 import { decodePng, dominantColorFraction } from "./png";
 import { PROFILE_ORDER, PROFILES, type Profile, type ProfileName } from "./profiles";
+import type { NotCapturable } from "./catalog/not-capturable";
 import { renderReadme } from "./readme";
 import { RUN_ENV } from "./run-env";
 import {
@@ -859,7 +860,8 @@ async function shoot(
   });
 
   const missing = missingPermission(run, entry);
-  if (missing) return finish({ status: "notCapturable", reason: missing });
+  if (missing)
+    return finish({ status: "notCapturable", reason: missing, reasonKind: "permission" });
 
   let page: Page = run.main;
   /** The size a main-window state asked for; its shot must be exactly this big. */
@@ -928,6 +930,7 @@ async function shoot(
     const undone = await runAfter(ctx, entry, run);
     return finish({
       status: "failed",
+      reasonKind: "runFailure",
       reason:
         `could not reach the state: ${message}` +
         (undone.length > 0 ? `; its after-step failed too: ${undone.join(" | ")}` : ""),
@@ -1053,6 +1056,7 @@ async function shoot(
     if (pageErrors.length > 0) problems.push(`page errors: ${pageErrors.join(" | ")}`);
     return finish({
       status: problems.length > 0 ? "failed" : "shot",
+      ...(problems.length > 0 ? { reasonKind: "runFailure" as const } : {}),
       ...(problems.length > 0 ? { reason: problems.join("; ") } : {}),
       window: {
         file: windowFile,
@@ -1070,6 +1074,7 @@ async function shoot(
     const message = scrub(String(error instanceof Error ? error.message : error)).split("\n")[0];
     return finish({
       status: "failed",
+      reasonKind: "runFailure",
       reason:
         `shot failed: ${message}` +
         (undone.length > 0 ? `; its after-step failed too: ${undone.join(" | ")}` : ""),
@@ -1311,7 +1316,18 @@ function manifestScreens(): ManifestScreen[] {
           states: [...areaStates(area)],
           gates: areaGates(area).map(gateLabel),
         })),
-        notCapturable: { ...cat?.notCapturable } as Record<string, string>,
+        notCapturable: Object.fromEntries(
+          Object.entries(cat?.notCapturable ?? {}).map(([claim, d]) => [
+            claim,
+            (d as NotCapturable).why,
+          ]),
+        ),
+        notCapturableKinds: Object.fromEntries(
+          Object.entries(cat?.notCapturable ?? {}).map(([claim, d]) => [
+            claim,
+            (d as NotCapturable).kind,
+          ]),
+        ),
         oneSided: { ...cat?.oneSided } as Record<string, string>,
         complete: all.length > 0 && all.every((stateId) => ran.has(stateId)),
         covered: screenAreas(id).every((area) =>
