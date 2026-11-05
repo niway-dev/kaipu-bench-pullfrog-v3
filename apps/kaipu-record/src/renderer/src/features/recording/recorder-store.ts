@@ -134,8 +134,8 @@ let webcamBubble: WebcamRecordedLayout | null = null;
  * then, so a toast during the take would expire unseen).
  */
 let webcamUnavailable = false;
-/** The webcam file ended mid-take while the screen records through the native helper. */
-let webcamEndedUnderNative = false;
+/** The webcam file ended before or during the take (the notice depends on the transport at stop). */
+let webcamEnded = false;
 let clock: ElapsedState | null = null;
 /** Video-time clock: zero = the MP4's first media sample, renderer `performance.now()`, pauses removed. */
 let videoClock: ElapsedState | null = null;
@@ -175,6 +175,8 @@ interface PendingStart {
    * create its session (not the old-Windows legacy path, which is by design).
    */
   webcamUnavailable?: boolean;
+  /** The webcam file ended before the take began (the countdown) or later; carried into the take. */
+  webcamEnded?: boolean;
 }
 let pendingStart: PendingStart | null = null;
 let sessionCounter = 0;
@@ -547,7 +549,10 @@ function acquireStart(input: StartInput): PendingStart {
       onWebcamEnded: () => {
         // Under native main leaves the bubble alone (the helper cannot record it), so the
         // take simply has no camera from here on: the user is told after the save.
-        if (engine?.transport === "native") webcamEndedUnderNative = true;
+        // Set whatever the transport: it is only known at stop, and `engine` is still null
+        // during the countdown. A camera lost then must not leave a silent take.
+        start.webcamEnded = true;
+        webcamEnded = true;
         void window.electronAPI.recordingWebcamEnded(id).catch((error: unknown) => {
           console.warn("could not report the webcam's end to main", error);
         });
@@ -657,7 +662,7 @@ async function beginTake(
     if (capture && handle.cursorPixels) capture.cursorPixels = handle.cursorPixels;
     webcamBubble = input.webcam?.bubble ?? null;
     webcamUnavailable = start.webcamUnavailable === true;
-    webcamEndedUnderNative = false;
+    webcamEnded = start.webcamEnded === true;
     // The forwarder attached when the take was acquired keeps running for the take.
     stopLiveSettings = start.live?.stop ?? null;
     liveSettings = start.live;
@@ -1089,11 +1094,7 @@ async function stopRecording(): Promise<void> {
   window.electronAPI.recordingStop();
   // Under native a camera that was lost, or never opened, leaves no face in the screen either:
   // the Chromium wording ("recorded in the screen instead") would be false there (ADR 0047).
-  if (
-    recording &&
-    (webcamUnavailable || webcamEndedUnderNative) &&
-    activeEngine.transport === "native"
-  )
+  if (recording && (webcamUnavailable || webcamEnded) && activeEngine.transport === "native")
     showToast({ message: runtimeT()("record.webcamStoppedNative") });
   else if (recording && webcamUnavailable)
     showToast({ message: runtimeT()("record.webcamUnavailable") });
@@ -1103,7 +1104,7 @@ async function stopRecording(): Promise<void> {
   else if (recording && recordedWebcam && !recording.webcam)
     showToast({ message: runtimeT()("record.webcamNotSaved") });
   webcamUnavailable = false;
-  webcamEndedUnderNative = false;
+  webcamEnded = false;
   engine = null;
   cursorTrack = null;
   sessionId = null;
