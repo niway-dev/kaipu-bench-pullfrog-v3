@@ -2,12 +2,16 @@ import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NATIVE_CAPTURE_CHANNELS as channels } from "../../../shared/native-capture";
 const fake = vi.hoisted(() => ({
+  sources: [] as { id: string; display_id: string }[],
+  displays: [] as { id: number; bounds: { x: number; y: number; width: number; height: number } }[],
   handlers: new Map<string, (...args: any[]) => any>(),
   validate: vi.fn(),
   spawn: vi.fn(),
 }));
 vi.mock("electron", () => ({
   app: { on: vi.fn(), getAppPath: () => "/app" },
+  desktopCapturer: { getSources: async () => fake.sources },
+  screen: { getAllDisplays: () => fake.displays },
   ipcMain: { handle: (name: string, handler: any) => fake.handlers.set(name, handler) },
 }));
 vi.mock("./session", () => ({
@@ -45,6 +49,14 @@ describe("native IPC session ownership", () => {
     reader = { next: vi.fn(), stop: vi.fn(), cancel: vi.fn() };
     fake.spawn.mockReturnValue(reader);
     fake.validate.mockResolvedValue(undefined);
+    fake.sources = [
+      { id: "screen:3:0", display_id: "3" },
+      { id: "screen:4:0", display_id: "4" },
+    ];
+    fake.displays = [
+      { id: 3, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+      { id: 4, bounds: { x: 1920, y: 0, width: 1280, height: 720 } },
+    ];
     registerNativeCaptureTransport(() => contents as any);
   });
   it("rejects another sender and subframe", async () => {
@@ -131,5 +143,61 @@ describe("native IPC session ownership", () => {
       frameRate: 30,
       videoBitrate: 1000000,
     });
+  });
+  const openWith = (request: object) =>
+    fake.handlers.get(channels.open)!(
+      { sender: contents, senderFrame: contents.mainFrame },
+      request,
+    );
+  const video = { width: 640, height: 360, frameRate: 30, videoBitrate: 1000000 };
+  const area = (over: object = {}) => ({
+    displayId: 3,
+    displaySize: { width: 1920, height: 1080 },
+    rect: { x: 320, y: 180, width: 640, height: 360 },
+    ...over,
+  });
+  it("resolves an area to a source rect on its display and refuses an area on another display", async () => {
+    await openWith({ sourceId: "screen:3:0", area: area(), ...video });
+    expect(fake.spawn).toHaveBeenCalledWith("/helper", {
+      displayId: 3,
+      ...video,
+      sourceRect: { x: 320, y: 180, width: 640, height: 360 },
+    });
+    await call("cancel");
+    // Area drawn on display 4, source says display 3.
+    await expect(
+      openWith({ sourceId: "screen:3:0", area: area({ displayId: 4 }), ...video }),
+    ).rejects.toThrow();
+    // Below the minimum size.
+    await expect(
+      openWith({
+        sourceId: "screen:3:0",
+        area: area({ rect: { x: 0, y: 0, width: 2, height: 2 } }),
+        ...video,
+      }),
+    ).rejects.toThrow();
+    expect(fake.spawn).toHaveBeenCalledOnce();
+  });
+  it("clamps an area to its display and ignores the renderer's displaySize", async () => {
+    await openWith({
+      sourceId: "screen:4:0",
+      area: area({
+        displayId: 4,
+        displaySize: { width: 9999, height: 9999 },
+        rect: { x: 1000, y: 600, width: 800, height: 400 },
+      }),
+      ...video,
+    });
+    expect(fake.spawn).toHaveBeenCalledWith(
+      "/helper",
+      expect.objectContaining({
+        displayId: 4,
+        sourceRect: { x: 1000, y: 600, width: 280, height: 120 },
+      }),
+    );
+  });
+  it("sends no source rect for a whole display, and a null area counts as none", async () => {
+    await openWith({ sourceId: "screen:3:0", area: null, ...video });
+    expect(fake.spawn.mock.calls[0]![1]).toEqual({ displayId: 3, ...video });
   });
 });

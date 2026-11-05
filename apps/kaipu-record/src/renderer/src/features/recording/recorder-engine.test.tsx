@@ -1971,16 +1971,24 @@ describe("experimental native recorder lifecycle", () => {
     expect(bridge.cancel).toHaveBeenCalled();
     expect(bridge.begin).not.toHaveBeenCalled();
   });
+  it("opens the native helper for an area with the area's target and passes the area", async () => {
+    const bridge = nativeBridge();
+    const area = {
+      displayId: 3,
+      displaySize: { width: 1920, height: 1080 },
+      rect: { x: 320, y: 180, width: 640, height: 360 },
+    };
+    const prepared = await prepareEngine(baseOptions({ sourceId: "screen:3:0", area }));
+    expect(bridge.open).toHaveBeenCalledOnce();
+    const request = (bridge.open.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(request).toMatchObject({ sourceId: "screen:3:0", area, width: 640, height: 360 });
+    expect(request).not.toHaveProperty("displayId");
+    expect(MediaStreamVideoTrackSource).not.toHaveBeenCalled();
+    prepared.release();
+  });
   it.each([
     { sourceId: "window:3:0" },
     { watermark: { text: "test" } },
-    {
-      area: {
-        displayId: 3,
-        displaySize: { width: 1920, height: 1080 },
-        rect: { x: 0, y: 0, width: 640, height: 360 },
-      },
-    },
     { webcam: { deviceId: null, lines: 720 } },
   ])("falls back before encoding unsupported options %o", async (over) => {
     const bridge = nativeBridge();
