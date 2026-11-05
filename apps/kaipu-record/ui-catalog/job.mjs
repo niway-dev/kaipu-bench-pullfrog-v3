@@ -31,6 +31,13 @@ function run() {
     env: { ...process.env, ...spec.env },
     stdio: ["ignore", "inherit", "inherit"],
   });
+  // A failed start (ENOENT, EACCES) emits "error" and never "exit"; without a
+  // listener it would crash the job and launchd would relaunch it with a wrong reason.
+  child.on("error", (error) => {
+    console.log(error);
+    console.log(`UI_CATALOG_EXIT=127 (the run did not start: ${error.code ?? error.message})`);
+    idle();
+  });
   child.on("exit", (code, signal) => {
     console.log(`UI_CATALOG_EXIT=${code ?? (signal ? 128 : 1)}`);
     idle();
