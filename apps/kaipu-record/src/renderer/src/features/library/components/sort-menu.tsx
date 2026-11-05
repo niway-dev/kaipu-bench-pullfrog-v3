@@ -3,7 +3,7 @@ import { ArrowUpDown, ChevronDown, Check } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { SortKey } from "@renderer/features/library/library-filters";
 import styles from "./sort-menu.module.css";
-import type { UiAreaProps } from "@renderer/lib/ui-area";
+import { uiArea, type UiAreaProps } from "@renderer/lib/ui-area";
 
 const SORT_OPTIONS: Array<{ key: SortKey; labelKey: "sortNewest" | "sortOldest" | "sortLargest" }> =
   [
@@ -32,7 +32,7 @@ export function SortMenu({ sort, onChange, ui }: SortMenuProps): React.JSX.Eleme
       {open && (
         <>
           <div className={styles.sortBackdrop} onClick={() => setOpen(false)} />
-          <div className={styles.sortDropdown}>
+          <div {...uiArea("library.sortOptions")} className={styles.sortDropdown}>
             {SORT_OPTIONS.map((o) => (
               <button
                 key={o.key}

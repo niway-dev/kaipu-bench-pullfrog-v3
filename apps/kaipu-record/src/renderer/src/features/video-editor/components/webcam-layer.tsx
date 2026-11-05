@@ -319,8 +319,9 @@ export function WebcamLayer({
   };
 
   return (
-    <div {...uiArea("editorVideo.webcam")} className={styles.slot} data-testid="webcam-slot">
+    <div className={styles.slot} data-testid="webcam-slot">
       <div
+        {...uiArea("editorVideo.webcam")}
         ref={boxRef}
         className={styles.bubble}
         style={{ display: "none" }}

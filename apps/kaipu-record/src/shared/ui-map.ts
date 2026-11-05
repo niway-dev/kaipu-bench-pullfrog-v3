@@ -127,6 +127,8 @@ export const UI_MAP = {
       workspaceNotice: { states: ["notConnected"] },
       toolbar: { states: ["default"] },
       sortMenu: { states: ["closed", "open"] },
+      /** The open list: positioned below the button, outside its box, so its own area. */
+      sortOptions: { states: ["open"] },
       kindFilter: { states: ["all", "recordings", "screenshots"] },
       storageFilter: { states: ["all", "local", "cloud"], gatedBy: [{ account: "cloud" }] },
       tagFilter: { states: ["noTags", "tags"] },

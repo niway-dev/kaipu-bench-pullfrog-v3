@@ -10,10 +10,11 @@ const ROUTE_PATHS: readonly string[] = Object.values(ROUTES);
 describe("ui-map", () => {
   it("takes no value import from a workspace package", () => {
     const source = readFileSync(resolve(__dirname, "ui-map.ts"), "utf8");
-    const valueImports = source
-      .split("\n")
-      .filter((line) => /^import\s/.test(line) && !/^import\s+type\s/.test(line))
-      .filter((line) => line.includes("@kaipu/"));
+    // Whole statements, so a wrapped `import {\n…\n} from "@kaipu/x"` or a re-export is seen.
+    const statements = source.match(/^(?:import|export)\b[^;]*?from\s*["'][^"']+["']/gms) ?? [];
+    const valueImports = statements
+      .filter((s) => !/^(?:import|export)\s+type\s/.test(s))
+      .filter((s) => /from\s*["']@kaipu\//.test(s));
     expect(valueImports).toEqual([]);
   });
 
