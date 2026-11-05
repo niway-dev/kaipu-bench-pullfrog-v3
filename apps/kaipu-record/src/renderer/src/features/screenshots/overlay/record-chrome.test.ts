@@ -60,11 +60,11 @@ describe("record chrome placement", () => {
     expect(cameraPreviewPlacement(box, 480)).toMatchObject({ width: 248, height: 248 });
   });
 
-  it("draws the rectangle 3:4, centred where the square window puts the bubble", () => {
+  it("draws the rectangle 3:4, as close to the area's corner as the square", () => {
     const box = { x: 100, y: 200, width: 640, height: 360 };
-    // Same window as the 240 square (x 156), the 180-wide rectangle 30 px in from each side.
+    // The window is as wide as the shape: the 180-wide rectangle starts where the square does.
     expect(cameraPreviewPlacement(box, 240, "rectangle")).toEqual({
-      x: 186,
+      x: 156,
       y: 264,
       width: 180,
       height: 240,

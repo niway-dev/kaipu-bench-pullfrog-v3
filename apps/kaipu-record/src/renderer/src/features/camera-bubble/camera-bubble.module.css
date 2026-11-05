@@ -7,8 +7,7 @@
 
 .root {
   --pad: 24px;
-  /* Left and right inset of the bubble: the pad, plus half the room a 3:4 rectangle leaves
-     in the square window (set inline from camera-bubble.tsx). */
+  /* Left and right inset of the bubble: the window is as wide as the shape, so the pad. */
   --inset-x: var(--pad);
   position: fixed;
   inset: 0;

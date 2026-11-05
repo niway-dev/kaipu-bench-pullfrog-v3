@@ -18,14 +18,12 @@ import styles from "./camera-bubble.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
 
 /**
- * The bubble's height: the window's, minus the pad main sizes it with. The window stays a
- * square for every shape (ADR 0041); a rectangle sits centred in it, narrower.
+ * The bubble's height: the window's, minus the pad main sizes it with. Main makes the window
+ * as wide as the shape (a rectangle's is narrower than a square's), so only the height says
+ * the size.
  */
 function sizeFromWindow(): number {
-  return Math.max(
-    0,
-    Math.min(window.innerWidth, window.innerHeight) - 2 * CAMERA_BUBBLE_WINDOW_PAD,
-  );
+  return Math.max(0, window.innerHeight - 2 * CAMERA_BUBBLE_WINDOW_PAD);
 }
 
 /** The persisted bubble settings, query on mount + subscribe. */
@@ -238,14 +236,11 @@ export function CameraBubble(): React.JSX.Element {
   const preset = cameraBubblePresetFor(size);
   const box = cameraBubbleBox(bubble.shape, size);
   const radius = `${Math.round(cameraCornerRadiusPx(bubble.shape, bubble.cornerRadius, box.width, box.height))}px`;
-  // The rectangle is narrower than the square window: centre it, and its chrome with it.
-  const insetX = CAMERA_BUBBLE_WINDOW_PAD + Math.round((size - box.width) / 2);
 
   return (
     <div
       {...uiArea("cameraBubble.root")}
       className={styles.root}
-      style={{ "--inset-x": `${insetX}px` } as React.CSSProperties}
       data-shape={bubble.shape}
       data-mirrored={bubble.mirrored || undefined}
       data-chrome={showChrome || undefined}

@@ -299,3 +299,57 @@ describe("CameraBubbleWindow.replace", () => {
     expect(bubble.isProtected()).toBe(false);
   });
 });
+
+/**
+ * NIW2-638: the window is the visible bubble plus the pad, so a 3:4 rectangle must be dragged
+ * as close to a screen edge as a square. Before, the window stayed square and the rectangle's
+ * transparent side bands counted as "inside the screen", leaving it 30 DIP further away.
+ */
+describe("CameraBubbleWindow edge distance by shape", () => {
+  const SIZE = 200;
+  const PAD = 24;
+  const DISPLAY_WIDTH = 1440;
+
+  /** Drag far past both side edges and return how far the VISIBLE bubble stops from each. */
+  const edgeGaps = (shape: "rounded" | "rectangle"): { left: number; right: number } => {
+    const aspect = shape === "rectangle" ? 3 / 4 : 1;
+    const bubble = new CameraBubbleWindow(
+      () => SIZE,
+      undefined,
+      () => shape,
+    );
+    bubble.show();
+    const win = created[created.length - 1]!;
+    win.readyToShow?.();
+    const visible = (): { left: number; right: number } => {
+      const b = win.getBounds();
+      const inset = (b.width - SIZE * aspect) / 2;
+      return { left: b.x + inset, right: b.x + b.width - inset };
+    };
+    bubble.beginMove();
+    bubble.moveBy(-5000, 0);
+    const left = visible().left;
+    bubble.moveBy(5000, 0);
+    const right = DISPLAY_WIDTH - visible().right;
+    return { left, right };
+  };
+
+  it("stops a rectangle at the same distance from both edges as a square", () => {
+    const square = edgeGaps("rounded");
+    expect(square).toEqual({ left: PAD, right: PAD });
+    expect(edgeGaps("rectangle")).toEqual(square);
+  });
+
+  it("sizes the window to the shape: width follows the aspect, height stays size plus pad", () => {
+    const bubble = new CameraBubbleWindow(
+      () => SIZE,
+      undefined,
+      () => "rectangle",
+    );
+    bubble.show();
+    created[created.length - 1]!.readyToShow?.();
+    const b = created[created.length - 1]!.getBounds();
+    expect(b.width).toBe(SIZE * 0.75 + 2 * PAD);
+    expect(b.height).toBe(SIZE + 2 * PAD);
+  });
+});

@@ -10,6 +10,7 @@ import {
   CAMERA_BUBBLE_WINDOW_PAD,
   DEFAULT_CAMERA_BUBBLE,
   cameraBubbleWindowInArea,
+  type CameraBubbleShape,
 } from "@shared/camera-bubble";
 
 export interface Rect {
@@ -45,9 +46,10 @@ export function bubbleBoundsInArea(
   area: Rect,
   size: number = DEFAULT_CAMERA_BUBBLE.size,
   margin = BUBBLE_MARGIN,
+  shape: CameraBubbleShape = "rounded",
 ): Rect | null {
   // The same rule the overlay's placeholder uses (shared/camera-bubble.ts).
-  return cameraBubbleWindowInArea(area, size, margin);
+  return cameraBubbleWindowInArea(area, size, margin, shape);
 }
 
 /** Where the user dragged the bubble: its window's bottom-left corner, in global DIP. */
@@ -57,25 +59,33 @@ export interface BubbleCorner {
 }
 
 /**
- * The bubble window's bounds for a window of `side` whose bottom-left corner the user put at
+ * The bubble window's bounds for a window of `window` size whose bottom-left corner the user put at
  * `corner`, moved back inside `container` (the recorded area, or the display's work area)
  * when the drag or a later resize would push it out. Keeping the bottom-left corner is what
  * makes the resize grip grow the bubble up and to the right wherever it was dropped.
  */
-export function bubbleBoundsAt(container: Rect, side: number, corner: BubbleCorner): Rect {
+export function bubbleBoundsAt(
+  container: Rect,
+  window: { width: number; height: number },
+  corner: BubbleCorner,
+): Rect {
   const clamp = (value: number, min: number, max: number): number =>
     Math.round(Math.min(Math.max(value, min), Math.max(min, max)));
   return {
-    x: clamp(corner.x, container.x, container.x + container.width - side),
-    y: clamp(corner.bottom - side, container.y, container.y + container.height - side),
-    width: side,
-    height: side,
+    x: clamp(corner.x, container.x, container.x + container.width - window.width),
+    y: clamp(
+      corner.bottom - window.height,
+      container.y,
+      container.y + container.height - window.height,
+    ),
+    width: window.width,
+    height: window.height,
   };
 }
 
-/** The bubble's own side for window bounds from {@link bubbleBoundsInArea}. */
+/** The bubble's height (its `size`) for window bounds from {@link bubbleBoundsInArea}. */
 export function bubbleSizeOf(bounds: Rect): number {
-  return bounds.width - 2 * BUBBLE_PAD;
+  return bounds.height - 2 * BUBBLE_PAD;
 }
 
 /** Where the bubble sat in the recorded rectangle, and how big. */
@@ -88,7 +98,7 @@ export interface BubblePlacement {
 
 /**
  * The bubble's placement in `recorded` (both global DIP), from its window's bounds: the pad
- * is symmetric, so the window's centre is the bubble's, and its side is the window's minus
+ * is symmetric, so the window's centre is the bubble's, and its height is the window's minus
  * the pad. 4 decimals. `null` when the centre lies outside the rectangle (the bubble was on
  * another display, so it is not in the video) or the rectangle is empty.
  */

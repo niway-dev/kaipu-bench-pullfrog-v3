@@ -8,7 +8,6 @@ import {
   DEFAULT_CAMERA_BUBBLE,
   cameraBubbleWindowInArea,
   cameraCornerRadiusPx,
-  cameraShapeAspect,
   type CameraBubbleShape,
 } from "@shared/camera-bubble";
 import { useCameraAccess } from "@renderer/features/camera-settings/use-camera-settings";
@@ -86,23 +85,22 @@ export function widgetPlacement(
 /**
  * Where main will draw the visible camera bubble of `size` in `frame` (the same rule as
  * `bubbleBoundsInArea`): bottom-left, shrunk to what the box holds, or null when not even
- * the minimum size fits. The window is square for every shape; a rectangle is centred in it.
+ * the minimum size fits. The window is as wide as the shape, so the bubble is the window
+ * inset by the pad on every side.
  */
 export function cameraPreviewPlacement(
   frame: CaptureRect,
   size: number = DEFAULT_CAMERA_BUBBLE.size,
   shape: CameraBubbleShape = DEFAULT_CAMERA_BUBBLE.shape,
 ): CaptureRect | null {
-  const window = cameraBubbleWindowInArea(frame, size);
+  const window = cameraBubbleWindowInArea(frame, size, undefined, shape);
   if (!window) return null;
   const pad = CAMERA_BUBBLE_WINDOW_PAD;
-  const height = window.height - 2 * pad;
-  const width = Math.round(height * cameraShapeAspect(shape));
   return {
-    x: window.x + pad + Math.round((height - width) / 2),
+    x: window.x + pad,
     y: window.y + pad,
-    width,
-    height,
+    width: window.width - 2 * pad,
+    height: window.height - 2 * pad,
   };
 }
 
