@@ -40,6 +40,16 @@ for (const scale of [1, 2]) {
   });
 }
 
+it("keeps the original whole-display rules when there is no crop (origin/main behaviour)", () => {
+  const whole = { rectW: 1920, rectH: 1080, scale: 1, cropped: false };
+  expect(sourceRectFit({ ...whole, outW: 1920, outH: 1078 })).toBe("ok");
+  expect(sourceRectFit({ ...whole, outW: 1922, outH: 1082 })).toBe("upscale");
+  expect(sourceRectFit({ ...whole, outW: 1920, outH: 1080 })).toBe("ok");
+  expect(sourceRectFit({ ...whole, outW: 1280, outH: 800 })).toBe("aspect");
+  // The same 2 px of slack is only for a crop.
+  expect(sourceRectFit({ ...whole, cropped: true, outW: 1922, outH: 1082 })).toBe("ok");
+});
+
 it("still refuses a real upscale and a wrong aspect", () => {
   const base = { rectW: 400, rectH: 300, scale: 2 };
   expect(sourceRectFit({ ...base, outW: 7680, outH: 5760 })).toBe("upscale");
