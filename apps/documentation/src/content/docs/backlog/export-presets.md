@@ -238,6 +238,24 @@ is community knowledge (for example
 [this OBS forum thread](https://obsproject.com/forum/threads/youtube-choosing-its-own-encoders-how-to-get-the-best-quality-1080p.154105)),
 **not confirmed by YouTube**; the owner's comparison is a single recording judged by eye.
 
+### Recording in HiDPI on a 1x monitor: tested, rejected (NIW2-563)
+
+The other way to a sharper YouTube video is to record more real detail rather than upscale. On
+2026-11-05 the owner's 1920×1080 external monitor (Gigabyte G27FC) was switched to a
+"1920×1080 HiDPI" mode with BetterDisplay's flexible scaling. macOS then renders a 3840×2160
+backing framebuffer and downsamples it to the panel. `system_profiler` confirmed it
+(Resolution 3840×2160, UI looks like 1920×1080 @ 165 Hz), and Kaipu captured the larger frame.
+
+- A test recording came out at 2634×1440. The quality preset capped the height at 1440, which
+  only Custom → 4K avoids (`fitToCap`). Text was only slightly sharper than in a 1x recording.
+- The monitor itself looked worse in that mode: the 4K → 1080p downsample softens on-screen text.
+- Flexible HiDPI scaling is a BetterDisplay Pro feature (about $22) after a 14-day trial.
+
+**Decision:** record at 1x and export with the YouTube 1440p variant. On a 1080p source, 4K adds
+file size but no detail. Comparing the two recordings by file size was misleading: Kaipu records
+with a variable frame rate, so a static screen stores fewer frames. Compare duration, average
+frame rate and bitrate with `ffprobe` instead.
+
 ## Measured / to measure
 
 - **Encoder settings (spike, 2026-10-13, owner-validated).** The owner's real recordings were
