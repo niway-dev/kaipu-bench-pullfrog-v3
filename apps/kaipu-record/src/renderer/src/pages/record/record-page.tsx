@@ -213,7 +213,7 @@ export function RecordPage(): React.JSX.Element {
     <>
       {setup.isMicrophoneEnabled && isMicrophoneDenied && (
         <PermissionNotice
-          ui={uiArea("record.permissionNotice")}
+          ui={uiArea("record.micNotice")}
           label={t("micAccessOff")}
           onOpenSettings={() => void openPermissionSettings("microphone")}
         />
@@ -221,7 +221,7 @@ export function RecordPage(): React.JSX.Element {
 
       {setup.isCameraEnabled && isCameraDenied && (
         <PermissionNotice
-          ui={uiArea("record.permissionNotice")}
+          ui={uiArea("record.cameraNotice")}
           label={t("cameraAccessOff")}
           onOpenSettings={() => void openPermissionSettings("camera")}
         />

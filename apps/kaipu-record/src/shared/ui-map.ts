@@ -106,10 +106,8 @@ export const UI_MAP = {
         gatedBy: [{ recordingSetting: "isCameraEnabled" }, { permission: "camera" }],
       },
       cameraSettings: { states: ["open"], gatedBy: [{ recordingSetting: "isCameraEnabled" }] },
-      permissionNotice: {
-        states: ["microphone", "camera"],
-        gatedBy: [{ permission: "microphone" }, { permission: "camera" }],
-      },
+      micNotice: { states: ["denied"], gatedBy: [{ permission: "microphone" }] },
+      cameraNotice: { states: ["denied"], gatedBy: [{ permission: "camera" }] },
       sourcePicker: {
         states: ["loading", "screens", "windows", "empty", "noScreenAccess"],
         gatedBy: [{ permission: "screen" }],
