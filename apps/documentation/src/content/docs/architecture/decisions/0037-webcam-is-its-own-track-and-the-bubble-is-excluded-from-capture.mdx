@@ -79,7 +79,8 @@ composite, and why the bubble is still on screen while recording if it is not in
    unprotected window at the same place, the kind a running capture is known to record. Outside a take, after it, and in a take that started
    with the camera off (legacy path: a bubble turned on is burned into the screen), the window
    is destroyed as before. Unverified: that a hidden-then-shown window stays excluded by the
-   running stream.
+   running stream. Under the native capture transport this fallback does not exist: see
+   [ADR 0047](/architecture/decisions/0047-native-capture-crops-at-the-source-streams-window-geometry-and-drops-the-bubble-fallback/).
 
 ## Alternatives rejected
 
