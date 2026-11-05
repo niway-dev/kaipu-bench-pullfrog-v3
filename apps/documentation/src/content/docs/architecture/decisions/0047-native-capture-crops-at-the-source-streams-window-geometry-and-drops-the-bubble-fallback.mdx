@@ -1,0 +1,126 @@
+---
+title: "ADR 0047: Native capture crops an area at the source, streams a window's geometry, and has no face-in-screen fallback"
+description: Under the experimental native transport (ScreenCaptureKit helper, flag `native-cursor-capture`), an area is cropped with `sourceRect` instead of the recording compositor; a window is recorded at a fixed output size while the helper streams its on-screen frame and content placement so main normalizes every cursor sample to the picture; the cursor sidecar stays version 1; and because the helper excludes the whole Electron process, a webcam that fails is hidden through the gap mechanism rather than put back into the screen.
+---
+
+# ADR 0047: Native capture crops an area at the source, streams a window's geometry, and has no face-in-screen fallback
+
+## Status
+
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Proposed — design only, no implementation on `main` (2026-11-05). Spec: [native cursor capture for every source](/specs/2026-11-05-native-cursor-all-sources-design/); plan: [native cursor for every source](/plans/2026-11-05-native-cursor-all-sources/). Read as Accepted once the plan's unit S1 (sync proof) passes for the three sources.                                                                                                                                                                                                           |
+| Date          | 2026-11-05                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Relates to    | [0030](/architecture/decisions/0030-recording-target-and-area-crop-in-the-compositor/) (its "native crop at the source" alternative is taken for the native transport only; the Chromium path keeps the compositor crop), [0037](/architecture/decisions/0037-webcam-is-its-own-track-and-the-bubble-is-excluded-from-capture/) (decision 6's fallback is amended for the native transport), [0038](/architecture/decisions/0038-webcam-is-a-viewport-layer-composed-after-the-zoom-crop/) (unchanged: the editor's gap handling is what hides the bubble) |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+## Context
+
+The native capture helper (`native/encoded-capture/main.swift`) records a display without the
+OS cursor so the editor can draw an editable one. It runs behind the `native-cursor-capture`
+flag (off) and today refuses areas, windows, the webcam and the watermark
+(`recorder-engine.ts`, `nativeEligibility`). The owner's gate for ever turning the flag on is
+that area and window sources work under native with the webcam, the mic and system audio on.
+
+Three facts shape the decisions:
+
+- The native path has **no compositor**: frames go from VideoToolbox to the muxer as encoded
+  packets. ADR 0030's area crop lives in the compositor.
+- The helper excludes the **whole Electron process** from the capture (by parent pid). No
+  window of ours — protected or not, new or old — can appear in the native video. ADR 0037's
+  fallback for a failed webcam ("replace the bubble with an unprotected window so the running
+  capture records the face") relies on Chromium's capture recording new windows.
+- A `window:` source has **no cursor track today** (`pickCapturedDisplay` returns null): the
+  window moves and resizes and Electron cannot read another app's window frame. The native
+  helper can: ScreenCaptureKit exposes the window's frame and, per frame, where the content
+  landed inside the output.
+
+## Decision
+
+1. **Area: crop at the source.** The helper takes an optional source rectangle (display
+   points) and sets `SCStreamConfiguration.sourceRect`; the output size is the same
+   `areaEncodePlan(...).target` the compositor would have used, so sidecar sizes and the
+   editor do not change. The cursor track is normalized to the area as ADR 0030 already
+   prescribes. The Chromium path is untouched.
+2. **Window: fixed output, streamed geometry, per-sample normalization.** The helper records
+   through `SCContentFilter(desktopIndependentWindow:)` at a fixed output size chosen at open
+   time from the window's frame (`scalesToFit` on resize) and emits a `geometry` frame kind
+   whenever the window's on-screen frame or its content placement inside the output changes.
+   Main's cursor tracker normalizes each sample against the latest geometry. The cursor
+   sidecar stays `version: 1` with `display.id = "window:<CGWindowID>"`; the editor and the
+   export change nothing. Product code waits for a spike with written pass/fail rows.
+3. **Main resolves the native request.** The renderer sends the source id, the area if any,
+   and the encode parameters; main maps `screen:` to a display id, an area to a source
+   rectangle and `window:` to a CGWindowID. No renderer-chosen display or window number is
+   trusted.
+4. **Webcam under native: no face-in-screen fallback.** The webcam refusal goes. While a
+   native session is open, a webcam that cannot open, is unplugged, or whose file ends mid-take
+   leaves the bubble as it is (no replacement window) and the notice says the camera stopped.
+   The recorded part stays; from the failure on the editor hides the bubble because the webcam
+   file has no frame there (`webcamHasFrameAt`, `WebcamGapLog`), and the user can hide more
+   with hidden segments. A webcam unavailable at the start keeps the take native, without a
+   webcam file.
+5. **Audio stays Chromium on the native epoch.** No new clock; each source gets a measured
+   sync proof before this ADR reads as Accepted.
+
+## Alternatives rejected
+
+- **Record the full display natively and crop in a canvas** (keep ADR 0030's crop for native
+  too). Reintroduces the compositor the native path exists to skip, redraws cursor-free frames
+  and doubles the pixel work for an area; `sourceRect` is one property.
+- **Restart the stream on window resize at the new size.** The muxer and the sidecar want one
+  picture size per take; a restart cuts the video and adds a second epoch. Scaling into a fixed
+  frame with a reported content rectangle is what SCK provides for this.
+- **A time-varying rectangle in the cursor sidecar** (`version: 2`, per-sample frame). Every
+  consumer (pause detection, camera path, click markers, painter) would carry the mapping for
+  one source kind; ADR 0030's rule — normalize once at the writer — keeps them untouched.
+- **Let the renderer send the CGWindowID / display id.** The renderer only knows Electron's
+  source id; a wrong number would record a different window. Main already resolves displays.
+- **Switch to Chromium when the webcam fails at the start.** Gives up the sharp cursor for a
+  camera problem that does not change what the screen video contains under native.
+- **Draw the face into the screen video from the webcam file after a failure** (a
+  record-time composite). Rejected for the same reason ADR 0037 rejected burned-in webcam
+  pixels: the zoom problem comes back, and the original would no longer be screen-only.
+- **Native audio capture** (`capturesAudio = true`, mic in the helper). A second audio
+  pipeline, a new mixer and ducking port, for a path that is still experimental; the Chromium
+  mix on the shared epoch works for whole displays today and only needs measuring for the
+  other sources.
+
+## Consequences
+
+- The helper protocol bumps (`--version` string, optional `--source-rect`, `--window`, a
+  `geometry` frame kind in `src/shared/native-capture.ts` and `NativeSequence`). The reader's
+  exact-key request validation grows two optional fields. Each bump lands with its reader
+  change in the same PR, so a stale binary fails closed before a take.
+- The hub learns whether a native session is open (`isOpen()` from the native transport) and
+  the recorder handle reports `transport` beside `cursorPixels`; one more i18n key for the
+  native webcam notice.
+- The cursor tracker takes a geometry provider; `CapturedDisplay` gains an optional content
+  placement; `pickCapturedDisplay` gets a window sibling fed by the helper, not by Electron.
+- Under native a window take has a cursor track; under Chromium it still has none (the window
+  frame is unknown there). The capture label and the editor's eligibility rules do not change:
+  provenance (`cursorPixels: "excluded"`) still gates the overlay.
+- ADR 0037 decision 6 ("the post-take notice says the face went into the screen") is wrong
+  for the native transport and says so with a pointer here; the Chromium behaviour stands.
+- ADR 0030's reopen condition (compositor frame drops) is **not** met and not claimed; the
+  compositor crop stays the Chromium decision. This ADR takes the native crop only because the
+  transport is already native.
+
+## Non-goals
+
+- Turning the flag on; a signed helper; Windows/Linux; removing the duplicate Chromium
+  acquisition; a watermark under native; recorded pointer shapes; replacing the mediabunny
+  private clock bridge.
+
+## Reopen when
+
+- The window spike fails rows 1, 2 or 4 (id mapping, exclusion, resize placement): then
+  window support under native is dropped from the gate, not redesigned around a canvas.
+- SCK stops delivering `contentRect`/`contentScale` for window streams on a supported macOS,
+  or the measured geometry lag exceeds one video frame in the sync proof: then the sidecar
+  carries the geometry (`version: 2`) and consumers map it.
+- Chromium's desktop capture gains a cursor-exclusion constraint on macOS: then the native
+  helper is no longer the only cursor-free path and this ADR's premise is reviewed.
+- Loopback audio becomes available outside Chromium's desktop capture (or the duplicate
+  acquisition is measured too costly): then audio moves into the helper and decision 5 is
+  replaced.
