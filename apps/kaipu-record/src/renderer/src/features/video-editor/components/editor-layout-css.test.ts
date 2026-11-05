@@ -56,12 +56,12 @@ describe("tool rail and picture", () => {
     expect(toolbar).not.toMatch(/variantSwitch/);
   });
 
-  it("the picture sits on the left with a 12px margin", () => {
+  it("the picture is centred with a 12px margin", () => {
     const region = rule(
       css("../../../pages/video-editor/video-editor-page.module.css"),
       ".videoRegion",
     );
-    expect(region).toMatch(/justify-items:\s*start;/);
+    expect(region).toMatch(/justify-items:\s*center;/);
     expect(region).toMatch(/padding:\s*12px;/);
   });
 });
