@@ -8,7 +8,8 @@
  * step would re-announce "Level 2.4× slider" instead of just the new value — which the
  * range role already reports. Instead the control is named with `aria-label`, the muted
  * helper text is a sibling referenced by `aria-describedby`, and the on-screen value is
- * `aria-hidden` (it duplicates the value the role announces).
+ * `aria-hidden`; a custom `format` is exposed as `aria-valuetext`, so the role announces
+ * the same text the screen shows (a stored 0.12 reads "10%", not "0.12").
  */
 import { useEffect, useId, useRef } from "react";
 import styles from "./history-slider.module.css";
@@ -83,6 +84,7 @@ export function HistorySlider({
         value={value}
         disabled={disabled}
         aria-label={label}
+        aria-valuetext={format ? format(value) : undefined}
         aria-describedby={note ? noteId : undefined}
         onPointerDown={(event) => {
           // Optional call: jsdom has no setPointerCapture (same guard as the timeline).
