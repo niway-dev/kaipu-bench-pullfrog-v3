@@ -45,24 +45,24 @@ describe("webcamRect at the largest size", () => {
 
 describe("webcamZoomFactor", () => {
   it("is 1 without a zoom, whatever scaleDuringZoom says", () => {
-    expect(webcamZoomFactor(0.7, 1)).toBe(1);
+    expect(webcamZoomFactor(0.7, 1, 0.22)).toBe(1);
   });
 
   it("reaches scaleDuringZoom at 1.5× and stays there", () => {
-    expect(webcamZoomFactor(0.7, 1.5)).toBeCloseTo(0.7);
-    expect(webcamZoomFactor(0.7, 3)).toBeCloseTo(0.7);
+    expect(webcamZoomFactor(0.7, 1.5, 0.22)).toBeCloseTo(0.7);
+    expect(webcamZoomFactor(0.7, 3, 0.22)).toBeCloseTo(0.7);
   });
 
   it("eases in between, so the bubble follows the camera's spring", () => {
-    expect(webcamZoomFactor(0.7, 1.25)).toBeCloseTo(0.85);
+    expect(webcamZoomFactor(0.7, 1.25, 0.22)).toBeCloseTo(0.85);
   });
 
   it("never shrinks when the toggle is off (scaleDuringZoom 1)", () => {
-    expect(webcamZoomFactor(1, 2.5)).toBe(1);
+    expect(webcamZoomFactor(1, 2.5, 0.22)).toBe(1);
   });
 
   it("treats a non-finite camera scale as no zoom", () => {
-    expect(webcamZoomFactor(0.7, Number.NaN)).toBe(1);
+    expect(webcamZoomFactor(0.7, Number.NaN, 0.22)).toBe(1);
   });
 });
 

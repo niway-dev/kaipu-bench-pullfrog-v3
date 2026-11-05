@@ -13,7 +13,7 @@ import {
   clampCameraPan,
   clampCameraZoom,
 } from "@shared/camera-bubble";
-import type { WebcamLayout } from "./webcam-model";
+import { WEBCAM_LIMITS, type WebcamLayout } from "./webcam-model";
 
 export interface WebcamRect {
   /** Left edge, in the frame's units (pixels for a pixel frame). */
@@ -37,17 +37,32 @@ export interface FrameSize {
  */
 export const WEBCAM_SHRINK_FULL_AT_SCALE = 1.5;
 
+/** Bubble size up to which the zoom shrink applies in full; above it the shrink fades out. */
+export const WEBCAM_SHRINK_FADE_FROM_SIZE = 0.42;
+
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
 /**
  * The factor the bubble's side is multiplied by at camera scale `cameraScale`: 1 without a
  * zoom, `scaleDuringZoom` from {@link WEBCAM_SHRINK_FULL_AT_SCALE} up, linear in between.
+ * The shrink fades out for large bubbles: full up to {@link WEBCAM_SHRINK_FADE_FROM_SIZE},
+ * linearly gone at the maximum size, so a big bubble stays big inside a zoom.
  */
-export function webcamZoomFactor(scaleDuringZoom: number, cameraScale: number): number {
+export function webcamZoomFactor(
+  scaleDuringZoom: number,
+  cameraScale: number,
+  size: number,
+): number {
   const scale = Number.isFinite(cameraScale) ? cameraScale : 1;
   const progress = clamp((scale - 1) / (WEBCAM_SHRINK_FULL_AT_SCALE - 1), 0, 1);
-  return 1 - (1 - clamp(scaleDuringZoom, 0, 1)) * progress;
+  const today = 1 - (1 - clamp(scaleDuringZoom, 0, 1)) * progress;
+  const weight = clamp(
+    (WEBCAM_LIMITS.maxSize - size) / (WEBCAM_LIMITS.maxSize - WEBCAM_SHRINK_FADE_FROM_SIZE),
+    0,
+    1,
+  );
+  return 1 - (1 - today) * weight;
 }
 
 /**
@@ -84,7 +99,7 @@ export function webcamRect(
   if (!(frame.width > 0) || !(frame.height > 0)) return null;
   const aspect = cameraShapeAspect(layout.shape);
   const height = Math.min(
-    layout.size * frame.height * webcamZoomFactor(layout.scaleDuringZoom, cameraScale),
+    layout.size * frame.height * webcamZoomFactor(layout.scaleDuringZoom, cameraScale, layout.size),
     frame.width / aspect,
     frame.height,
   );
