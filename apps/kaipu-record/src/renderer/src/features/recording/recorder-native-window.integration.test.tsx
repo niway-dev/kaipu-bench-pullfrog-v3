@@ -82,7 +82,6 @@ function scriptedHelper() {
   const closed = new Promise<void>((resolve) => {
     closeWindow = resolve;
   });
-  let ended = false;
   let mainEnded = false;
   let releaseStop!: () => void;
   const stopGate = new Promise<void>((resolve) => {
@@ -101,8 +100,6 @@ function scriptedHelper() {
     pause: vi.fn(async () => {}),
     resume: vi.fn(async () => {}),
     cancel: vi.fn(async () => {}),
-    // Main drops the session once it has handed out the final frame: a later stop is refused
-    // unless main treats it as a no-op (here: the real main now resolves, the old one threw).
     // Like main: a stop that arrives after the end was handed out (no reader) is a no-op.
     stop: vi.fn(async () => {
       if (gateStop) await stopGate;
@@ -135,7 +132,6 @@ function scriptedHelper() {
         mainEnded = true;
         return { header: { kind: "end" as const, endUs: 1000000 }, payload: new Uint8Array() };
       }
-      ended = true;
       return null;
     }),
   };
