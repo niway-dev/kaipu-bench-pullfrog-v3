@@ -57,7 +57,7 @@ it("gates helper version and refuses invalid quality dimensions before spawning"
     "/package/Contents/Resources/app.asar.unpacked/resources/native/kaipu-encoded-capture",
   );
 });
-it("accepts an optional sourceRect inside the display and refuses one outside or with extra keys", () => {
+it("accepts an optional sourceRect and refuses a malformed one or extra keys", () => {
   const rect = { x: 0, y: 0, width: 400, height: 300 };
   expect(() => validateNativeRequest({ ...request, sourceRect: rect })).not.toThrow();
   expect(() => validateNativeRequest(request)).not.toThrow();
