@@ -78,7 +78,7 @@ export const record = catalog(
     },
     "mic-denied": {
       profile: "default",
-      demonstrates: ["record.permissionNotice:microphone"],
+      demonstrates: ["record.micNotice:denied"],
       gates: [{ permission: "microphone", side: "denied" }],
       requires: { microphone: false },
     },
@@ -145,7 +145,7 @@ export const record = catalog(
     "camera-denied": {
       profile: "default",
       steps: [cameraOn],
-      demonstrates: ["record.camera:blocked", "record.permissionNotice:camera"],
+      demonstrates: ["record.camera:blocked", "record.cameraNotice:denied"],
       gates: [{ permission: "camera", side: "denied" }],
       requires: { camera: false },
       after: [cameraOff],
