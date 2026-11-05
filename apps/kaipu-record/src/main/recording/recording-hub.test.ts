@@ -2163,16 +2163,16 @@ describe("recording hub — the camera turned off and on mid-take", () => {
     mockState.ipcOn.get(IPC_CHANNELS.recordingSettingsUpdate)!({}, { isCameraEnabled: on });
   };
 
-  async function registered(): Promise<void> {
+  async function registered(nativeTransport?: { isOpen: () => boolean }): Promise<void> {
     const { registerSettings } = await import("../infrastructure/settings-store");
     const { registerRecordingHub } = await import("./recording-hub");
     registerSettings();
-    registerRecordingHub(() => fakeMainWindow() as never);
+    registerRecordingHub(() => fakeMainWindow() as never, undefined, undefined, nativeTransport);
   }
 
   /** A take that began with the camera on and records a webcam file. */
-  async function takeWithWebcam(): Promise<void> {
-    await registered();
+  async function takeWithWebcam(nativeTransport?: { isOpen: () => boolean }): Promise<void> {
+    await registered(nativeTransport);
     camera(true);
     await ipc(IPC_CHANNELS.recordingCreate, "s1");
     await ipc(IPC_CHANNELS.recordingCreate, "s1", "webcam");
@@ -2219,6 +2219,41 @@ describe("recording hub — the camera turned off and on mid-take", () => {
     mockState.bubble.isProtected.mockReturnValue(true);
     await ipc(IPC_CHANNELS.recordingWebcamEnded, "s1");
     expect(mockState.bubble.replace).toHaveBeenCalledExactlyOnceWith(true);
+    expect(mockState.bubbleProtect!()).toBe(false);
+  });
+
+  it("while a native session is open, a webcam that ends does not replace the bubble", async () => {
+    // Under native the helper excludes the whole app by pid: a new window is not in the file
+    // either, so replacing it would only flash the bubble (ADR 0047).
+    await takeWithWebcam({ isOpen: () => true });
+    mockState.bubble.isProtected.mockReturnValue(true);
+    await ipc(IPC_CHANNELS.recordingWebcamEnded, "s1");
+    expect(mockState.bubble.replace).not.toHaveBeenCalled();
+    expect(mockState.bubble.destroy).not.toHaveBeenCalled();
+    expect(mockState.bubbleProtect!()).toBe(false); // webcamEnded was still recorded
+  });
+
+  it("under native, turning the camera on after the webcam ended shows the parked bubble, never destroys it", async () => {
+    await takeWithWebcam({ isOpen: () => true });
+    camera(false);
+    await ipc(IPC_CHANNELS.recordingWebcamEnded, "s1");
+    camera(true);
+    expect(mockState.bubble.destroy).not.toHaveBeenCalled();
+    expect(mockState.bubble.show).toHaveBeenCalledOnce();
+  });
+
+  it("under native, a camera turned off after the webcam ended parks the bubble, and on shows it again", async () => {
+    // The loss came first, then the user's toggle: no destroy and no replace while the helper
+    // is open (ADR 0047); park releases the camera as destroy would.
+    await takeWithWebcam({ isOpen: () => true });
+    mockState.bubble.isProtected.mockReturnValue(true);
+    await ipc(IPC_CHANNELS.recordingWebcamEnded, "s1");
+    camera(false);
+    expect(mockState.bubble.park).toHaveBeenCalledOnce();
+    camera(true);
+    expect(mockState.bubble.destroy).not.toHaveBeenCalled();
+    expect(mockState.bubble.replace).not.toHaveBeenCalled();
+    expect(mockState.bubble.show).toHaveBeenCalledOnce();
     expect(mockState.bubbleProtect!()).toBe(false);
   });
 

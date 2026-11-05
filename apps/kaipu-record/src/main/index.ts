@@ -916,7 +916,7 @@ app.whenReady().then(async () => {
   initMainAnalytics(getDeviceId(), getAppSettings().diagnosticsEnabled);
   onSettingsChanged((settings) => setMainAnalyticsEnabled(settings.diagnosticsEnabled));
   registerAnalyticsIpc();
-  registerNativeCaptureTransport(
+  const nativeTransport = registerNativeCaptureTransport(
     () => mainWindow?.webContents,
     () => hub?.currentArea(),
   );
@@ -982,6 +982,7 @@ app.whenReady().then(async () => {
     () => mainWindow,
     (activity) => setTrayRecording(activity.active),
     setTrayCountdown,
+    nativeTransport,
   );
 
   // Global (system-wide) shortcuts. Reuse the existing start/stop paths so the

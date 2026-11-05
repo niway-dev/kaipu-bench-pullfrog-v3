@@ -14,7 +14,10 @@ import { nativeHelperPath, spawnNativeVideo, validateNativeHelper } from "./sess
 export function registerNativeCaptureTransport(
   owner: () => WebContents | undefined,
   hubArea: () => RecordingArea | null | undefined = () => undefined,
-): void {
+): {
+  /** A native session is open: the helper records the screen without any window of ours. */
+  isOpen: () => boolean;
+} {
   let reader: NativeCaptureReader | null = null;
   let opening = false;
   let generation = 0;
@@ -184,4 +187,5 @@ export function registerNativeCaptureTransport(
   app.on("before-quit", () => {
     void cancel();
   });
+  return { isOpen: () => reader !== null };
 }

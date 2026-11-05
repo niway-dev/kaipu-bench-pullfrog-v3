@@ -1987,6 +1987,61 @@ describe("experimental native recorder lifecycle", () => {
     expect(bridge.cancel).toHaveBeenCalled();
     expect(bridge.begin).not.toHaveBeenCalled();
   });
+  it("opens the native helper with a webcam and starts the webcam output on the same clock", async () => {
+    const bridge = nativeBridge();
+    const clockNow = window.electronAPI.cursorClockNow;
+    window.electronAPI.cursorClockNow = async () => performance.now() + 500;
+    const prepared = await prepareEngine(
+      baseOptions({ sourceId: "screen:3:0", webcam: { deviceId: "cam-1", lines: 720 } }),
+    );
+    window.electronAPI.cursorClockNow = clockNow;
+    expect(bridge.open).toHaveBeenCalled();
+    const handle = await prepared.begin();
+    expect(handle.transport).toBe("native");
+    expect(handle.webcam).not.toBeNull();
+    const [screenOutput, webcamOutput] = vi
+      .mocked(Output)
+      .mock.results.map((r) => r.value as { _firstMediaStreamTimestamp: number | null });
+    screenOutput!._firstMediaStreamTimestamp = null;
+    webcamOutput!._firstMediaStreamTimestamp = 10.0405;
+    await handle.stop();
+    const times = await handle.webcam!.startTimesAfterStop();
+    // The screen's t0 is the helper's epoch on the renderer clock: epochMainMs minus the
+    // measured main-vs-renderer clock offset (here main runs 500 ms ahead).
+    const epochMainMs = (await bridge.next.mock.results[0]!.value).header.epochMainMs;
+    expect(times.screen.quality).toBe("exact");
+    expect(Math.abs(times.screen.rendererMs - (epochMainMs - 500))).toBeLessThan(5);
+    expect(times.webcam).toEqual({ rendererMs: 10_040.5, quality: "exact" });
+  });
+  it("keeps the take native, without a webcam file, when the camera does not open at the start", async () => {
+    const original = getUserMedia.getMockImplementation() as (
+      c: MediaStreamConstraints,
+    ) => Promise<MediaStream>;
+    getUserMedia.mockImplementation(async (c: MediaStreamConstraints) => {
+      if (c.video && !("mandatory" in (c.video as object))) throw new Error("NotReadableError");
+      return original(c);
+    });
+    const bridge = nativeBridge();
+    const onWebcamUnavailable = vi.fn(async () => {});
+    const prepared = await prepareEngine(
+      baseOptions({
+        sourceId: "screen:3:0",
+        webcam: { deviceId: "cam-1", lines: 720 },
+        onWebcamUnavailable,
+      }),
+    );
+    expect(onWebcamUnavailable).toHaveBeenCalledOnce();
+    expect(bridge.open).toHaveBeenCalled();
+    const handle = await prepared.begin();
+    expect(handle.transport).toBe("native");
+    expect(handle.webcam).toBeNull();
+    await handle.stop();
+  });
+  it("exposes the chromium transport when the native helper is not used", async () => {
+    const handle = await startEngine(baseOptions({ sourceId: "screen:3:0" }));
+    expect(handle.transport).toBe("chromium");
+    await handle.stop();
+  });
   it("opens the native helper for an area with the area's target and passes the area", async () => {
     const bridge = nativeBridge();
     const area = {
@@ -2002,6 +2057,22 @@ describe("experimental native recorder lifecycle", () => {
     expect(MediaStreamVideoTrackSource).not.toHaveBeenCalled();
     prepared.release();
   });
+  it("opens the native helper for an area take that also has a webcam", async () => {
+    const bridge = nativeBridge({ width: 640, height: 360 });
+    const area = {
+      displayId: 3,
+      displaySize: { width: 1920, height: 1080 },
+      rect: { x: 320, y: 180, width: 640, height: 360 },
+    };
+    const prepared = await prepareEngine(
+      baseOptions({ sourceId: "screen:3:0", area, webcam: { deviceId: "cam-1", lines: 720 } }),
+    );
+    expect(bridge.open).toHaveBeenCalledOnce();
+    const handle = await prepared.begin();
+    expect(handle.transport).toBe("native");
+    expect(handle.webcam).not.toBeNull();
+    await handle.stop();
+  });
   it("draws only the area on the poster of a native area take", async () => {
     nativeBridge({ width: 640, height: 360 });
     const drawImage = vi.fn();
@@ -2016,19 +2087,18 @@ describe("experimental native recorder lifecycle", () => {
     await handle.stop();
     expect(drawImage).toHaveBeenCalledWith(expect.anything(), 320, 180, 640, 360, 0, 0, 640, 360);
   });
-  it.each([
-    { sourceId: "window:3:0" },
-    { watermark: { text: "test" } },
-    { webcam: { deviceId: null, lines: 720 } },
-  ])("falls back before encoding unsupported options %o", async (over) => {
-    const bridge = nativeBridge();
-    const onNativeDecision = vi.fn();
-    const prepared = await prepareEngine(
-      baseOptions({ ...over, onNativeDecision } as Partial<EngineOptions>),
-    );
-    expect(onNativeDecision).toHaveBeenCalledWith(expect.stringContaining("using Chromium"));
-    expect(bridge.open).not.toHaveBeenCalled();
-    expect(MediaStreamVideoTrackSource).toHaveBeenCalled();
-    prepared.release();
-  });
+  it.each([{ sourceId: "window:3:0" }, { watermark: { text: "test" } }])(
+    "falls back before encoding unsupported options %o",
+    async (over) => {
+      const bridge = nativeBridge();
+      const onNativeDecision = vi.fn();
+      const prepared = await prepareEngine(
+        baseOptions({ ...over, onNativeDecision } as Partial<EngineOptions>),
+      );
+      expect(onNativeDecision).toHaveBeenCalledWith(expect.stringContaining("using Chromium"));
+      expect(bridge.open).not.toHaveBeenCalled();
+      expect(MediaStreamVideoTrackSource).toHaveBeenCalled();
+      prepared.release();
+    },
+  );
 });

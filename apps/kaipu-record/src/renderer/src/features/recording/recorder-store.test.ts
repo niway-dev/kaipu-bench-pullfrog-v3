@@ -95,6 +95,7 @@ function fakeEngine(over: Partial<EngineHandle> = {}): EngineHandle {
     setNoiseSuppression: vi.fn(async () => "ok" as const),
     setSystemAudioVolume: vi.fn(() => "ok" as const),
     setDucking: vi.fn(() => "ok" as const),
+    transport: "chromium",
     webcam: null,
     endWebcam: vi.fn(),
     // The engine's default without a relay: off is refused, the store ends the file instead.
@@ -1741,6 +1742,60 @@ describe("recorder-store live settings", () => {
       prepareEngineMock.mock.calls.at(-1)![0].onWebcamEnded!();
       expect(ended).toHaveBeenCalledExactlyOnceWith(id);
       await stopAndSettle();
+    });
+
+    it("a webcam that ends under native tells the user the camera stopped, once the take is saved", async () => {
+      const engine = fakeEngine({ webcam: webcamHandle(), transport: "native" });
+      await startWith(engine, { webcam });
+      prepareEngineMock.mock.calls.at(-1)![0].onWebcamEnded!();
+      await stopAndSettle();
+      expect(getToasts().map((t) => t.message)).toEqual([messages.record.webcamStoppedNative]);
+      for (const toast of getToasts()) dismissToast(toast.id);
+    });
+
+    it("a webcam encoder that fails mid-take under native says the webcam was not saved", async () => {
+      const engine = fakeEngine({
+        webcam: webcamHandle({ isUsable: () => false }),
+        transport: "native",
+      });
+      await startWith(engine, { webcam });
+      prepareEngineMock.mock.calls.at(-1)![0].onWebcamEnded!();
+      await stopAndSettle();
+      expect(getToasts().map((t) => t.message)).toEqual([messages.record.webcamNotSaved]);
+      for (const toast of getToasts()) dismissToast(toast.id);
+    });
+
+    it("a camera lost during the countdown, before the take begins, is reported under native", async () => {
+      prepareEngineMock.mockImplementation(async (options: EngineOptions) => {
+        options.onWebcamEnded!();
+        return fakePrepared(fakeEngine({ transport: "native" }));
+      });
+      store.requestStartRecording(() => ({ ...input, webcam }));
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(store.getRecorderSnapshot().status).toBe("recording");
+      await stopAndSettle();
+      expect(getToasts().map((t) => t.message)).toEqual([messages.record.webcamStoppedNative]);
+      for (const toast of getToasts()) dismissToast(toast.id);
+    });
+
+    it("a camera that failed to open at the start of a native take says the camera stopped", async () => {
+      prepareEngineMock.mockImplementation(async (options: EngineOptions) => {
+        await options.onWebcamUnavailable!();
+        return fakePrepared(fakeEngine({ webcam: null, transport: "native" }));
+      });
+      store.requestStartRecording(() => ({ ...input, webcam }));
+      await vi.advanceTimersByTimeAsync(3000);
+      await stopAndSettle();
+      expect(getToasts().map((t) => t.message)).toEqual([messages.record.webcamStoppedNative]);
+      for (const toast of getToasts()) dismissToast(toast.id);
+    });
+
+    it("a webcam that ends under Chromium says nothing: the face is in the screen", async () => {
+      const engine = fakeEngine({ webcam: webcamHandle(), transport: "chromium" });
+      await startWith(engine, { webcam });
+      prepareEngineMock.mock.calls.at(-1)![0].onWebcamEnded!();
+      await stopAndSettle();
+      expect(getToasts()).toEqual([]);
     });
 
     describe("a camera that does not open at the start of the take", () => {

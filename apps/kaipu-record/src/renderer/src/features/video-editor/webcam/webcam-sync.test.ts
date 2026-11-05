@@ -37,6 +37,20 @@ describe("webcamHasFrameAt", () => {
   it("has no last frame for an unbounded duration", () => {
     expect(webcamHasFrameAt(1e6, Number.POSITIVE_INFINITY)).toBe(true);
   });
+
+  it("hides the bubble from the moment a camera lost mid-take stopped feeding its file (native take)", () => {
+    // Under the native transport there is no face-in-screen fallback (ADR 0047): the camera
+    // is unplugged at 7 s of a 15 s take, the webcam file ends there, and the editor must
+    // show the bubble up to that moment and never after. Nothing here depends on the transport.
+    const startOffsetMs = 40;
+    const fileDuration = 7 - startOffsetMs / 1000;
+    const shownAt = (screenSeconds: number) =>
+      webcamHasFrameAt(webcamTimeFor(screenSeconds, startOffsetMs), fileDuration);
+    expect(shownAt(0.05)).toBe(true);
+    expect(shownAt(6.9)).toBe(true);
+    expect(shownAt(7.1)).toBe(false);
+    expect(shownAt(14.9)).toBe(false);
+  });
 });
 
 describe("webcamResyncTarget", () => {

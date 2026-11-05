@@ -117,6 +117,11 @@ export interface EngineHandle extends LiveAudioControls, LiveWebcamControls {
   pause(atRendererMs?: number): void;
   resume(atRendererMs?: number): void;
   readonly cursorPixels?: "embedded" | "excluded";
+  /**
+   * Which capture path records the screen: the native helper (ADR 0047) or Chromium. The store
+   * picks its webcam notice by it: under native a lost camera cannot put the face in the screen.
+   */
+  readonly transport: "native" | "chromium";
   /** Stop capture, finalize the MP4, resolve when flushed. */
   stop(atRendererMs?: number): Promise<void>;
   /** Current 5-bar level (0..1) of the mix: mic and system audio, as they are recorded. */
@@ -1036,6 +1041,9 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
       get cursorPixels() {
         return nativePixels;
       },
+      get transport() {
+        return native ? ("native" as const) : ("chromium" as const);
+      },
       pause: (at = performance.now()) => {
         void native?.pause(at + nativeOffset).catch(notifyError);
         videoSource?.pause();
@@ -1373,10 +1381,9 @@ export async function captureThumbnail(
 
 /** Fail closed before a take. Webcam fallback bubbles require per-window exclusion first. */
 export function nativeEligibility(
-  options: Pick<EngineOptions, "sourceId" | "area" | "watermark" | "webcam">,
+  options: Pick<EngineOptions, "sourceId" | "area" | "watermark">,
 ): string | null {
   if (!options.sourceId.startsWith("screen:")) return "only whole-display sources are supported";
   if (options.watermark) return "watermark requires Chromium";
-  if (options.webcam) return "webcam fallback bubble exclusion requires Chromium";
   return null;
 }

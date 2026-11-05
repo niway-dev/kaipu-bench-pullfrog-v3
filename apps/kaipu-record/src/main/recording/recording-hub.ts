@@ -186,6 +186,12 @@ export function registerRecordingHub(
    * started, was cancelled or failed). The tray menu disables Record and offers Cancel.
    */
   onPendingChange?: (pending: boolean) => void,
+  /**
+   * The native capture transport (ADR 0047). While one of its sessions is open the helper
+   * excludes the whole app by pid, so no window of ours can reach the screen file and the
+   * bubble is never replaced to rejoin it.
+   */
+  nativeTransport?: { isOpen: () => boolean },
 ): RecordingHubHandle {
   const bar = new ControlBarWindow();
   // The bubble leaves the capture only while its face is recorded in the take's webcam file
@@ -327,12 +333,16 @@ export function registerRecordingHub(
         // A window parked by this take whose webcam file has since ended (its renderer could
         // not keep it going) is replaced: a new window, unprotected, is the one a running
         // capture is known to record, so the face lands in the screen as before (legacy path).
-        if (cameraBubble.isParked() && !takeRecordsWebcam()) cameraBubble.destroy();
+        // Not under native: a new window would not reach the file either, so just show it.
+        if (cameraBubble.isParked() && !takeRecordsWebcam() && !nativeTransport?.isOpen())
+          cameraBubble.destroy();
         cameraBubble.show();
         // Showing a floating panel can drop the app from the Dock/Cmd+Tab on
         // macOS; re-assert the policy so the app stays reachable.
         applyDockPolicy();
-      } else if (takeRecordsWebcam()) {
+      } else if (takeRecordsWebcam() || (activity.active && nativeTransport?.isOpen())) {
+        // Under native the bubble is never destroyed mid-take, even after its webcam file
+        // ended: park releases the camera just the same (ADR 0047).
         // Mid-take, with the face going to its webcam file: park (hide, keep, still protected)
         // instead. The running screen capture leaves out the windows that were on screen when
         // it started, so turning the camera on again must bring back this same window; a new
@@ -651,6 +661,7 @@ export function registerRecordingHub(
     bubbleProtection.webcamEnded(sessionId);
     if (
       activity.active &&
+      !nativeTransport?.isOpen() &&
       !takeRecordsWebcam() &&
       settings.isCameraEnabled &&
       cameraBubble.isProtected() &&
