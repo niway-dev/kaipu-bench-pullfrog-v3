@@ -285,6 +285,22 @@ describe("startEngine", () => {
     );
   });
 
+  it("draws only the area on the poster of a Chromium area take", async () => {
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as never);
+    const handle = await startEngine(
+      baseOptions({
+        area: {
+          displayId: 1,
+          rect: { x: 320, y: 180, width: 1280, height: 720 },
+          displaySize: { width: 1920, height: 1080 },
+        },
+      }),
+    );
+    await handle.stop();
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 320, 180, 1280, 720, 0, 0, 1280, 720);
+  });
+
   it("sizes and crops from the delivered frames when the track reports the capture ceiling", async () => {
     // Chromium reported the 7680×4320 maxWidth/maxHeight ceiling while the frames were the
     // MacBook's 3024×1964: the take came out 2560×1440 with the area at 5× its real offset.
@@ -1859,7 +1875,7 @@ describe("experimental native recorder lifecycle", () => {
   afterEach(() => {
     window.electronAPI.nativeCapture = original;
   });
-  function nativeBridge() {
+  function nativeBridge(size = { width: 1920, height: 1080 }) {
     const make = vi.mocked(Output).getMockImplementation()!;
     vi.mocked(Output).mockImplementationOnce(function (...args) {
       return Object.assign(Reflect.construct(make, args), { _firstMediaStreamTimestamp: null });
@@ -1893,8 +1909,8 @@ describe("experimental native recorder lifecycle", () => {
               kind: "config" as const,
               version: 1 as const,
               codec: "avc1.64001f",
-              width: 1920,
-              height: 1080,
+              width: size.width,
+              height: size.height,
               epochUs: 1000,
               epochMainMs: performance.now(),
               cursorPixels: "excluded" as const,
@@ -2026,25 +2042,63 @@ describe("experimental native recorder lifecycle", () => {
     expect(handle.transport).toBe("chromium");
     await handle.stop();
   });
-  it.each([
-    { sourceId: "window:3:0" },
-    { watermark: { text: "test" } },
-    {
-      area: {
-        displayId: 3,
-        displaySize: { width: 1920, height: 1080 },
-        rect: { x: 0, y: 0, width: 640, height: 360 },
-      },
-    },
-  ])("falls back before encoding unsupported options %o", async (over) => {
+  it("opens the native helper for an area with the area's target and passes the area", async () => {
     const bridge = nativeBridge();
-    const onNativeDecision = vi.fn();
-    const prepared = await prepareEngine(
-      baseOptions({ ...over, onNativeDecision } as Partial<EngineOptions>),
-    );
-    expect(onNativeDecision).toHaveBeenCalledWith(expect.stringContaining("using Chromium"));
-    expect(bridge.open).not.toHaveBeenCalled();
-    expect(MediaStreamVideoTrackSource).toHaveBeenCalled();
+    const area = {
+      displayId: 3,
+      displaySize: { width: 1920, height: 1080 },
+      rect: { x: 320, y: 180, width: 640, height: 360 },
+    };
+    const prepared = await prepareEngine(baseOptions({ sourceId: "screen:3:0", area }));
+    expect(bridge.open).toHaveBeenCalledOnce();
+    const request = (bridge.open.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(request).toMatchObject({ sourceId: "screen:3:0", area, width: 640, height: 360 });
+    expect(request).not.toHaveProperty("displayId");
+    expect(MediaStreamVideoTrackSource).not.toHaveBeenCalled();
     prepared.release();
   });
+  it("opens the native helper for an area take that also has a webcam", async () => {
+    const bridge = nativeBridge({ width: 640, height: 360 });
+    const area = {
+      displayId: 3,
+      displaySize: { width: 1920, height: 1080 },
+      rect: { x: 320, y: 180, width: 640, height: 360 },
+    };
+    const prepared = await prepareEngine(
+      baseOptions({ sourceId: "screen:3:0", area, webcam: { deviceId: "cam-1", lines: 720 } }),
+    );
+    expect(bridge.open).toHaveBeenCalledOnce();
+    const handle = await prepared.begin();
+    expect(handle.transport).toBe("native");
+    expect(handle.webcam).not.toBeNull();
+    await handle.stop();
+  });
+  it("draws only the area on the poster of a native area take", async () => {
+    nativeBridge({ width: 640, height: 360 });
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as never);
+    const area = {
+      displayId: 3,
+      displaySize: { width: 1920, height: 1080 },
+      rect: { x: 320, y: 180, width: 640, height: 360 },
+    };
+    const prepared = await prepareEngine(baseOptions({ sourceId: "screen:3:0", area }));
+    const handle = await prepared.begin();
+    await handle.stop();
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 320, 180, 640, 360, 0, 0, 640, 360);
+  });
+  it.each([{ sourceId: "window:3:0" }, { watermark: { text: "test" } }])(
+    "falls back before encoding unsupported options %o",
+    async (over) => {
+      const bridge = nativeBridge();
+      const onNativeDecision = vi.fn();
+      const prepared = await prepareEngine(
+        baseOptions({ ...over, onNativeDecision } as Partial<EngineOptions>),
+      );
+      expect(onNativeDecision).toHaveBeenCalledWith(expect.stringContaining("using Chromium"));
+      expect(bridge.open).not.toHaveBeenCalled();
+      expect(MediaStreamVideoTrackSource).toHaveBeenCalled();
+      prepared.release();
+    },
+  );
 });
