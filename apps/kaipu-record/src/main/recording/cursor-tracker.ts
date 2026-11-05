@@ -215,18 +215,25 @@ export class CursorTracker {
       mx.push(p.x);
       my.push(p.y);
     };
+    // One forward pass: samples and entries are both time-sorted, so `k` (the count of
+    // entries at or before the sample) only moves forward. O(samples + entries).
+    const entries = log.all();
+    let k = 0;
     for (let i = 0; i < t.length; i++) {
-      const g = log.at(t[i]);
-      if (g) add(t[i], g, x[i], y[i]);
+      while (k < entries.length && entries[k].atMs <= t[i]) k++;
+      if (k > 0) add(t[i], entries[k - 1], x[i], y[i]);
       if (i + 1 < t.length)
-        for (const change of log.between(t[i], t[i + 1])) add(change.atMs, change, x[i], y[i]);
+        // Changes strictly inside (t[i], t[i+1]): entries[k] is already after t[i].
+        for (let j = k; j < entries.length && entries[j].atMs < t[i + 1]; j++)
+          add(entries[j].atMs, entries[j], x[i], y[i]);
     }
     const clicks: RawCursorData["clicks"] = [];
-    for (const c of this.clicks) {
-      const g = log.at(c.t);
-      if (!g) continue;
-      const p = mapIntoOutput(c, g, out);
-      clicks.push({ t: c.t, x: p.x, y: p.y, button: c.button });
+    let c = 0;
+    for (const click of this.clicks) {
+      while (c < entries.length && entries[c].atMs <= click.t) c++;
+      if (c === 0) continue;
+      const p = mapIntoOutput(click, entries[c - 1], out);
+      clicks.push({ t: click.t, x: p.x, y: p.y, button: click.button });
     }
     return mt.length > 0 ? { t: mt, x: mx, y: my, clicks } : null;
   }

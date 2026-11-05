@@ -47,6 +47,5 @@ it("maps 200k samples against 5k geometry entries in well under a second", () =>
   expect(track.t.length).toBeGreaterThanOrEqual(199_000);
   expect(track.clicks.length).toBe(99);
   // A sanity bound for a quadratic scan (seconds), not a benchmark of the linear pass.
-  console.log(`window map ms: ${elapsed.toFixed(0)}`);
   expect(elapsed).toBeLessThan(500);
 });

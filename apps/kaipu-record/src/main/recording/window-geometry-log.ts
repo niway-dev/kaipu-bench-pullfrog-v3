@@ -59,6 +59,11 @@ export class WindowGeometryLog {
     return null;
   }
 
+  /** All entries, oldest first, for a caller that walks them once (do not mutate). */
+  all(): readonly WindowGeometry[] {
+    return this.entries;
+  }
+
   /** Geometry changes with `fromMs < atMs < toMs`, oldest first. */
   between(fromMs: number, toMs: number): WindowGeometry[] {
     return this.entries.filter((g) => g.atMs > fromMs && g.atMs < toMs);
