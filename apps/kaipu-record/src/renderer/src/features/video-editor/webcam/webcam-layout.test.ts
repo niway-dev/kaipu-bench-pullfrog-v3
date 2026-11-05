@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import { WEBCAM_DEFAULTS, type WebcamLayout } from "./webcam-model";
 import {
   WEBCAM_POSITION_PRESETS,
-  WEBCAM_PRESET_MARGIN,
   clampWebcamCenter,
   webcamClipPath,
-  webcamPresetCenter,
+  webcamPresetActive,
   webcamRect,
   webcamSourceRect,
   webcamZoomFactor,
@@ -124,43 +123,25 @@ describe("webcamClipPath", () => {
   });
 });
 
-describe("webcamPresetCenter", () => {
+describe("webcam presets", () => {
   it("offers nine positions", () => {
     expect(WEBCAM_POSITION_PRESETS).toHaveLength(9);
   });
 
-  it("puts the bottom-left preset snug in the corner with the margin", () => {
-    const c = webcamPresetCenter({ x: 0, y: 1 }, 0.2, FRAME);
-    const half = 108 + WEBCAM_PRESET_MARGIN * 1080;
-    expect(c.x * 1920).toBeCloseTo(half);
-    expect(c.y * 1080).toBeCloseTo(1080 - half);
+  it("reports a preset active for the raw edge and for a centre clamped to it", () => {
+    const l = { shape: "rectangle", size: 0.42 } as const;
+    const left = WEBCAM_POSITION_PRESETS.find((p) => p.id === "left")!;
+    const right = WEBCAM_POSITION_PRESETS.find((p) => p.id === "right")!;
+    expect(webcamPresetActive(left, { ...l, position: { x: 0, y: 0.5 } }, FRAME)).toBe(true);
+    // half of the shrunk box (0.7 x 0.42 x 1080 x 3/4 / 2) over the frame width: also the edge
+    expect(webcamPresetActive(left, { ...l, position: { x: 0.0775, y: 0.5 } }, FRAME)).toBe(true);
+    expect(webcamPresetActive(right, { ...l, position: { x: 0.0775, y: 0.5 } }, FRAME)).toBe(false);
+    expect(webcamPresetActive(left, { ...l, position: { x: 0.3, y: 0.5 } }, FRAME)).toBe(false);
   });
 
-  it("stores what is drawn: the preset centre survives the clamp unchanged", () => {
-    for (const preset of WEBCAM_POSITION_PRESETS) {
-      const c = webcamPresetCenter(preset, 0.3, FRAME);
-      expect(clampWebcamCenter(c, { width: 0.3 * 1080, height: 0.3 * 1080 }, FRAME)).toEqual(c);
-    }
-  });
-
-  it("puts a rectangle snug by its own width", () => {
-    const c = webcamPresetCenter({ x: 0, y: 1 }, 0.4, FRAME, "rectangle");
-    expect(c.x * 1920).toBeCloseTo(162 + WEBCAM_PRESET_MARGIN * 1080);
-    expect(c.y * 1080).toBeCloseTo(1080 - 216 - WEBCAM_PRESET_MARGIN * 1080);
-  });
-
-  it("sizes the bubble with webcamRect's caps, so a capped bubble keeps its edge margin", () => {
-    // 0.6 of a 1920 px height is 1152 px, wider than the 1080 px frame: capped to 1080.
-    const portrait = { width: 1080, height: 1920 };
-    const c = webcamPresetCenter({ x: 0, y: 1 }, 0.6, portrait);
-    expect(c.y * 1920).toBeCloseTo(1920 - 540 - WEBCAM_PRESET_MARGIN * 1920);
-  });
-
-  it("falls back to the raw preset before the frame size is known", () => {
-    expect(webcamPresetCenter({ x: 1, y: 0 }, 0.2, { width: 0, height: 0 })).toEqual({
-      x: 1,
-      y: 0,
-    });
+  it("is never active before the frame size is known", () => {
+    const l = { shape: "circle", size: 0.2, position: { x: 1, y: 0 } } as const;
+    expect(webcamPresetActive({ x: 1, y: 0 }, l, { width: 0, height: 0 })).toBe(false);
   });
 });
 
@@ -177,7 +158,7 @@ describe("edge presets (NIW2-636)", () => {
     ["right", 2],
   ] as const)("puts the %s preset flush with the frame edge at camera scale %s", (id, scale) => {
     const preset = WEBCAM_POSITION_PRESETS.find((p) => p.id === id)!;
-    const position = webcamPresetCenter(preset, rectangle.size, FRAME, rectangle.shape);
+    const position = { x: preset.x, y: preset.y };
     const rect = webcamRect({ ...rectangle, position }, FRAME, scale)!;
     if (id === "left") expect(rect.x).toBeCloseTo(0, 3);
     else expect(rect.x + rect.width).toBeCloseTo(FRAME.width, 3);
