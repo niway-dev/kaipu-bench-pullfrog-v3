@@ -70,3 +70,17 @@ describe("BubbleProtection.recordsWebcam", () => {
     expect(protection.recordsWebcam()).toBe(false);
   });
 });
+
+describe("BubbleProtection under the native transport", () => {
+  it("is transport-agnostic: a webcam that ends stops protecting, native or not", () => {
+    // The hub decides not to replace the window while a native session is open; the state
+    // itself never learns the transport (ADR 0047), so `webcamEnded` is recorded the same.
+    const protection = new BubbleProtection();
+    protection.screenCreated("a");
+    protection.webcamCreated("a");
+    expect(protection.protects()).toBe(true);
+    protection.webcamEnded("a");
+    expect(protection.protects()).toBe(false);
+    expect(protection.recordsWebcam()).toBe(false);
+  });
+});

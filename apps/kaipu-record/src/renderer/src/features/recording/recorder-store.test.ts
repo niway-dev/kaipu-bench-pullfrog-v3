@@ -1743,6 +1743,23 @@ describe("recorder-store live settings", () => {
       await stopAndSettle();
     });
 
+    it("a webcam that ends under native tells the user the camera stopped, once the take is saved", async () => {
+      const engine = fakeEngine({ webcam: webcamHandle(), transport: "native" });
+      await startWith(engine, { webcam });
+      prepareEngineMock.mock.calls.at(-1)![0].onWebcamEnded!();
+      await stopAndSettle();
+      expect(getToasts().map((t) => t.message)).toEqual([messages.record.webcamStoppedNative]);
+      for (const toast of getToasts()) dismissToast(toast.id);
+    });
+
+    it("a webcam that ends under Chromium says nothing: the face is in the screen", async () => {
+      const engine = fakeEngine({ webcam: webcamHandle(), transport: "chromium" });
+      await startWith(engine, { webcam });
+      prepareEngineMock.mock.calls.at(-1)![0].onWebcamEnded!();
+      await stopAndSettle();
+      expect(getToasts()).toEqual([]);
+    });
+
     describe("a camera that does not open at the start of the take", () => {
       afterEach(() => {
         for (const toast of getToasts()) dismissToast(toast.id);

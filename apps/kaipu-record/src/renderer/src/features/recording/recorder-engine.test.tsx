@@ -1971,6 +1971,30 @@ describe("experimental native recorder lifecycle", () => {
     expect(bridge.cancel).toHaveBeenCalled();
     expect(bridge.begin).not.toHaveBeenCalled();
   });
+  it("opens the native helper with a webcam and starts the webcam output on the same clock", async () => {
+    const bridge = nativeBridge();
+    const prepared = await prepareEngine(
+      baseOptions({ sourceId: "screen:3:0", webcam: { deviceId: "cam-1", lines: 720 } }),
+    );
+    expect(bridge.open).toHaveBeenCalled();
+    const handle = await prepared.begin();
+    expect(handle.transport).toBe("native");
+    expect(handle.webcam).not.toBeNull();
+    const [screenOutput, webcamOutput] = vi
+      .mocked(Output)
+      .mock.results.map((r) => r.value as { _firstMediaStreamTimestamp: number | null });
+    screenOutput!._firstMediaStreamTimestamp = null;
+    webcamOutput!._firstMediaStreamTimestamp = 10.0405;
+    await handle.stop();
+    const times = await handle.webcam!.startTimesAfterStop();
+    expect(times.screen.quality).toBe("exact");
+    expect(times.webcam).toEqual({ rendererMs: 10_040.5, quality: "exact" });
+  });
+  it("exposes the chromium transport when the native helper is not used", async () => {
+    const handle = await startEngine(baseOptions({ sourceId: "screen:3:0" }));
+    expect(handle.transport).toBe("chromium");
+    await handle.stop();
+  });
   it.each([
     { sourceId: "window:3:0" },
     { watermark: { text: "test" } },
@@ -1981,7 +2005,6 @@ describe("experimental native recorder lifecycle", () => {
         rect: { x: 0, y: 0, width: 640, height: 360 },
       },
     },
-    { webcam: { deviceId: null, lines: 720 } },
   ])("falls back before encoding unsupported options %o", async (over) => {
     const bridge = nativeBridge();
     const onNativeDecision = vi.fn();
