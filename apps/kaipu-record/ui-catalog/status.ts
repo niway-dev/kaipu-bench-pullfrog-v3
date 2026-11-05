@@ -48,16 +48,26 @@ export function describeStatus(manifest: Manifest, newestTag: string | null): st
   return `${base}; ${behind ? `behind ${newestTag}` : "current"}`;
 }
 
+/** The highest desktop tag by version; `git tag --sort` puts an rc above its release. */
+export function newestOfTags(tags: readonly string[]): string | null {
+  let best: string | null = null;
+  let bestVersion = "";
+  for (const raw of tags) {
+    const tag = raw.trim();
+    const version = versionOfTag(tag);
+    if (version === null) continue;
+    if (best === null || compareVersions(version, bestVersion) > 0) {
+      best = tag;
+      bestVersion = version;
+    }
+  }
+  return best;
+}
+
 /** Read-only `git tag` in the monorepo. Null when there is none or git cannot read it. */
 export function newestDesktopTag(repoRoot: string): string | null {
   try {
-    const out = git(repoRoot, ["tag", "--list", "desktop-v*", "--sort=-v:refname"]);
-    return (
-      out
-        .split("\n")
-        .find((line) => versionOfTag(line.trim()) !== null)
-        ?.trim() ?? null
-    );
+    return newestOfTags(git(repoRoot, ["tag", "--list", "desktop-v*"]).split("\n"));
   } catch {
     return null;
   }

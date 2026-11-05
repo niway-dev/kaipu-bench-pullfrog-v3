@@ -15,6 +15,7 @@ import {
 } from "./publish";
 import {
   describeStatus,
+  newestOfTags,
   parseStatusArgs,
   readRemoteManifest,
   statusCloneEnv,
@@ -557,6 +558,16 @@ describe("status", () => {
     expect(compareVersions("0.16.0-1", "0.16.0-rc")).toBeLessThan(0);
     expect(compareVersions("0.16.0-alpha", "0.16.0-beta")).toBeLessThan(0);
     expect(compareVersions("0.16.0-rc.1", "0.16.0-rc.1")).toBe(0);
+  });
+
+  it("picks the newest desktop tag, a release above its own rc", () => {
+    expect(
+      newestOfTags(["desktop-v0.16.0-rc.1", "desktop-v0.16.0", "desktop-v0.15.9", "web-v9.0.0"]),
+    ).toBe("desktop-v0.16.0");
+    expect(newestOfTags(["desktop-v0.16.0-rc.2", "desktop-v0.16.0-rc.10", "desktop-v0.15.0"])).toBe(
+      "desktop-v0.16.0-rc.10",
+    );
+    expect(newestOfTags(["web-v1.0.0", ""])).toBeNull();
   });
 
   it("says current or behind", () => {
