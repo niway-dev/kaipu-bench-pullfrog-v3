@@ -517,8 +517,11 @@ function acquireStart(input: StartInput): PendingStart {
     start.engine = prepareEngine({
       nativeCursorTrackReady: cursorSession.then((track) => track.enabled),
       sourceId: input.sourceId,
+      // Which transport a take used is a developer diagnostic: a toast in dev builds,
+      // the console in a packaged one, where native capture is the default.
       onNativeDecision: (message) => {
-        showToast({ message, durationMs: 10000 });
+        if (import.meta.env.DEV) showToast({ message, durationMs: 10000 });
+        else console.info(`[recorder] ${message}`);
       },
       area: input.area ?? null,
       microphoneDeviceId: input.microphoneDeviceId,

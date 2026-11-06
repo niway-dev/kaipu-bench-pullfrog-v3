@@ -51,11 +51,26 @@ Ventana principal          Ventanas secundarias
 
 ### Flags definidos
 
-| Nombre                  | Tipo    | Default | Propósito                                                                                                                                                                                                                              |
-| ----------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `watermark-enabled`     | boolean | `true`  | Kill-switch remoto del watermark. Default `true` → el watermark sale en prod aunque no haya red. `useWatermark` lo lee directamente.                                                                                                   |
-| `bypass-login`          | boolean | `true`  | Seam para la futura pantalla de login. No existe UI de login aún; el default lo trata como bypassed.                                                                                                                                   |
-| `native-cursor-capture` | boolean | `false` | Cursor-free macOS capture with an editable cursor in the editor ([PR #493](https://github.com/niway-dev/kaipu-record/pull/493)). Off by default; `--experimental-native-recording` (`bun run dev:native-capture`) turns it on locally. |
+| Nombre                  | Tipo    | Default | Propósito                                                                                                                                                                           |
+| ----------------------- | ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `watermark-enabled`     | boolean | `true`  | Kill-switch remoto del watermark. Default `true` → el watermark sale en prod aunque no haya red. `useWatermark` lo lee directamente.                                                |
+| `bypass-login`          | boolean | `true`  | Seam para la futura pantalla de login. No existe UI de login aún; el default lo trata como bypassed.                                                                                |
+| `native-cursor-capture` | boolean | `true`  | Cursor-free macOS capture with an editable cursor in the editor, for Screen, Frame and Window ([NIW2-660](https://linear.app/niway/issue/NIW2-660)). Remote kill switch: see below. |
+
+### Native cursor kill switch
+
+`native-cursor-capture` defaults to `true` in code, but the flag also exists in PostHog, and
+a PostHog value wins over the default. posthog-js (≥ 1.261.8) returns `undefined` for a
+**disabled** flag, so the default applies, and `false` for an enabled flag the user does not
+match.
+
+- **Normal state: the flag is disabled in PostHog** (not deleted). Builds from the release
+  that turned it on record natively; older builds keep their own default, `false`.
+- **Kill switch: enable the flag with a 0% rollout.** Every build reads `false` and the next
+  take uses Chromium capture, with no release. Disable it again to turn native back on.
+- Never set it to 100% to "turn it on": older builds would read `true` too. 0.16.0 and
+  earlier ship no helper, so they would stay on Chromium and show a developer toast on
+  every take.
 
 ### Comportamiento offline
 

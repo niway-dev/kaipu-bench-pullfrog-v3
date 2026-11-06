@@ -175,6 +175,20 @@ jobs:
           }
           bun run build
 
+      # `build:native-capture` only warns when it cannot compile the native capture
+      # helper, so a dev machine without Swift still builds. A release must not: without
+      # the helper every take silently falls back to Chromium and loses the editable
+      # cursor. Fail here if the universal binary is missing.
+      - name: Check the native capture helper was built
+        working-directory: apps/kaipu-record
+        run: |
+          HELPER=resources/native/kaipu-encoded-capture
+          test -x "$HELPER" || { echo "::error::$HELPER was not built"; exit 1; }
+          ARCHS="$(lipo -archs "$HELPER")"
+          for ARCH in arm64 x86_64; do
+            [[ " $ARCHS " == *" $ARCH "* ]] || { echo "::error::$HELPER lacks $ARCH (has: $ARCHS)"; exit 1; }
+          done
+
       # Release gate, second half (ADR 0004): Playwright drives the build above — the very
       # bundle that gets signed — on the platform users run. This is the only place the
       # export path is exercised in the cloud: on Linux runners it self-skips (no WebCodecs
@@ -212,6 +226,23 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: bunx electron-builder --mac --arm64 --x64 --publish never
+
+      # macOS refuses to launch an unsigned or ad-hoc-signed helper under the hardened
+      # runtime, and the app then falls back to Chromium capture with no visible error.
+      # Check every packaged app carries the helper, signed with the runtime flag.
+      - name: Check the native capture helper is signed in every packaged app
+        working-directory: apps/kaipu-record
+        run: |
+          shopt -s nullglob
+          APPS=(dist/mac*/*.app)
+          [[ ${#APPS[@]} -gt 0 ]] || { echo "::error::no packaged .app under dist/"; exit 1; }
+          for APP in "${APPS[@]}"; do
+            HELPER="$APP/Contents/Resources/app.asar.unpacked/resources/native/kaipu-encoded-capture"
+            test -x "$HELPER" || { echo "::error::$HELPER missing"; exit 1; }
+            codesign --verify --strict --verbose=2 "$HELPER"
+            codesign -dv "$HELPER" 2>&1 | grep -q 'flags=.*runtime' ||
+              { echo "::error::$HELPER is not signed with the hardened runtime"; exit 1; }
+          done
 
       # Always uploaded, tag or not: `publish` downloads it. Short retention because the
       # tag's copy lives on in R2 and the GitHub Release; this one only has to survive

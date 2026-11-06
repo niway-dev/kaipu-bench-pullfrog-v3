@@ -17,6 +17,7 @@ describe("flag model", () => {
     }
     // Login is bypassed pre-auth.
     expect(FLAG_DEFAULTS["bypass-login"]).toBe(true);
+    expect(FLAG_DEFAULTS["native-cursor-capture"]).toBe(true);
   });
 
   it("uses stable identity defaults", () => {
