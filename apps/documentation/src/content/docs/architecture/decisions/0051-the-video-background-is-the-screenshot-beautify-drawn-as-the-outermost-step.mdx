@@ -1,9 +1,9 @@
 ---
-title: "ADR 0049: The video background reuses the screenshot editor's beautify model and is drawn as the outermost composition step inside a fixed output size"
+title: "ADR 0051: The video background reuses the screenshot editor's beautify model and is drawn as the outermost composition step inside a fixed output size"
 description: A recording gets a background (the screenshot editor's presets), padding, corner radius and shadow, stored additively in the scene. It is composed last — after redactions, annotations, the zoom crop, the framing and the webcam — onto the preset's canvas, so the picture shrinks inside the padding and the output size never changes. One pure geometry feeds the preview's CSS and the export's canvas; the export fingerprint carries bg1.
 ---
 
-# ADR 0049: The video background reuses the screenshot editor's beautify model and is drawn as the outermost composition step inside a fixed output size
+# ADR 0051: The video background reuses the screenshot editor's beautify model and is drawn as the outermost composition step inside a fixed output size
 
 ## Status
 
