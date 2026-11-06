@@ -33,8 +33,9 @@ insets the picture inside the output.
 ## Decision
 
 1. **Same presets, same three numbers.** `scene.background: { bg: BackgroundId; padding;
-radius; shadow }` uses the screenshot editor's `BackgroundId` and ranges. The `BACKGROUNDS`
-   table is shared, not copied: if the export worker's bundle cannot import it from the
+radius; shadow }` uses the screenshot editor's `BackgroundId` and its slider constants
+   (`PADDING_RANGE` 0–96, `RADIUS_RANGE` 0–28, `SHADOW_RANGE` 0–100), read at a 1080 px-high
+   reference. The `BACKGROUNDS` table and the three ranges are shared, not copied: if the export worker's bundle cannot import it from the
    screenshots feature without dragging React in, the table moves to `shared/` and both editors
    import it there. The ids never diverge between the two editors.
 2. **It is part of the edit.** Stored additively in session version 1 (absent → the default,

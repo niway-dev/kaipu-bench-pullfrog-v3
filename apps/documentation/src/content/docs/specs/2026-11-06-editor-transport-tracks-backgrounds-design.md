@@ -130,7 +130,8 @@ cursorTrack, hasWebcam)`, tested for a take without camera and without cursor tr
 16. An old export is reused for a scene with a background → `bg1` in the fingerprint; a plain
     scene's fingerprint is unchanged (snapshot test on both).
 17. A session with a wrong background shape crashes the parser → unknown `bg` → `none`; numbers
-    clamped to the screenshot editor's ranges; non-finite → 0; absent → the default.
+    clamped to `PADDING_RANGE`, `RADIUS_RANGE` and `SHADOW_RANGE` (the screenshot editor's
+    constants, reused, not copied); non-finite → 0; absent → the default.
 18. The GIF ignores the background → the GIF worker uses the same composer; a GIF frame test
     checks a corner pixel.
 19. A new lane added later eats the video's height → `availableLanes` is the one list a new lane
@@ -383,9 +384,11 @@ for the visible blocks at the current width (failure 12).
 import type { BackgroundId } from "../screenshots/beautify/backgrounds";
 export interface VideoBackground {
   bg: BackgroundId;       // "none" = today's picture
-  padding: number;        // output px at 1080p height, 0–160; scaled with the output like the screenshot compositor
-  radius: number;         // 0–48
-  shadow: number;         // 0–64
+  /** PADDING_RANGE (0–96), RADIUS_RANGE (0–28) and SHADOW_RANGE (0–100) from the screenshot
+   *  editor, read at a 1080 px-high reference and scaled with the output (section 6.1). */
+  padding: number;
+  radius: number;
+  shadow: number;
 }
 export const DEFAULT_BACKGROUND: VideoBackground = { bg: "none", padding: 0, radius: 0, shadow: 0 };
 export function parseBackground(raw: unknown): VideoBackground;
