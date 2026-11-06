@@ -5,13 +5,14 @@ description: "Future improvement for the video editor's auto-zoom: exclude the O
 
 # Cursor-free capture and a drawn cursor
 
-> **Status: 🟡 In progress — editable editor cursor slice implemented and locally validated** (2026-11-03).
-> Eligible cursor-free recordings now have a Cursor button in the tool rail and a shared
-> preview/export painter. Default recording remains Chromium; native capture is still
-> experimental behind the PostHog flag `native-cursor-capture` (off by default) or the
-> `--experimental-native-recording` switch (`bun run dev:native-capture`). Before the flag
-> can go away: area, watermark and webcam recordings must use native capture, and a signed
-> build must pass the screen-recording permission check. Recorded pointer shapes remain open. This is not a claim that the entire native recording feature is complete.
+> **Status: 🟢 Ready to validate — native capture on by default** (2026-11-05, [NIW2-660](https://linear.app/niway/issue/NIW2-660)).
+> Screen, Frame and Window recordings on macOS record without the OS cursor, with the
+> webcam, microphone and system audio, and the editor draws an editable cursor. The flag
+> `native-cursor-capture` now defaults to on and stays as a PostHog kill switch
+> ([analytics and flags](/desktop/analytics-and-flags/#native-cursor-kill-switch)). Chromium
+> capture remains the fallback (watermark takes, a missing or refused helper). Pending: the
+> first signed release confirming the helper launches under the hardened runtime, and the
+> mid-take edge cases NIW2-650 (sleep) and NIW2-651 (mic). Recorded pointer shapes remain open.
 > Native capture evidence: [native capture execution](/backlog/cursor-free-capture-diagnostic/).
 > The sections after the implementation record below retain the original v2 design rationale.
 

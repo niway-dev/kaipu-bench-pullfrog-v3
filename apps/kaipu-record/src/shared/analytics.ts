@@ -20,9 +20,10 @@ export type FlagName = (typeof FLAG_NAMES)[number];
  */
 export const FLAG_DEFAULTS: Record<FlagName, boolean> = {
   "bypass-login": true,
-  // Cursor-free macOS capture with an editable cursor. Off until area, watermark and
-  // webcam recordings use it too and a signed build has been checked (PR #493).
-  "native-cursor-capture": false,
+  // Cursor-free macOS capture with an editable cursor, on for Screen, Frame and Window
+  // with the webcam and audio. The PostHog flag stays as a kill switch: disabled there,
+  // the SDK returns undefined and this default applies; enabled at 0%, it turns it off.
+  "native-cursor-capture": true,
 };
 
 /** Identity super-properties attached to every event/error for multi-surface filtering. */
