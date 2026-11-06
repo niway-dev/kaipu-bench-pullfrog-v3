@@ -52,7 +52,7 @@ in the session, and part of the export fingerprint.
 | 10  | **The background is drawn as the outermost step**: `frame → redactions → annotations → zoom crop → framing → webcam → background`. The composed picture is inset by the padding, clipped to the radius, given the shadow, and the background fills the rest of the output canvas.               | Owner gap 7: the order stays. Everything the editor already draws is a picture; the background is a frame around that picture, as the screenshot compositor does it (`bg + padding + shot`). Putting it anywhere earlier would zoom or crop the padding. | 0049        |
 | 11  | **The padding keeps the output size and shrinks the picture.** A 1920×1080 preset stays 1920×1080; with padding the picture inside is smaller. Fixed-canvas presets (Vertical, Square) apply the background on their target canvas, replacing the black or blurred letterbox when `bg ≠ none`.  | The output size is the preset's promise (YouTube 1440p, Square). Growing the canvas would break every preset's size and the size meter. The letterbox is already a background; the user's choice wins over the default one.                              | 0049        |
 | 12  | **Preview and export share one pure geometry** `backgroundFrame(bg, outputW, outputH) → { pictureRect, radius, shadow }`; the preview draws it with CSS on the stage, the composer with canvas, both from the same numbers, scaled like the screenshot compositor scales display px to natural. | The screenshot editor already keeps a preview and a compositor in step with one model (`backgrounds.ts`, `compositor.ts`); the video editor reuses the model and the rule.                                                                               | 0049        |
-| 13  | **Export reuse**: `BACKGROUND_COMPOSE_REVISION = "bg1"` is added to the edit fingerprint when `bg ≠ none` or padding/radius/shadow ≠ 0. A scene without a background fingerprints exactly as today.                                                                                             | Same rule as `wc2` and `cursor3`: an export made before the background existed must not be reused for a scene that has one, and a plain scene must keep matching its old exports.                                                                        | reuses 0003 |
+| 13  | **Export reuse**: `BACKGROUND_COMPOSE_REVISION = "bg1"` is added to the edit fingerprint when `bg ≠ none`. With `bg = none` the three numbers are kept but not drawn, the sliders are disabled, and the scene fingerprints exactly as today.                                                                                             | Same rule as `wc2` and `cursor3`: an export made before the background existed must not be reused for a scene that has one, and a plain scene must keep matching its old exports.                                                                        | reuses 0003 |
 | 14  | **The Tracks popover and the background panel are the two new UI areas**, declared in `ui-map.ts` (`editorVideo.tracksPopover`, `editorVideo.background`) with catalog states, per ADR 0046. Transport gains `speed` and `zoomed` states.                                                       | Every desktop UI PR declares its areas and states; the catalog is how the owner QAs without a build.                                                                                                                                                     | reuses 0046 |
 
 ## Open questions
@@ -392,6 +392,8 @@ export interface VideoBackground {
 }
 export const DEFAULT_BACKGROUND: VideoBackground = { bg: "none", padding: 0, radius: 0, shadow: 0 };
 export function parseBackground(raw: unknown): VideoBackground;
+/** `bg !== "none"`. With `none`, padding, radius and shadow are stored but never drawn (preview
+ *  or export): the MP4 has no alpha, so there is nothing honest to paint around the picture. */
 export function hasBackground(b: VideoBackground): boolean;
 /** The picture's rectangle inside an output of w×h, plus the scaled radius and shadow. */
 export function backgroundFrame(b: VideoBackground, w: number, h: number): { picture: Rect; radius: number; shadow: number };
@@ -414,7 +416,7 @@ editors import it; the ids and paints do not change.
 1. The existing pipeline composes the picture exactly as today onto a **picture canvas** of the
    output size (for framed presets, the framer's target; otherwise `ctx`'s canvas).
 2. The final canvas is filled with the background paint (solid, or the 135° gradient the
-   screenshot compositor uses; `none` is impossible here).
+   screenshot compositor uses; `none` never reaches this step, see `hasBackground`).
 3. The picture canvas is drawn into `backgroundFrame().picture` with a rounded-rect clip of
    `radius` and a drop shadow of `shadow` (`ctx.shadowBlur`, the screenshot's shadow colour).
 
@@ -439,6 +441,8 @@ the composer uses, in display px. The webcam layer and the annotation layer are 
 - `export-reuse.ts`: `BACKGROUND_COMPOSE_REVISION = "bg1"` joins the fingerprint tag when
   `hasBackground`; the normalised scene already hashes the field.
 - Inspector: a "Background" section when nothing is selected, built from the screenshot editor's
+  `BeautifyPanel`; the three sliders are disabled while `bg = none`, so a user never moves a
+  slider and sees nothing change. Continued below: built from the screenshot editor's
   `BeautifyPanel` with the `VideoBackground` state (same swatches, same sliders, same i18n keys
   under `screenshots` reused through the panel). Undo covers it (one history step per committed
   slider change, like the zoom inspector).

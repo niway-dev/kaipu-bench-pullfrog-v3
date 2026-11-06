@@ -52,7 +52,8 @@ radius; shadow }` uses the screenshot editor's `BackgroundId` and its slider con
    expressed at a 1080 px-high reference and scaled by `h / 1080`, so every preset shows the
    same proportions.
 5. **Export reuse.** `BACKGROUND_COMPOSE_REVISION = "bg1"` is added to the edit fingerprint only
-   when a background is set; a plain scene's fingerprint does not change, so its old exports
+   when `bg ≠ none`. With `none`, padding, radius and shadow are stored but not drawn and the
+   sliders are disabled, so a plain scene's fingerprint does not change and its old exports
    keep matching.
 
 ## Alternatives rejected
