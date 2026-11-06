@@ -79,6 +79,12 @@ describe("TransportBar — layout", () => {
     const css = readFileSync(resolve(__dirname, "transport-bar.module.css"), "utf8");
     expect(css).toMatch(/grid-template-columns:\s*1fr auto 1fr/);
   });
+
+  it("hangs the time off the centre column, so play (not the play + time group) is what is centred", () => {
+    const css = readFileSync(resolve(__dirname, "transport-bar.module.css"), "utf8");
+    const rule = css.match(/\.timeDisplay\s*\{[^}]*\}/)![0];
+    expect(rule).toMatch(/position:\s*absolute/);
+  });
 });
 
 describe("TransportBar — Tracks placeholder", () => {

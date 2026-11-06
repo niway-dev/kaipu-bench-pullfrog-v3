@@ -30,7 +30,11 @@
   gap: 6px;
 }
 
+/* Rewind / play / forward are the whole centre column, so play sits on the bar's
+   centre line. The time hangs off the column's right edge instead of widening it: in
+   flow it would push play left by half its own width (measured in the real app: 60 px). */
 .centre {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-md);
@@ -122,6 +126,10 @@
 }
 
 .timeDisplay {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + var(--space-md));
+  transform: translateY(-50%);
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
