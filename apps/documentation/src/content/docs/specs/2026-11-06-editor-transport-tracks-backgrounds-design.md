@@ -153,11 +153,13 @@ PR 1 — transport bar:
 
 PR 2 — Tracks popover:
 
-- [ ] `Tracks 5/5` opens "Show tracks" with Clips (checked, disabled, "Always"), Annotations,
-      Zooms, Cursor activity (nested), Privacy, Audio, and Webcam when the take has a camera.
+- [ ] On a take with a cursor track and no camera, `Tracks 6/6` opens "Show tracks" with Clips
+      (checked, disabled, "Always"), Annotations, Zooms, Cursor activity (nested), Privacy and
+      Audio; Webcam is listed only when the take has a camera; without a cursor track the trigger
+      reads `5/5` and Cursor activity is absent.
 - [ ] Unchecking Zooms hides the lane and the marks; the preview still zooms; the export is
       byte-identical to the one with the lane shown.
-- [ ] The trigger reads `3/5` after hiding two lanes; closing and reopening the editor keeps
+- [ ] The trigger reads `4/6` after hiding two lanes; closing and reopening the editor keeps
       them hidden; a different recording shows the same choice.
 - [ ] Clicking a zoom on the preview while Zooms is hidden shows the lane again, selected.
 - [ ] The Activity row is gone; its marks draw under the zoom blocks.
