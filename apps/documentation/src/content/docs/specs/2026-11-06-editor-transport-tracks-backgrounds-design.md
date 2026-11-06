@@ -466,7 +466,8 @@ the composer uses, in display px. The webcam layer and the annotation layer are 
 PRs 2, 3 and 4 are independent of each other but stack on 1 for the merge order the owner asked
 for; a conflict between them is confined to `transport-bar.tsx`. PR 5 is last because it is the
 only one that changes exported pixels. Each PR ends with "How to test it yourself" seeded from
-its acceptance criteria above, and the plan (`docs/plans/`) splits the five into tasks.
+its acceptance criteria above, and the plan (`plans/` on the docs site, `apps/documentation/src/content/docs/plans/`) splits
+the five into tasks.
 
 ## 8. What this does to the timeline v2 spec
 
