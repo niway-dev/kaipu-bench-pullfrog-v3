@@ -102,7 +102,8 @@ Input for tests; each line is at least one test.
 4. `n/m` counts a lane the recording cannot show → the count is over `availableLanes(scene,
 cursorTrack, hasWebcam)`, tested for a take without camera and without cursor track.
 5. The activity marks survive Zooms being hidden → marks render inside `ZoomLane`, so there is
-   nothing to draw when the lane is gone; "Cursor activity" is forced off while Zooms is off.
+   nothing to draw when the lane is gone; the "Cursor activity" checkbox is disabled, not
+   changed, while Zooms is off, so the stored choice survives.
 6. Speed leaks into the export → `ExportPlan` has no speed field; the composer and the workers
    never read the playback hook. Test: exporting at 2× produces the same plan as at 1×.
 7. Speed and slides disagree → the slide clock multiplies elapsed wall time by the speed; a 3 s
@@ -294,7 +295,9 @@ export type TrackKey = (typeof TRACK_KEYS)[number];
 export const ALWAYS_SHOWN: readonly TrackKey[] = ["clips"];
 /** The lanes a recording can show, in lane order. */
 export function availableTracks(input: { hasCursorTrack: boolean; hasWebcam: boolean }): TrackKey[];
-/** Drops `clips`, unknown keys and `activity` without `zooms`. */
+/** Drops `clips` and unknown keys; keeps `activity` as stored (Zooms shown, marks off is a
+ *  valid choice). While `zooms` is hidden the marks are hidden with it and the child checkbox
+ *  is disabled, unchanged. */
 export function parseHiddenTracks(raw: unknown): TrackKey[];
 export function visibleCount(available: TrackKey[], hidden: TrackKey[]): { shown: number; total: number };
 ```

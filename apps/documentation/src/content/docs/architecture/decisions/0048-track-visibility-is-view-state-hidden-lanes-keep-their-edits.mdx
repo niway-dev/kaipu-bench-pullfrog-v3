@@ -36,13 +36,13 @@ exactly this: hide from the timeline only, per user. The timeline v2 design (202
    still zooms; a hidden Privacy lane still blurs; a hidden Audio lane still mutes where a range
    says so.
 2. **Saved per user**, in the app settings store as `editor.hiddenTracks: TrackKey[]`, like
-   `exportQuality`. Not in the scene, not per recording. The parser drops `clips`, unknown keys
-   and `activity` without `zooms`.
+   `exportQuality`. Not in the scene, not per recording. The parser drops `clips` and unknown
+   keys and keeps `activity` as stored: Zooms shown with the marks off is a valid choice.
 3. **Clips is the only lane that cannot be hidden.** Audio can. Webcam appears in the list only
    when the take recorded a camera; Cursor activity only when the take has a cursor track.
 4. **Cursor activity is a child of Zooms**: its marks draw inside the Zooms lane, under the
-   blocks; the Activity row is removed. Hiding Zooms hides the marks; the child checkbox is
-   disabled while the parent is off.
+   blocks; the Activity row is removed. Hiding Zooms hides the marks too; the child checkbox is
+   disabled, not changed, while the parent is off, so its stored value survives.
 5. **The trigger counts what this recording can show**: `Tracks n/m` is visible rows over
    `availableTracks(scene, cursorTrack, hasWebcam)`. A lane the user turns on stays on, empty or
    not.
