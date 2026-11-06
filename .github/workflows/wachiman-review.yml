@@ -1,9 +1,9 @@
-name: Agent review
+name: Wachiman review
 # Get the key at https://console.anthropic.com and save it as the repository secret ANTHROPIC_API_KEY.
 # Pinned to an exact release tag, so a new engine release runs here only after this line is edited
 # (ADR 0001 of niway-dev/wachiman). Releases never move a tag, but a repository admin could;
 # only a full commit SHA is immutable.
-# First install: the installing pull request gets only the automatic review. `/wachi review` works
+# First install: the installing pull request gets only the automatic review. `/wachiman review` works
 # from the next pull request, because `issue_comment` runs from the default branch. Automatic
 # thread-reply runs (v1.5.0) need a `pull_request_review_comment` trigger, which this caller does not have.
 # This repository is public: the reusable workflow skips fork pull requests on purpose (they get no
