@@ -125,6 +125,11 @@
   cursor: default;
 }
 
+/* Out of flow, so it takes no layout width: it overlaps the right cluster once the
+   right `1fr` falls under ~240 px (~255 px for a 10-minute-plus time). At the editor's
+   1180 px floor that column is ~336 px (measured, NIW2-664), so there is room today.
+   A wider centre column (it narrows both sides) or a new right-hand button must
+   re-check this. */
 .timeDisplay {
   position: absolute;
   top: 50%;
