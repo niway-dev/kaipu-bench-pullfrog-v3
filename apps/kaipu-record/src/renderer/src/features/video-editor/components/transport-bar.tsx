@@ -50,6 +50,22 @@ function formatTime(seconds: number): string {
 }
 
 /**
+ * A count in the left cluster: the full sentence ("4 zooms detected"), or the short
+ * form ("4 zooms") once the bar is too narrow for both sentences (a container query in
+ * the CSS). The full text stays in the accessibility tree and in the tooltip either way.
+ */
+function Count({ full, short }: { full: string; short: string }): React.JSX.Element {
+  return (
+    <span className={styles.counts} title={full}>
+      <span className={styles.countFull}>{full}</span>
+      <span className={styles.countShort} aria-hidden="true">
+        {short}
+      </span>
+    </span>
+  );
+}
+
+/**
  * Everything that acts on the timeline, in one row under the video (NIW2-664):
  * left, the Tracks trigger and the counts; centre, rewind / play / forward and the
  * time; right, split, delete, mute and fullscreen. The page keeps the handlers (and the
@@ -87,10 +103,16 @@ export function TransportBar({
         {/* Shown whenever there is something to count: a pre-v2 recording has no
             cursor track but can still carry hand-made zooms. */}
         {zoomCount !== null && (
-          <span className={styles.counts}>{t("zoomCount", { count: zoomCount })}</span>
+          <Count
+            full={t("zoomCount", { count: zoomCount })}
+            short={t("zoomCountShort", { count: zoomCount })}
+          />
         )}
         {privacyCount > 0 && (
-          <span className={styles.counts}>{t("privacyCount", { count: privacyCount })}</span>
+          <Count
+            full={t("privacyCount", { count: privacyCount })}
+            short={t("privacyCountShort", { count: privacyCount })}
+          />
         )}
       </div>
       <div className={styles.centre}>

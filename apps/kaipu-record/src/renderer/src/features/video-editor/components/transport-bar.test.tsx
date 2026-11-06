@@ -100,6 +100,16 @@ describe("TransportBar — Tracks placeholder", () => {
     expect(within(left).getByText("2 private regions")).toBeInTheDocument();
   });
 
+  it("carries a short form for a narrow bar, with the full sentence as tooltip and the short one hidden from screen readers", () => {
+    renderBar({ zoomCount: 4, privacyCount: 2 });
+    const zoom = screen.getByText("4 zooms detected").parentElement!;
+    expect(zoom).toHaveAttribute("title", "4 zooms detected");
+    expect(within(zoom).getByText("4 zooms")).toHaveAttribute("aria-hidden", "true");
+    const privacy = screen.getByText("2 private regions").parentElement!;
+    expect(privacy).toHaveAttribute("title", "2 private regions");
+    expect(within(privacy).getByText("2 regions")).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("hides the counts when there is nothing to count", () => {
     renderBar({ zoomCount: null, privacyCount: 0 });
     expect(screen.queryByText(/zoom.* detected/)).toBeNull();

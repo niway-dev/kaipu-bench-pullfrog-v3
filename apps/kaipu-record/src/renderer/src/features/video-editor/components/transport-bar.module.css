@@ -15,6 +15,10 @@
   border-top: 1px solid var(--line);
   background: var(--bg-panel);
   flex-shrink: 0;
+  /* The counts pick their wording from this bar's own width (see .countShort), not the
+     window's: the inspector column takes 288 px of it. Only the inline size is
+     contained, and it comes from the parent, never from the content. */
+  container: transport / inline-size;
 }
 
 .side {
@@ -144,10 +148,34 @@
 
 /* "4 zooms detected" · "2 private regions" (UI spec § 5). */
 .counts {
+  position: relative;
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.countShort {
+  display: none;
+}
+
+/* Measured at the editor's 1180 px floor (stage 827 px, side columns ~336 px): the
+   Spanish sentences need ~344 px (more with 2-digit counts), so both counts were cut
+   to "4 zooms detectad…". Below 880 px of bar the short form ("4 zooms") shows instead,
+   and the full sentence stays for screen readers and the tooltip. At 880 px the side
+   columns are ~374 px, enough for the longest full pair we measured (~357 px). */
+@container transport (max-width: 880px) {
+  .countFull {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .countShort {
+    display: inline;
+  }
 }
