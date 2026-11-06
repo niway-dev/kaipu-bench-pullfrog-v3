@@ -7,7 +7,11 @@ import { decodeNativeFrames } from "./framing";
 import { NativeSequence } from "../../../shared/native-capture-sequence";
 import type { NativeCaptureReader } from "../../../shared/native-capture";
 
-import type { NativeVideoRequest } from "../../../shared/native-capture";
+import type {
+  NativeCaptureRequest,
+  NativeVideoRequest,
+  NativeWindowRequest,
+} from "../../../shared/native-capture";
 export function nativeHelperPath(resourcesPath: string, appPath?: string): string {
   if (appPath) {
     for (const root of [appPath, join(appPath, "..", "..")]) {
@@ -17,8 +21,9 @@ export function nativeHelperPath(resourcesPath: string, appPath?: string): strin
   }
   return join(resourcesPath, "app.asar.unpacked", "resources", "native", "kaipu-encoded-capture");
 }
-/** Bumped when the helper clock changes, so a stale binary is refused. */
-export const HELPER_VERSION = "kaipu-encoded-capture/3 source-rect continuous-clock";
+/** Bumped when the helper protocol or clock changes, so a stale binary is refused. */
+export const HELPER_VERSION =
+  "kaipu-encoded-capture/4 source-rect window-geometry continuous-clock";
 export async function validateNativeHelper(path: string): Promise<void> {
   const { stdout } = await promisify(execFile)(path, ["--version"], {
     timeout: 2000,
@@ -26,14 +31,37 @@ export async function validateNativeHelper(path: string): Promise<void> {
   });
   if (stdout.trim() !== HELPER_VERSION) throw new Error("Unsupported native helper version");
 }
-export function validateNativeRequest(request: NativeVideoRequest): void {
+export function validateNativeRequest(request: NativeCaptureRequest): void {
   const keys = request ? Object.keys(request).sort().join(",") : "";
+  if (keys === "frameRate,height,videoBitrate,width,windowId") {
+    const { windowId, width, height, frameRate, videoBitrate } = request as NativeWindowRequest;
+    // Same bounds as a display request, minus the display's aspect rules: a window is
+    // fitted into the fixed output (`scalesToFit`).
+    if (
+      ![windowId, width, height, frameRate, videoBitrate].every(Number.isSafeInteger) ||
+      windowId < 1 ||
+      windowId > 0xffff_ffff ||
+      width < 2 ||
+      height < 2 ||
+      width > 7680 ||
+      height > 7680 ||
+      width % 2 ||
+      height % 2 ||
+      frameRate < 1 ||
+      frameRate > 60 ||
+      videoBitrate < 100_000 ||
+      videoBitrate > 100_000_000
+    )
+      throw new Error("Invalid native video request");
+    return;
+  }
   if (
     keys !== "displayId,frameRate,height,videoBitrate,width" &&
     keys !== "displayId,frameRate,height,sourceRect,videoBitrate,width"
   )
     throw new Error("Unsupported native capture options");
-  const { displayId, width, height, frameRate, videoBitrate, sourceRect } = request;
+  const { displayId, width, height, frameRate, videoBitrate, sourceRect } =
+    request as NativeVideoRequest;
   if (sourceRect !== undefined) {
     if (
       !sourceRect ||
@@ -68,21 +96,25 @@ export function validateNativeRequest(request: NativeVideoRequest): void {
 /** One awaited pull crosses IPC at a time; stdout's pipe is the bounded queue. */
 export function spawnNativeVideo(
   path: string,
-  request: NativeVideoRequest,
+  request: NativeCaptureRequest,
   testAllowUnmatchedParent = false,
   stallTimeoutMs = 5000,
+  /** Test-only helper flags (`--test-window`); IPC never passes any. */
+  extraArgs: string[] = [],
 ): NativeCaptureReader {
   validateNativeRequest(request);
+  if (testAllowUnmatchedParent && "windowId" in request)
+    throw new Error("The unmatched-parent bypass is not available for a window");
   const child = spawn(
     path,
     [
       "--encoded-capture-v1",
-      request.displayId,
+      ...("windowId" in request ? ["--window", request.windowId] : [request.displayId]),
       request.width,
       request.height,
       request.frameRate,
       request.videoBitrate,
-      ...(request.sourceRect
+      ...("sourceRect" in request && request.sourceRect
         ? [
             "--source-rect",
             request.sourceRect.x,
@@ -91,6 +123,7 @@ export function spawnNativeVideo(
             request.sourceRect.height,
           ]
         : []),
+      ...extraArgs,
       ...(testAllowUnmatchedParent ? ["--test-allow-unmatched-parent"] : []),
     ].map(String),
     { stdio: ["pipe", "pipe", "pipe"] },
@@ -113,6 +146,9 @@ export function spawnNativeVideo(
   let paused = false;
   let refreshReadTimeout: (() => void) | undefined;
   let prepared = false;
+  // A window take streams only changes before `go`, so a still window is silent while the take
+  // is prepared and the countdown runs: no stall timer between `ready` and `go`.
+  let begun = false;
   let busy = false,
     cancelled = false,
     stopped = false,
@@ -154,7 +190,11 @@ export function spawnNativeVideo(
       }
       prepared = true;
     },
-    begin: (ms) => command("go", ms),
+    async begin(ms) {
+      await command("go", ms);
+      begun = true;
+      refreshReadTimeout?.();
+    },
     async pause(ms) {
       await command("pause", ms);
       paused = true;
@@ -185,7 +225,7 @@ export function spawnNativeVideo(
           new Promise<never>((_, reject) => {
             refreshReadTimeout = () => {
               clearTimeout(timeout);
-              if (!paused)
+              if (!paused && (!prepared || begun))
                 timeout = setTimeout(
                   () => reject(new Error("Native capture stalled")),
                   stallTimeoutMs,
@@ -204,6 +244,8 @@ export function spawnNativeVideo(
         } else sequence.accept(result.value);
         if (result.value.header.kind === "config")
           result.value.header.epochMainMs = (result.value.header.epochUs - hostOffsetUs) / 1000;
+        else if (result.value.header.kind === "geometry")
+          result.value.header.atMainMs = (result.value.header.atUs - hostOffsetUs) / 1000;
         return result.value;
       } catch (error) {
         await cancel();

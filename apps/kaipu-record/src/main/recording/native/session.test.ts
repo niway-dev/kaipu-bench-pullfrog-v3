@@ -82,7 +82,11 @@ it("pins the helper to protocol 3 and passes sourceRect as argv", async () => {
       await helper('console.log("kaipu-encoded-capture/2 prepared pause-clock")'),
     ),
   ).rejects.toThrow("version");
+  expect(HELPER_VERSION).toBe(
+    "kaipu-encoded-capture/4 source-rect window-geometry continuous-clock",
+  );
   for (const stale of [
+    "kaipu-encoded-capture/3 source-rect continuous-clock",
     "kaipu-encoded-capture/3 source-rect",
     "kaipu-encoded-capture/2 prepared continuous-clock",
   ])
@@ -101,6 +105,90 @@ it("pins the helper to protocol 3 and passes sourceRect as argv", async () => {
   );
   const without = spawnNativeVideo(path, request);
   await expect(without.next()).rejects.toThrow(/1000000$/);
+});
+const windowRequest = {
+  windowId: 4242,
+  width: 580,
+  height: 384,
+  frameRate: 30,
+  videoBitrate: 1_000_000,
+};
+it("accepts a window request and refuses a mix with a display or a source rect", () => {
+  expect(() => validateNativeRequest(windowRequest)).not.toThrow();
+  const rect = { x: 0, y: 0, width: 400, height: 300 };
+  for (const mixed of [
+    { ...windowRequest, displayId: 3 },
+    { ...windowRequest, sourceRect: rect },
+    { ...request, windowId: 4242 },
+    { ...windowRequest, extra: 1 },
+  ])
+    expect(() => validateNativeRequest(mixed as never)).toThrow(
+      "Unsupported native capture options",
+    );
+  for (const windowId of [0, -1, 1.5, Number.NaN, 2 ** 32])
+    expect(() => validateNativeRequest({ ...windowRequest, windowId })).toThrow();
+  for (const bad of [{ width: 581 }, { height: 1 }, { frameRate: 61 }, { videoBitrate: 1 }])
+    expect(() => validateNativeRequest({ ...windowRequest, ...bad })).toThrow();
+});
+it("passes a window as --window argv without a display", async () => {
+  const path = await helper(
+    "process.stderr.write(process.argv.slice(2).join(' '));process.exit(2);",
+  );
+  const reader = spawnNativeVideo(path, windowRequest);
+  await expect(reader.next()).rejects.toThrow(
+    /--encoded-capture-v1 --window 4242 580 384 30 1000000$/,
+  );
+});
+it("refuses the unmatched-parent test bypass for a window", () => {
+  expect(() => spawnNativeVideo("/nonexistent", windowRequest, true)).toThrow(
+    "not available for a window",
+  );
+});
+it("reads geometry before config and between packets, then a clean end", async () => {
+  const frame = (header: object, payload: number[] = []) => {
+    const json = Buffer.from(JSON.stringify(header));
+    const prefix = Buffer.alloc(8);
+    prefix.writeUInt32BE(json.length);
+    prefix.writeUInt32BE(payload.length, 4);
+    return Buffer.concat([prefix, json, Buffer.from(payload)]);
+  };
+  const rect = { x: 100, y: 100, width: 580, height: 385 };
+  const content = { x: 0, y: 0, width: 578.5, height: 384 };
+  const bytes = Buffer.concat([
+    frame({ kind: "ready", version: 1 }),
+    frame({ kind: "geometry", atUs: 5, frame: rect, content }),
+    frame(
+      {
+        kind: "config",
+        cursorPixels: "excluded",
+        version: 1,
+        codec: "avc1.64001f",
+        width: 580,
+        height: 384,
+        epochUs: 9,
+      },
+      [1, 100, 0, 31, 255, 225, 0, 1, 103, 1, 0, 1, 104],
+    ),
+    frame({ kind: "geometry", atUs: 12, frame: { ...rect, x: 140 }, content }),
+    frame({ kind: "packet", ptsUs: 0, durationUs: 500000, keyframe: true }, [0, 0, 0, 1, 5]),
+    frame({ kind: "end", endUs: 500000 }),
+  ]);
+  const path = await helper(
+    `process.stdout.end(Buffer.from("${bytes.toString("base64")}", "base64")); process.exit(0);`,
+  );
+  const reader = spawnNativeVideo(path, windowRequest);
+  const kinds: string[] = [];
+  await reader.ready!();
+  const atMainMs: number[] = [];
+  for (let f = await reader.next(); f; f = await reader.next()) {
+    kinds.push(f.header.kind);
+    if (f.header.kind === "geometry") atMainMs.push(f.header.atMainMs as number);
+  }
+  expect(kinds).toEqual(["geometry", "config", "geometry", "packet", "end"]);
+  // Geometry is stamped on the main clock like config, so the tracker can compare it with
+  // its own samples: the same offset applies, so the 7 us gap survives.
+  expect(atMainMs.every(Number.isFinite)).toBe(true);
+  expect(atMainMs[1] - atMainMs[0]).toBeCloseTo(0.007, 6);
 });
 it("times out a helper that closes stdout after end but never exits", async () => {
   const frame = (header: object, payload: number[] = []) => {

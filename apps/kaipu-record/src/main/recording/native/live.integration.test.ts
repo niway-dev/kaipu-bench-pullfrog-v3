@@ -9,6 +9,7 @@ import {
   EncodedPacketSink,
 } from "mediabunny";
 import { spawnNativeVideo, validateNativeHelper } from "./session";
+import type { NativeCaptureFrame } from "../../../shared/native-capture";
 import { attachNativeEncodedVideo } from "../../../renderer/src/features/recording/native-encoded-video";
 import { writeFile } from "node:fs/promises";
 
@@ -300,4 +301,47 @@ it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
     }
   },
   10000,
+);
+
+it.skipIf(!process.env.KAIPU_NATIVE_TEST_HELPER)(
+  "captures the helper's own test window: geometry before config, fixed output size",
+  async () => {
+    // `--test-window` makes the helper open a 320x240 window of its own and capture it; the
+    // window id in the request is ignored. The take ends with a normal stop.
+    const reader = spawnNativeVideo(
+      process.env.KAIPU_NATIVE_TEST_HELPER!,
+      { windowId: 1, width: 640, height: 480, frameRate: 30, videoBitrate: 1_000_000 },
+      false,
+      5000,
+      ["--test-window"],
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await reader.ready!();
+      await reader.begin!(performance.now());
+      const kinds: string[] = [];
+      let geometry: NativeCaptureFrame["header"] | undefined;
+      for (;;) {
+        const frame = await reader.next();
+        if (!frame) break;
+        kinds.push(frame.header.kind);
+        if (frame.header.kind === "geometry") geometry ??= frame.header;
+        if (frame.header.kind === "config") {
+          expect(frame.header).toMatchObject({ width: 640, height: 480 });
+          timer = setTimeout(() => void reader.stop(performance.now()), 1500);
+        }
+      }
+      expect(kinds.indexOf("geometry")).toBeGreaterThanOrEqual(0);
+      expect(kinds.indexOf("geometry")).toBeLessThan(kinds.indexOf("config"));
+      expect(kinds.at(-1)).toBe("end");
+      if (geometry?.kind === "geometry") {
+        expect(geometry.frame).toMatchObject({ width: 320 });
+        expect(geometry.content.width).toBeLessThanOrEqual(640 + 1);
+      }
+    } finally {
+      clearTimeout(timer);
+      await reader.cancel();
+    }
+  },
+  15000,
 );

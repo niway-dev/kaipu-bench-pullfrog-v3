@@ -1875,7 +1875,7 @@ describe("experimental native recorder lifecycle", () => {
   afterEach(() => {
     window.electronAPI.nativeCapture = original;
   });
-  function nativeBridge(size = { width: 1920, height: 1080 }) {
+  function nativeBridge(size = { width: 1920, height: 1080 }, endsByItself = false) {
     const make = vi.mocked(Output).getMockImplementation()!;
     vi.mocked(Output).mockImplementationOnce(function (...args) {
       return Object.assign(Reflect.construct(make, args), { _firstMediaStreamTimestamp: null });
@@ -1918,7 +1918,8 @@ describe("experimental native recorder lifecycle", () => {
             payload: new Uint8Array([1, 100, 0, 31, 255, 225, 0, 1, 103, 1, 0, 1, 104]),
           };
         if (index === 2) {
-          await stopped;
+          // A window that closes: the helper ends the take without any stop request.
+          if (!endsByItself) await stopped;
           return {
             header: { kind: "packet" as const, ptsUs: 0, durationUs: 1000000, keyframe: true },
             payload: new Uint8Array([0, 0, 0, 1, 5]),
@@ -2073,6 +2074,82 @@ describe("experimental native recorder lifecycle", () => {
     expect(handle.webcam).not.toBeNull();
     await handle.stop();
   });
+  it("opens the native helper for a window and reports the size the helper confirmed", async () => {
+    const bridge = nativeBridge({ width: 1920, height: 1080 });
+    const prepared = await prepareEngine(baseOptions({ sourceId: "window:55:0" }));
+    expect(bridge.open).toHaveBeenCalledOnce();
+    const request = (bridge.open.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(request).toMatchObject({ sourceId: "window:55:0" });
+    expect(request).not.toHaveProperty("displayId");
+    expect(MediaStreamVideoTrackSource).not.toHaveBeenCalled();
+    const handle = await prepared.begin();
+    expect(handle.transport).toBe("native");
+    expect(handle.outputSize).toEqual({ width: 1920, height: 1080 });
+    await handle.stop();
+  });
+  it("refuses a native config that differs from the target for a window, as for a display", async () => {
+    nativeBridge({ width: 1280, height: 720 });
+    const prepared = await prepareEngine(baseOptions({ sourceId: "window:55:0" }));
+    await expect(prepared.begin()).rejects.toThrow("Native clock/dimensions mismatch");
+  });
+  it("still refuses a native config that differs from the target for a display", async () => {
+    nativeBridge({ width: 1280, height: 720 });
+    const prepared = await prepareEngine(baseOptions({ sourceId: "screen:3:0" }));
+    await expect(prepared.begin()).rejects.toThrow("Native clock/dimensions mismatch");
+  });
+  it("a window that closes mid-take ends the take through onSourceClosed, not onError, and stop saves it", async () => {
+    const bridge = nativeBridge({ width: 1920, height: 1080 }, true);
+    const onError = vi.fn();
+    const onSourceClosed = vi.fn();
+    const prepared = await prepareEngine(
+      baseOptions({ sourceId: "window:55:0", onError, onSourceClosed } as Partial<EngineOptions>),
+    );
+    const handle = await prepared.begin();
+    await vi.waitFor(() => expect(onSourceClosed).toHaveBeenCalledOnce());
+    expect(onError).not.toHaveBeenCalled();
+    await handle.stop();
+    // The helper is gone: the stop must not ask it again (main has no session left).
+    expect(bridge.stop).not.toHaveBeenCalled();
+    expect(lastOutput().finalize).toHaveBeenCalledOnce();
+    expect(onError).not.toHaveBeenCalled();
+  });
+  it.each(["window:55:0", "screen:3:0"])(
+    "a Chromium take of %s whose track ends is still an error",
+    async (sourceId) => {
+      // The default bridge cannot open a session: the take runs through Chromium (fallback).
+      const onError = vi.fn();
+      const prepared = await prepareEngine(baseOptions({ sourceId, onError }));
+      const handle = await prepared.begin();
+      expect(handle.transport).toBe("chromium");
+      const ended = screenVideoTrack.addEventListener.mock.calls.find(
+        (call) => call[0] === "ended",
+      )?.[1] as (() => void) | undefined;
+      ended?.();
+      expect(onError).toHaveBeenCalledOnce();
+      await handle.stop();
+    },
+  );
+  it("a refused native stop mid-take rejects the stop promptly instead of hanging", async () => {
+    // The helper keeps running (its pump never ends): only the rejection can end the stop.
+    const bridge = nativeBridge({ width: 1920, height: 1080 });
+    bridge.stop.mockRejectedValue(new Error("stop refused"));
+    const prepared = await prepareEngine(baseOptions({ sourceId: "window:55:0" }));
+    const handle = await prepared.begin();
+    await expect(handle.stop()).rejects.toThrow("stop refused");
+    expect(lastOutput().finalize).not.toHaveBeenCalled();
+  });
+  it("a Chromium window stream that ends during a native window take is not an error", async () => {
+    nativeBridge({ width: 1920, height: 1080 });
+    const onError = vi.fn();
+    const prepared = await prepareEngine(baseOptions({ sourceId: "window:55:0", onError }));
+    const handle = await prepared.begin();
+    const ended = screenVideoTrack.addEventListener.mock.calls.find(
+      (call) => call[0] === "ended",
+    )?.[1] as (() => void) | undefined;
+    ended?.();
+    expect(onError).not.toHaveBeenCalled();
+    await handle.stop();
+  });
   it("draws only the area on the poster of a native area take", async () => {
     nativeBridge({ width: 640, height: 360 });
     const drawImage = vi.fn();
@@ -2087,13 +2164,13 @@ describe("experimental native recorder lifecycle", () => {
     await handle.stop();
     expect(drawImage).toHaveBeenCalledWith(expect.anything(), 320, 180, 640, 360, 0, 0, 640, 360);
   });
-  it.each([{ sourceId: "window:3:0" }, { watermark: { text: "test" } }])(
+  it.each([{ watermark: { text: "test" } }])(
     "falls back before encoding unsupported options %o",
     async (over) => {
       const bridge = nativeBridge();
       const onNativeDecision = vi.fn();
       const prepared = await prepareEngine(
-        baseOptions({ ...over, onNativeDecision } as Partial<EngineOptions>),
+        baseOptions({ ...over, onNativeDecision } as unknown as Partial<EngineOptions>),
       );
       expect(onNativeDecision).toHaveBeenCalledWith(expect.stringContaining("using Chromium"));
       expect(bridge.open).not.toHaveBeenCalled();

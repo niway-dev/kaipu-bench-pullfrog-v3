@@ -1,5 +1,6 @@
-// Experimental prepared whole-display screen source; audio remains in Chromium.
+// Experimental prepared screen source (display, display area or one window); audio remains in Chromium.
 import Foundation
+import AppKit
 import Darwin
 import ScreenCaptureKit
 import VideoToolbox
@@ -29,8 +30,22 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     var removedUs: Int64 = 0
     var forceKeyframe = true
     let fps: Int
-    init(width: Int, height: Int, fps: Int, bitrate: Int) throws {
+    // Window mode: geometry frames and a clean finish when the window closes.
+    let windowMode: Bool
+    let outWidth: Int
+    let outHeight: Int
+    var lastFrameUs: Int64 = 0
+    var lastGeometry: [Double]?
+    /// Terminal state: set once a take has been finished and its `end` frame written, by either
+    /// a user `stop` or a window close. From then on late stream errors (-3815, "already
+    /// stopped") are expected and ignored, and a second finish is a no-op.
+    var saved = false
+    let logGeometry = ProcessInfo.processInfo.environment["KAIPU_ENCODED_CAPTURE_LOG"] == "1"
+    init(width: Int, height: Int, fps: Int, bitrate: Int, windowMode: Bool = false) throws {
         self.fps = fps
+        self.windowMode = windowMode
+        self.outWidth = width
+        self.outHeight = height
         super.init()
         try check(VTCompressionSessionCreate(allocator: nil, width: Int32(width), height: Int32(height), codecType: kCMVideoCodecType_H264, encoderSpecification: nil, imageBufferAttributes: nil, compressedDataAllocator: nil, outputCallback: { ref, _, status, _, sample in
             let sink = Unmanaged<Encoder>.fromOpaque(ref!).takeUnretainedValue()
@@ -86,17 +101,90 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
         }
         guard pending.count <= 16, pending.reduce(0, { $0 + $1.0.count }) <= 16 * 1024 * 1024 else { throw CaptureError(message: "Command lookbehind buffer exceeded") }
     }
-    func stream(_ stream: SCStream, didStopWithError error: Error) { queue.async { self.fail(error) } }
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        let ns = error as NSError
+        queue.async { [self] in
+            if saved { return } // the take is already saved; the stream dying after it is not a failure
+            if windowMode, ns.domain == SCStreamErrorDomain, ns.code == -3815 { windowClosed() }
+            else { fail(error) }
+        }
+        return
+        // -3815: "Failed to find any displays or windows to capture". For a window source this
+        // is how SCK reports that the window was closed (measured ~0.3 s after the close, after
+        // a suspended and a stopped frame). That is the end of the take, not a failure.
+    }
+    /// The window closed: end the take at the last frame SCK delivered, save it, exit 0.
+    func windowClosed() {
+        guard accepting, !saved else { return }
+        do {
+            guard let epoch else { throw CaptureError(message: "Window closed before the take began") }
+            // Closed after `go` but before anything was encoded: encode the retained image once.
+            if !configured { tick() }
+            accepting = false; timer?.cancel(); timer = nil
+            // At least one frame long, so a close right after `go` still yields a packet.
+            let edge = pausedAt ?? max(lastFrameUs, epoch + removedUs + Int64(1_000_000 / fps))
+            // For an idle window the last frame SCK delivered can be older than video the hold
+            // timer already emitted, so `end` is moved forward to cover it. That is expected here.
+            let end = try flush(at: edge, quiet: true)
+            guard configured else { throw CaptureError(message: "No video received") }
+            try emit(["kind": "end", "endUs": end])
+            saved = true
+            if let session { VTCompressionSessionInvalidate(session) }
+            session = nil
+            FileHandle.standardError.write(Data("encoded-capture: window closed, take ended at \(end) us\n".utf8))
+            exit(0)
+        } catch { fail(error) }
+    }
+    static func rect(_ value: Any?) -> CGRect? {
+        guard let dict = value as? NSDictionary else { return nil }
+        return CGRect(dictionaryRepresentation: dict as CFDictionary)
+    }
+    /// Emits a geometry frame when the window's screen rect or its content placement changed.
+    /// `screenRect` is per frame and current (the spike measured it follows a move on the next
+    /// frame). The content rect is computed from it alone, mirrored by `windowContentRect` in
+    /// src/main/recording/native/window-fit.ts (tested): scalesToFit scales the window uniformly
+    /// until one axis fills the output and pins it top-left. The frame's own `contentRect` is
+    /// not used (its units are unverified on Retina); it is only logged as a cross-check.
+    func emitGeometry(_ info: [SCStreamFrameInfo: Any]) throws {
+        guard let frame = Encoder.rect(info[.screenRect]), frame.width > 0, frame.height > 0 else { return }
+        func r(_ v: Double) -> Double { (v * 1000).rounded() / 1000 }
+        let fit = min(Double(outWidth) / Double(frame.width), Double(outHeight) / Double(frame.height))
+        let content = [0.0, 0.0, r(Double(frame.width) * fit), r(Double(frame.height) * fit)]
+        let box = [r(Double(frame.minX)), r(Double(frame.minY)), r(Double(frame.width)), r(Double(frame.height))]
+        let key = box + content
+        if key == lastGeometry { return }
+        lastGeometry = key
+        let at = hostUs()
+        try emit(["kind": "geometry", "atUs": at,
+                  "frame": ["x": box[0], "y": box[1], "width": box[2], "height": box[3]],
+                  "content": ["x": content[0], "y": content[1], "width": content[2], "height": content[3]]])
+        if logGeometry {
+            let reported = Encoder.rect(info[.contentRect]).map { "\($0)" } ?? "nil"
+            FileHandle.standardError.write(Data("encoded-capture: geometry at=\(at) frame=\(box) content=\(content) reportedContentRect=\(reported) scaleFactor=\(String(describing: info[.scaleFactor]))\n".utf8))
+        }
+    }
     func stream(_ stream: SCStream, didOutputSampleBuffer sample: CMSampleBuffer, of type: SCStreamOutputType) {
         guard accepting, type == .screen, sample.isValid,
-              let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
-              attachments.first?[.status] as? Int == SCFrameStatus.complete.rawValue,
-              let buffer = sample.imageBuffer else { return }
-        image = buffer // One retained surface; timer encodes it even while SCK is idle.
-        if !ready {
-            ready = true
-            do { try emit(["kind": "ready", "version": 1]) } catch { fail(error) }
+              let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]] else { return }
+        let status = attachments.first?[.status] as? Int
+        if logGeometry { FileHandle.standardError.write(Data("encoded-capture: sample status=\(status.map(String.init) ?? "nil") keys=\(attachments.first?.keys.map { $0.rawValue }.sorted() ?? [])\n".utf8)) }
+        // A window that moved or resized without repainting can arrive as an idle sample that
+        // carries no image but still reports its screen rect.
+        if windowMode, ready, status == SCFrameStatus.idle.rawValue, let info = attachments.first {
+            do { try emitGeometry(info) } catch { fail(error) }
         }
+        guard status == SCFrameStatus.complete.rawValue, let buffer = sample.imageBuffer else { return }
+        image = buffer // One retained surface; timer encodes it even while SCK is idle.
+        lastFrameUs = hostUs()
+        // A minimized or off-Space window delivers no frames and no error; the timer keeps
+        // re-encoding this surface, so the video holds the last frame.
+        do {
+            if !ready {
+                ready = true
+                try emit(["kind": "ready", "version": 1])
+            }
+            if windowMode, let info = attachments.first { try emitGeometry(info) }
+        } catch { fail(error) }
     }
     func control(_ name: String, at: Int64) async throws {
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
@@ -127,11 +215,11 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             }
         }
     }
-    func flush(at: Int64) throws -> Int64 {
+    func flush(at: Int64, quiet: Bool = false) throws -> Int64 {
         guard let epoch else { throw CaptureError(message: "Not begun") }
         let requested = max(0, at - epoch - removedUs)
         let end = max(requested, emittedEnd)
-        if end > requested {
+        if end > requested, !quiet {
             FileHandle.standardError.write(Data("encoded-capture: late command clamped by \(end - requested) us to preserve emitted video\n".utf8))
         }
         let kept = pending.filter { $0.1 < end }
@@ -159,6 +247,8 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     func finish(cancel: Bool, at: Int64 = hostUs()) async throws {
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             queue.async {
+                if self.saved { c.resume(); return } // a window close already finished this take
+                if !cancel, !self.configured, self.epoch != nil { self.tick() }
                 self.accepting = false; self.timer?.cancel(); self.timer = nil; self.image = nil
                 defer { if let session = self.session { VTCompressionSessionInvalidate(session) }; self.session = nil }
                 do {
@@ -167,6 +257,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
                         let edge = self.pausedAt ?? at
                         let end = try self.flush(at: edge)
                         try self.emit(["kind": "end", "endUs": end])
+                        self.saved = true
                     }
                     self.pending.removeAll(); c.resume()
                 } catch { c.resume(throwing: error) }
@@ -175,11 +266,54 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     }
 }
 
+/// A small window of the helper's own, only for the live integration test (`--test-window`).
+@MainActor func makeTestWindow() -> NSWindow {
+    NSApplication.shared.setActivationPolicy(.accessory)
+    let window = NSWindow(contentRect: NSRect(x: 120, y: 160, width: 320, height: 240), styleMask: [.titled], backing: .buffered, defer: false)
+    window.title = "kaipu-encoded-capture-test"
+    window.isReleasedWhenClosed = false
+    window.orderFrontRegardless()
+    var hue: CGFloat = 0
+    // Changing colour keeps SCK delivering frames.
+    Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+        hue = (hue + 0.05).truncatingRemainder(dividingBy: 1)
+        window.backgroundColor = NSColor(hue: hue, saturation: 0.8, brightness: 0.9, alpha: 1)
+    }
+    return window
+}
+
 @main struct EncodedCapture {
+    static let usage = "Usage: --encoded-capture-v1 (DISPLAY | --window CGWINDOWID) WIDTH HEIGHT FPS BITRATE [--source-rect X Y W H (display only)] (video only; stdin commands: go|pause|resume|stop HOST_US)"
+    /// Stdin commands until `stop` or EOF, then the cooperative teardown shared by every source.
+    static func runSession(stream: SCStream, encoder: Encoder) async throws {
+        // EOF/cancel terminates the session. Signals terminate without finalizing; main
+        // escalates to SIGKILL if a blocked pipe/OS stop prevents cooperative teardown.
+        try await stream.startCapture()
+        var stopAt = hostUs()
+        var cancel = true
+        while let line = await Task.detached(operation: { readLine() }).value {
+            let parts = line.split(separator: " ")
+            guard parts.count == 2, let at = Int64(parts[1]), abs(hostUs() - at) < 10_000_000 else { throw CaptureError(message: "Invalid stamped command") }
+            let command = String(parts[0])
+            if command == "stop" { stopAt = at; cancel = false; break }
+            try await encoder.control(command, at: at)
+        }
+        do { try await encoder.finish(cancel: cancel, at: stopAt) }
+        catch { try? await encoder.finish(cancel: true); throw error }
+        // The take is saved (or cancelled). A stream that is already gone (window closed at the
+        // same moment, -3808) must not turn that into a failure.
+        try? await stream.stopCapture()
+    }
     static func main() async {
         do {
             let args = Array(CommandLine.arguments.dropFirst())
-            if args == ["--version"] { print("kaipu-encoded-capture/3 source-rect continuous-clock"); return }
+            if args == ["--version"] { print("kaipu-encoded-capture/4 source-rect window-geometry continuous-clock"); return }
+            // A plain CLI aborts (CGS_REQUIRE_INIT) on the first window-server call otherwise.
+            _ = CGMainDisplayID()
+            if args.count >= 2, args[0] == "--encoded-capture-v1", args[1] == "--window" {
+                try await runWindow(Array(args.dropFirst(2)))
+                return
+            }
             // DISPLAY WIDTH HEIGHT FPS BITRATE [--source-rect X Y W H] [--test-allow-unmatched-parent]
             var rest = Array(args.dropFirst(6))
             var sourceRect: CGRect?
@@ -193,7 +327,7 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             guard args.count >= 6, rest.isEmpty || allowUnmatchedParent, args[0] == "--encoded-capture-v1", let displayID = UInt32(args[1]),
                   let width = Int(args[2]), let height = Int(args[3]), let fps = Int(args[4]), let bitrate = Int(args[5]),
                   width >= 2, width <= 7680, width % 2 == 0, height >= 2, height <= 7680, height % 2 == 0,
-                  fps >= 1, fps <= 60, bitrate >= 100_000, bitrate <= 100_000_000 else { throw CaptureError(message: "Usage: --encoded-capture-v1 DISPLAY WIDTH HEIGHT FPS BITRATE [--source-rect X Y W H] (video only; stdin commands: go|pause|resume|stop HOST_US)") }
+                  fps >= 1, fps <= 60, bitrate >= 100_000, bitrate <= 100_000_000 else { throw CaptureError(message: usage) }
             guard CGPreflightScreenCaptureAccess() else { throw CaptureError(message: "Screen Recording permission unavailable; no permission requested") }
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard let display = content.displays.first(where: { $0.displayID == displayID }) else { throw CaptureError(message: "Display unavailable") }
@@ -229,22 +363,47 @@ final class Encoder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             let encoder = try Encoder(width: width, height: height, fps: fps, bitrate: bitrate)
             let stream = SCStream(filter: filter, configuration: config, delegate: encoder)
             try stream.addStreamOutput(encoder, type: .screen, sampleHandlerQueue: encoder.queue)
-            // EOF/cancel terminates the session. Signals terminate without finalizing; main
-            // escalates to SIGKILL if a blocked pipe/OS stop prevents cooperative teardown.
-            try await stream.startCapture()
-            var stopAt = hostUs()
-            var cancel = true
-            while let line = await Task.detached(operation: { readLine() }).value {
-                let parts = line.split(separator: " ")
-                guard parts.count == 2, let at = Int64(parts[1]), abs(hostUs() - at) < 10_000_000 else { throw CaptureError(message: "Invalid stamped command") }
-                let command = String(parts[0])
-                if command == "stop" { stopAt = at; cancel = false; break }
-                try await encoder.control(command, at: at)
-            }
-            do { try await encoder.finish(cancel: cancel, at: stopAt); try await stream.stopCapture() }
-            catch { try? await encoder.finish(cancel: true); throw error }
+            try await runSession(stream: stream, encoder: encoder)
         } catch {
             FileHandle.standardError.write(Data("encoded-capture: \(error)\n".utf8)); exit(1)
         }
+    }
+    /// WINDOWID WIDTH HEIGHT FPS BITRATE [--test-window]
+    static func runWindow(_ args: [String]) async throws {
+        let rest = Array(args.dropFirst(5))
+        let testWindow = rest.contains("--test-window")
+        guard args.count >= 5, !rest.contains("--source-rect"), rest.allSatisfy({ $0 == "--test-window" }),
+              let windowID = UInt32(args[0]), let width = Int(args[1]), let height = Int(args[2]), let fps = Int(args[3]), let bitrate = Int(args[4]),
+              windowID >= 1 || testWindow,
+              width >= 2, width <= 7680, width % 2 == 0, height >= 2, height <= 7680, height % 2 == 0,
+              fps >= 1, fps <= 60, bitrate >= 100_000, bitrate <= 100_000_000 else { throw CaptureError(message: usage + " (--window excludes DISPLAY, --source-rect and --test-allow-unmatched-parent)") }
+        guard CGPreflightScreenCaptureAccess() else { throw CaptureError(message: "Screen Recording permission unavailable; no permission requested") }
+        var targetID = windowID
+        var keepAlive: NSWindow?
+        if testWindow {
+            let made = await MainActor.run { makeTestWindow() }
+            targetID = UInt32(await MainActor.run { made.windowNumber })
+            keepAlive = made
+        }
+        // Off-screen windows (minimized, other Space) are still capturable targets, so do not filter.
+        var found: SCWindow?
+        for _ in 0..<20 {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+            found = content.windows.first(where: { $0.windowID == targetID })
+            if found != nil || !testWindow { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        guard let window = found else { throw CaptureError(message: "Window unavailable") }
+        let filter = SCContentFilter(desktopIndependentWindow: window)
+        let config = SCStreamConfiguration()
+        config.showsCursor = false; config.width = width; config.height = height
+        config.scalesToFit = true; config.ignoreShadowsSingleWindow = true
+        config.queueDepth = 3; config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(fps))
+        config.pixelFormat = kCVPixelFormatType_32BGRA; config.capturesAudio = false
+        let encoder = try Encoder(width: width, height: height, fps: fps, bitrate: bitrate, windowMode: true)
+        let stream = SCStream(filter: filter, configuration: config, delegate: encoder)
+        try stream.addStreamOutput(encoder, type: .screen, sampleHandlerQueue: encoder.queue)
+        try await runSession(stream: stream, encoder: encoder)
+        withExtendedLifetime(keepAlive) {}
     }
 }

@@ -170,6 +170,8 @@ interface PendingStart {
   live: LiveSettingsForwarder | null;
   /** The engine failed before the take was set up; the start fails with it once acquired. */
   failure?: unknown;
+  /** The helper ended the take (the window closed) before the start finished: stop and save once it has. */
+  sourceClosed?: boolean;
   /**
    * The take asked for the webcam and got none: its camera did not open, or main could not
    * create its session (not the old-Windows legacy path, which is by design).
@@ -560,6 +562,17 @@ function acquireStart(input: StartInput): PendingStart {
       // A failure mid-recording (encoder error or the screen capture ending)
       // runs the same robust stop — finalize-or-abort + always restore the
       // window/Dock/bar — so the app never gets stuck.
+      // The native helper ended the take by itself (the recorded window was closed): a normal
+      // stop that saves everything up to the close, not a failure.
+      onSourceClosed: () => {
+        // Still starting: remember it, and stop the moment the take is installed.
+        if (pendingStart === start) {
+          start.sourceClosed = true;
+          return;
+        }
+        if (sessionId !== id) return;
+        void stopRecording();
+      },
       onError: (error) => {
         // Not recording yet (the countdown, or the cursor session still opening): there is
         // no take to stop, and the start would go on to record a dead capture.
@@ -684,6 +697,8 @@ async function beginTake(
     // The first tick at once: the bar shows "Starting…" until one arrives.
     reportTick();
     tickTimer = setInterval(reportTick, 100);
+    // The window closed while the take was starting: what the helper recorded is saved now.
+    if (start.sourceClosed) void stopRecording();
   } catch (error) {
     // Cancelled first: the cancel already restored the app, and this is its fallout.
     if (pendingStart !== start) return;

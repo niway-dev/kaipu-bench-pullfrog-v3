@@ -11,9 +11,25 @@
  *   stop() + build()   at recordingFinalize — returns the persisted CursorTrack
  */
 import type { CursorButton, CursorTrack } from "@shared/cursor-track";
-import { buildCursorTrack } from "./build-cursor-track";
+import { buildCursorTrack, type RawCursorData } from "./build-cursor-track";
 import { type ClockAnchor, closeOpenPause } from "./cursor-clock";
 import { CursorSampleBuffer } from "./cursor-sample-buffer";
+import type { WindowGeometry, WindowGeometryLog } from "./window-geometry-log";
+
+/**
+ * A global point (points) into the output frame, 0–1: the content rect's offset plus the
+ * pointer's offset in the window, scaled by how much the window was shrunk or grown to fit.
+ * A point outside the window lands outside 0–1 (the editor hides it).
+ */
+function mapIntoOutput(
+  p: { x: number; y: number },
+  g: WindowGeometry,
+  out: { width: number; height: number },
+): { x: number; y: number } {
+  const px = g.content.x + (p.x - g.frame.x) * (g.content.width / g.frame.width);
+  const py = g.content.y + (p.y - g.frame.y) * (g.content.height / g.frame.height);
+  return { x: px / out.width, y: py / out.height };
+}
 
 /**
  * 8 ms = 125 Hz. `screen.getCursorScreenPoint()` is a synchronous call on the same main
@@ -34,6 +50,11 @@ export interface CapturedDisplay {
    * normalized to it, and this records the area's origin on its display for the sidecar.
    */
   region?: { displayId: string; x: number; y: number };
+  /**
+   * A native WINDOW take (NIW2-645): samples are mapped into the output frame through the
+   * window geometry in force at each sample's time. `bounds` is then informational.
+   */
+  window?: WindowGeometryLog;
 }
 
 export interface CursorTrackerDeps {
@@ -90,7 +111,9 @@ export class CursorTracker {
 
   addClick(button: CursorButton): void {
     if (!this.stopTimer) return;
-    const p = this.normalized(this.deps.cursorPoint());
+    // A window take keeps the raw point: the geometry in force at this time may not have
+    // been delivered yet, so `build` maps it once the log is complete.
+    const p = this.stored(this.deps.cursorPoint());
     this.clicks.push({ t: this.deps.now(), x: p.x, y: p.y, button });
   }
 
@@ -111,32 +134,108 @@ export class CursorTracker {
    */
   build(clicksAvailable: boolean, maxMs?: number): CursorTrack | null {
     if (!this.anchor || !Number.isFinite(this.anchor.t0)) return null;
+    const display = this.persistedDisplay();
+    if (!display) return null;
+    const raw = this.display.window
+      ? this.mapWindowRaw(this.display.window)
+      : { t: this.samples.t, x: this.samples.x, y: this.samples.y, clicks: this.clicks };
+    // A window take with nothing mapped (no geometry ever arrived: it fell back to
+    // Chromium) has no track to write.
+    if (!raw) return null;
     const anchor = closeOpenPause(this.anchor, this.deps.now());
     return buildCursorTrack({
-      raw: { t: this.samples.t, x: this.samples.x, y: this.samples.y, clicks: this.clicks },
+      raw,
       anchor,
       anchorQuality: this.anchorQuality,
       clicksAvailable,
       maxMs,
       truncatedAtMainMs: this.samples.truncatedAtMs,
       ...(this.display.region ? { region: this.display.region } : {}),
-      display: {
-        id: this.display.id,
-        width: this.display.bounds.width,
-        height: this.display.bounds.height,
-        scaleFactor: this.display.scaleFactor,
-      },
+      display,
     });
   }
 
+  /**
+   * The sidecar's `display`. A window take stores the output in points (pixels / scale), so
+   * the editor's aspect-ratio maths sees the recorded frame; null while the output is unknown.
+   */
+  private persistedDisplay(): CursorTrack["display"] | null {
+    const log = this.display.window;
+    if (log) {
+      const out = log.output();
+      if (!out) return null;
+      const scale = log.scaleFactor() ?? this.display.scaleFactor;
+      return {
+        id: this.display.id,
+        width: out.width / scale,
+        height: out.height / scale,
+        scaleFactor: scale,
+      };
+    }
+    return {
+      id: this.display.id,
+      width: this.display.bounds.width,
+      height: this.display.bounds.height,
+      scaleFactor: this.display.scaleFactor,
+    };
+  }
+
   private sample(): void {
-    const p = this.normalized(this.deps.cursorPoint());
+    const p = this.stored(this.deps.cursorPoint());
     this.samples.push(this.deps.now(), p.x, p.y);
+  }
+
+  /** What a sample or click stores: the normalized point, or the raw point for a window take. */
+  private stored(p: { x: number; y: number }): { x: number; y: number } {
+    return this.display.window ? p : this.normalized(p);
   }
 
   private normalized(p: { x: number; y: number }): { x: number; y: number } {
     const b = this.display.bounds;
     return { x: (p.x - b.x) / b.width, y: (p.y - b.y) / b.height };
+  }
+
+  /**
+   * Map a window take's raw points into the output frame, using the geometry in force at
+   * each point's own time (the log is complete by now, so a geometry delivered late still
+   * applies). Points before the first geometry are dropped. A still pointer is stored as a
+   * run (first and last point only), so a sample is added at each geometry change inside a
+   * run, holding the pointer where it was. Null when nothing maps.
+   */
+  private mapWindowRaw(log: WindowGeometryLog): RawCursorData | null {
+    const out = log.output();
+    if (!out) return null;
+    const { t, x, y } = this.samples;
+    const mt: number[] = [];
+    const mx: number[] = [];
+    const my: number[] = [];
+    const add = (at: number, g: WindowGeometry, px: number, py: number): void => {
+      const p = mapIntoOutput({ x: px, y: py }, g, out);
+      mt.push(at);
+      mx.push(p.x);
+      my.push(p.y);
+    };
+    // One forward pass: samples and entries are both time-sorted, so `k` (the count of
+    // entries at or before the sample) only moves forward. O(samples + entries).
+    const entries = log.all();
+    let k = 0;
+    for (let i = 0; i < t.length; i++) {
+      while (k < entries.length && entries[k].atMs <= t[i]) k++;
+      if (k > 0) add(t[i], entries[k - 1], x[i], y[i]);
+      if (i + 1 < t.length)
+        // Changes strictly inside (t[i], t[i+1]): entries[k] is already after t[i].
+        for (let j = k; j < entries.length && entries[j].atMs < t[i + 1]; j++)
+          add(entries[j].atMs, entries[j], x[i], y[i]);
+    }
+    const clicks: RawCursorData["clicks"] = [];
+    let c = 0;
+    for (const click of this.clicks) {
+      while (c < entries.length && entries[c].atMs <= click.t) c++;
+      if (c === 0) continue;
+      const p = mapIntoOutput(click, entries[c - 1], out);
+      clicks.push({ t: click.t, x: p.x, y: p.y, button: click.button });
+    }
+    return mt.length > 0 ? { t: mt, x: mx, y: my, clicks } : null;
   }
 }
 

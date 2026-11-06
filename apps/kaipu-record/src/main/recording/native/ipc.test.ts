@@ -53,6 +53,7 @@ describe("native IPC session ownership", () => {
     fake.sources = [
       { id: "screen:3:0", display_id: "3" },
       { id: "screen:4:0", display_id: "4" },
+      { id: "window:55:0", display_id: "" },
     ];
     fake.displays = [
       { id: 3, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
@@ -229,5 +230,63 @@ describe("native IPC session ownership", () => {
       openWith({ sourceId: "screen:3:0", area: area(), ...video }, null),
     ).rejects.toThrow();
     expect(fake.spawn).not.toHaveBeenCalled();
+  });
+  it("a stop after the helper already ended is a no-op, not an error", async () => {
+    await call("open");
+    reader.next.mockResolvedValueOnce(null); // the final frame: main drops the reader
+    await call("next");
+    const ctx = { sender: contents, senderFrame: contents.mainFrame };
+    await expect(fake.handlers.get(channels.stop)!(ctx, 5)).resolves.toBeUndefined();
+    expect(reader.stop).not.toHaveBeenCalled();
+    // Other commands still refuse without a session.
+    await expect(fake.handlers.get(channels.pause)!(ctx, 5)).rejects.toThrow(
+      "No native capture session",
+    );
+  });
+  describe("window sources", () => {
+    const win = { width: 800, height: 600, frameRate: 30, videoBitrate: 1000000 };
+    it("resolves window:<id>:0 to its CGWindowID and hands the helper a window request", async () => {
+      await openRaw({ sourceId: "window:55:0", ...win });
+      expect(fake.spawn).toHaveBeenCalledWith("/helper", {
+        windowId: 55,
+        width: 800,
+        height: 600,
+        frameRate: 30,
+        videoBitrate: 1000000,
+      });
+    });
+    it("drops a displayId or sourceRect the renderer sends for a window", async () => {
+      await openRaw({ sourceId: "window:55:0", displayId: 3, sourceRect: { x: 0 }, ...win });
+      const sent = fake.spawn.mock.calls[0][1] as Record<string, unknown>;
+      expect(sent).not.toHaveProperty("displayId");
+      expect(sent).not.toHaveProperty("sourceRect");
+    });
+    it("refuses a window that is not on screen, before spawning", async () => {
+      await expect(openRaw({ sourceId: "window:99:0", ...win })).rejects.toThrow(/not on screen/);
+      expect(fake.spawn).not.toHaveBeenCalled();
+    });
+    it.each(["window:abc:0", "window:0:0", "window:55", "window:5.5:0", "window:-1:0"])(
+      "refuses the malformed source id %s",
+      async (sourceId) => {
+        await expect(openRaw({ sourceId, ...win })).rejects.toThrow();
+        expect(fake.spawn).not.toHaveBeenCalled();
+      },
+    );
+    it.each([
+      { width: 801, height: 600 },
+      { width: 800, height: 7682 },
+      { width: 800, height: 2162 }, // above the tallest quality step: the renderer never asks
+      { width: 0, height: 600 },
+      { width: 800.5, height: 600 },
+    ])("refuses an output size main would not choose: %o", async (size) => {
+      await expect(openRaw({ sourceId: "window:55:0", ...win, ...size })).rejects.toThrow(
+        /output size/,
+      );
+      expect(fake.spawn).not.toHaveBeenCalled();
+    });
+    it("refuses an area on a window", async () => {
+      await expect(openWith({ sourceId: "window:55:0", area: area(), ...video })).rejects.toThrow();
+      expect(fake.spawn).not.toHaveBeenCalled();
+    });
   });
 });

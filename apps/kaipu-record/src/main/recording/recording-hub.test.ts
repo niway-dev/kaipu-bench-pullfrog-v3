@@ -993,6 +993,98 @@ describe("recording hub — a Dock dropped by a floating panel comes back", () =
     await abort({}, "session-1");
   });
 
+  describe("cursor track for a native window take (NIW2-645)", () => {
+    const geometryFrame = (atUs: number) => ({
+      header: {
+        kind: "geometry" as const,
+        atUs,
+        atMainMs: atUs / 1000,
+        frame: { x: 100, y: 50, width: 400, height: 300 },
+        content: { x: 0, y: 0, width: 800, height: 600 },
+      },
+      payload: new Uint8Array(),
+    });
+    const setup = async (open: boolean) => {
+      const { registerSettings } = await import("../infrastructure/settings-store");
+      const { registerRecordingHub } = await import("./recording-hub");
+      registerSettings();
+      let listener: ((event: unknown) => void) | undefined;
+      const transport = {
+        isOpen: () => open,
+        onEvent: (l: (event: unknown) => void) => {
+          listener = l;
+          return () => {};
+        },
+      };
+      registerRecordingHub(
+        () => fakeMainWindow() as never,
+        undefined,
+        undefined,
+        transport as never,
+      );
+      mockState.displays = [{ id: 1, bounds: { x: 0, y: 0, width: 1512, height: 982 } }];
+      const create = mockState.ipcHandle.get(IPC_CHANNELS.recordingCreate)!;
+      const trackStart = mockState.ipcHandle.get(IPC_CHANNELS.cursorTrackStart)!;
+      const abort = mockState.ipcHandle.get(IPC_CHANNELS.recordingAbort)!;
+      await create({}, "session-1");
+      return { emit: (e: unknown) => listener?.(e), trackStart, abort };
+    };
+
+    const anchorTake = (id: string) =>
+      mockState.ipcOn.get(IPC_CHANNELS.cursorTrackAnchor)!({}, id, 0, "exact");
+    const discardSpy = async () => {
+      const { CursorTrackRegistry } = await import("./cursor-tracker");
+      return vi.spyOn(CursorTrackRegistry.prototype, "discard");
+    };
+
+    it("enables tracking before the native session opens or any geometry exists (B1)", async () => {
+      // The recorder asks first: engine waits for this answer BEFORE bridge.open.
+      const t = await setup(false);
+      await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
+        enabled: true,
+      });
+      await t.abort({}, "session-1");
+    });
+
+    it("keeps the track through the real ordering: cursor start, native open, geometry, anchor", async () => {
+      const t = await setup(false);
+      const discard = await discardSpy();
+      await expect(t.trackStart({}, "session-1", "window:42:0")).resolves.toEqual({
+        enabled: true,
+      });
+      discard.mockClear(); // starting a tracker discards a stale one of the same id first
+      t.emit({ type: "open" });
+      t.emit({ type: "frame", frame: geometryFrame(1000) });
+      anchorTake("session-1");
+      expect(discard).not.toHaveBeenCalled();
+      await t.abort({}, "session-1");
+    });
+
+    it("discards the tracker at the anchor when no geometry arrived (Chromium fallback)", async () => {
+      const t = await setup(false);
+      const discard = await discardSpy();
+      await t.trackStart({}, "session-1", "window:42:0");
+      t.emit({ type: "open" }); // the native session opened, but no geometry followed
+      anchorTake("session-1");
+      expect(discard).toHaveBeenCalledWith("session-1");
+      await t.abort({}, "session-1");
+    });
+
+    it("a second take does not inherit the first take's geometry", async () => {
+      const t = await setup(false);
+      const discard = await discardSpy();
+      await t.trackStart({}, "session-1", "window:42:0");
+      t.emit({ type: "frame", frame: geometryFrame(1000) });
+      await t.abort({}, "session-1");
+      const create = mockState.ipcHandle.get(IPC_CHANNELS.recordingCreate)!;
+      await create({}, "session-2");
+      await t.trackStart({}, "session-2", "window:42:0");
+      anchorTake("session-2");
+      expect(discard).toHaveBeenCalledWith("session-2");
+      await t.abort({}, "session-2");
+    });
+  });
+
   it("a cursor track for a take that already ended is refused without a display lookup", async () => {
     const { registerSettings } = await import("../infrastructure/settings-store");
     const { registerRecordingHub } = await import("./recording-hub");

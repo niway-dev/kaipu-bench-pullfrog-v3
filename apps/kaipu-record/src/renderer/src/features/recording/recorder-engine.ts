@@ -276,6 +276,12 @@ export interface EngineOptions {
    * recording down cleanly so the app never gets stuck.
    */
   onError?(error: unknown): void;
+  /**
+   * Fires when the native helper ends the take by itself mid-recording: the captured window
+   * was closed (or the display went away). It is a normal end, not a failure: the caller
+   * should stop and save what was recorded. Chromium takes still report it through `onError`.
+   */
+  onSourceClosed?(): void;
 }
 
 // Fallback encoder targets when a caller omits them — derived from the model's
@@ -406,6 +412,11 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
   let native: NativeCaptureBridge | null = null;
   let nativeOffset = 0;
   let nativePixels: "embedded" | "excluded" = "embedded";
+  const nativeWindow = options.sourceId.startsWith("window:");
+  /** The size the native helper encodes at, from its `config` frame; null until it arrives. */
+  let nativeSize: { width: number; height: number } | null = null;
+  /** The helper ended by itself (window closed): there is no session left to stop. */
+  let nativeEnded = false;
   const bridge = typeof window !== "undefined" ? window.electronAPI?.nativeCapture : undefined;
   if (bridge) {
     const flag = "native-cursor-capture";
@@ -734,12 +745,15 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
     });
     const nativeVideo = native
       ? attachNativeEncodedVideo(output, native, (config) => {
+          // The helper builds its encoder from the request (`target`, windows included), so
+          // its config must name exactly that size.
           if (
             !Number.isFinite(config.epochMainMs) ||
             config.width !== target.width ||
             config.height !== target.height
           )
             throw new Error("Native clock/dimensions mismatch");
+          nativeSize = { width: config.width, height: config.height };
           nativePixels = config.cursorPixels;
           resolveNativeStart({ rendererMs: config.epochMainMs! - nativeOffset, quality: "exact" });
         })
@@ -960,7 +974,12 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
     };
     videoSource?.errorPromise.catch(notifyError);
     audioSource?.errorPromise.catch(notifyError);
-    screenTrack.addEventListener("ended", () => notifyError(new Error("screen capture ended")));
+    // A native window take is governed by the helper: Chromium's duplicate stream ends when
+    // the window closes, and the helper's own `end` already carries that as a normal stop.
+    screenTrack.addEventListener("ended", () => {
+      if (native && nativeWindow) return;
+      notifyError(new Error("screen capture ended"));
+    });
 
     /** Whether the take has begun: the ducking loop only runs then. */
     let begun = false;
@@ -1066,7 +1085,7 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
         return levelsFromTimeDomain(micBuffer, 5);
       },
       thumbnail,
-      outputSize: { width: target.width, height: target.height },
+      outputSize: nativeSize ?? { width: target.width, height: target.height },
       firstMediaTimestamp,
       webcam: webcamHandle,
       endWebcam,
@@ -1078,7 +1097,7 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
         // Stop encoding now: the frames and samples after the stop request do not belong to the
         // take (the store cut its duration at this moment), and the wait below must not add any.
         const stopAt = atRendererMs;
-        const nativeStopping = native?.stop(stopAt + nativeOffset);
+        const nativeStopping = nativeEnded ? undefined : native?.stop(stopAt + nativeOffset);
         videoSource?.pause();
         audioSource?.pause();
         if (webcamLive()) webcam?.source.pause();
@@ -1087,6 +1106,8 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
         await Promise.race([thumbnail, delay(THUMBNAIL_STOP_WAIT_MS)]);
         try {
           try {
+            // A stop refused by main rejects here: the helper may still be running, so waiting
+            // for the pump could hang. (Main resolves a stop that races the end as a no-op.)
             await nativeStopping;
             if (nativePump) await nativePump;
             await output.finalize();
@@ -1138,6 +1159,13 @@ export async function prepareEngine(options: EngineOptions): Promise<PreparedEng
         if (nativeVideo) {
           nativePump = nativeVideo.pump();
           void nativePump.catch(notifyError);
+          void nativePump.then(
+            () => {
+              nativeEnded = true;
+              if (!stopped && !teardownStarted) options.onSourceClosed?.();
+            },
+            () => undefined, // a failed pump is already reported through notifyError
+          );
           await Promise.race([
             nativeStart,
             nativePump.then(() => {
@@ -1383,7 +1411,8 @@ export async function captureThumbnail(
 export function nativeEligibility(
   options: Pick<EngineOptions, "sourceId" | "area" | "watermark">,
 ): string | null {
-  if (!options.sourceId.startsWith("screen:")) return "only whole-display sources are supported";
+  if (!options.sourceId.startsWith("screen:") && !options.sourceId.startsWith("window:"))
+    return "only display and window sources are supported";
   if (options.watermark) return "watermark requires Chromium";
   return null;
 }
