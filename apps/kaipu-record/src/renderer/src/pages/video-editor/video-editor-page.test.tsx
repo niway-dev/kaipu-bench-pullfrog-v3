@@ -423,6 +423,46 @@ describe("VideoEditorPage — transport bar", () => {
     await waitFor(() => expect(screen.getByText("0:00.0 / 0:30.0")).toBeInTheDocument());
   });
 
+  it("Split here cuts the clip under the playhead in two", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    // One clip covers the recording: one block on the timeline.
+    expect(footer.querySelectorAll("button")).toHaveLength(1);
+
+    // Step off t=0 so the cut lands inside the clip (a cut on the boundary is a no-op).
+    fireEvent.click(screen.getByRole("button", { name: "Forward" }));
+    await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
+    const split = screen.getByRole("button", { name: "Split here" });
+    expect(split).toBeEnabled();
+    fireEvent.click(split);
+
+    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(2));
+  });
+
+  it("Delete segment is disabled until a segment is selected, then removes it", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    // Two segments, so the only thing keeping Delete disabled is the missing selection
+    // (with one item left it is disabled regardless).
+    fireEvent.click(screen.getByRole("button", { name: "Forward" }));
+    await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Split here" }));
+    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(2));
+
+    expect(screen.getByRole("button", { name: "Delete segment" })).toBeDisabled();
+
+    fireEvent.click(footer.querySelectorAll("button")[0]);
+    const remove = await waitFor(() => {
+      const button = screen.getByRole("button", { name: "Delete segment" });
+      expect(button).toBeEnabled();
+      return button;
+    });
+    fireEvent.click(remove);
+
+    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(1));
+    expect(screen.getByRole("button", { name: "Delete segment" })).toBeDisabled();
+  });
+
   it("renders the fullscreen button with aria-label 'Fullscreen' by default", async () => {
     renderEditor();
     await waitForEditorLoaded();
