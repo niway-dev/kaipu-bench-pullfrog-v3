@@ -44,7 +44,7 @@ exactly this: hide from the timeline only, per user. The timeline v2 design (202
    blocks; the Activity row is removed. Hiding Zooms hides the marks too; the child checkbox is
    disabled, not changed, while the parent is off, so its stored value survives.
 5. **The trigger counts what this recording can show**: `Tracks n/m` is visible rows over
-   `availableTracks(scene, cursorTrack, hasWebcam)`. A lane the user turns on stays on, empty or
+   `availableTracks({ hasCursorTrack, hasWebcam })`. A lane the user turns on stays on, empty or
    not.
 6. **A selection is never invisible.** Selecting an item on a hidden lane (a zoom clicked on the
    preview, a mute reached through a shortcut) shows the lane first.

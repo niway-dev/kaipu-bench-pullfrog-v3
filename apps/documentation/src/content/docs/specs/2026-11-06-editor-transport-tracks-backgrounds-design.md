@@ -99,8 +99,8 @@ Input for tests; each line is at least one test.
    `selectKind` wiring.
 3. Clips hidden by a stale setting → the parser of `editor.hiddenTracks` drops `clips` and
    unknown keys.
-4. `n/m` counts a lane the recording cannot show → the count is over `availableLanes(scene,
-cursorTrack, hasWebcam)`, tested for a take without camera and without cursor track.
+4. `n/m` counts a lane the recording cannot show → the count is over `availableTracks({ hasCursorTrack,
+hasWebcam })`, tested for a take without camera and without cursor track.
 5. The activity marks survive Zooms being hidden → marks render inside `ZoomLane`, so there is
    nothing to draw when the lane is gone; the "Cursor activity" checkbox is disabled, not
    changed, while Zooms is off, so the stored choice survives.
@@ -135,7 +135,7 @@ cursorTrack, hasWebcam)`, tested for a take without camera and without cursor tr
     constants, reused, not copied); non-finite → 0; absent → the default.
 18. The GIF ignores the background → the GIF worker uses the same composer; a GIF frame test
     checks a corner pixel.
-19. A new lane added later eats the video's height → `availableLanes` is the one list a new lane
+19. A new lane added later eats the video's height → `availableTracks` is the one list a new lane
     registers in, and a new lane is hidden by default unless its PR argues otherwise; test that
     an unknown lane key defaults to hidden.
 
