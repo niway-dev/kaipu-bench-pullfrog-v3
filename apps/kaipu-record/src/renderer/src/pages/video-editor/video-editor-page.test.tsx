@@ -1510,7 +1510,7 @@ describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
     });
   });
 
-  describe("hiding every lane changes no scene and no export input (ADR 0050 decision 1)", () => {
+  describe("hiding every lane changes no scene handed to the export (ADR 0050 decision 1)", () => {
     const HIDEABLE = TRACK_KEYS.filter((key) => key !== "clips");
 
     /** Open the saved edit with these lanes hidden, seek into the zoom, and export. */

@@ -94,8 +94,7 @@ Defaulted on 2026-11-06; each stands unless its "revisit if" triggers.
 Input for tests; each line is at least one test.
 
 1. Hiding a lane changes the scene, the export plan or the preview's content → `export-plan.ts` and
-   the preview never read `hiddenTracks`; a test exports the same scene and plan with every lane
-   hidden and with none. (The exported annotation stroke scale follows the live preview width, so it
+   the preview never read `hiddenTracks`; a page test checks the scene handed to the export is identical with every lane hidden and with none, and a separate test pins that nothing under `export/` or the preview imports the setting. (The exported annotation stroke scale follows the live preview width, so it
    can differ when a height-bound preview grows. That is pre-existing and tracked in a follow-up,
    not a leak of `hiddenTracks`.)
 2. A selection lands on a hidden lane and goes invisible (zoom clicked on the preview, Delete on
