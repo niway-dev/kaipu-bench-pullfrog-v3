@@ -16,3 +16,9 @@ export function nextSpeed(current: number): PreviewSpeed {
   // A value outside the list restarts the cycle from just after 1x.
   return CYCLE[index === -1 ? 1 : (index + 1) % CYCLE.length];
 }
+
+/** A speed as people read it in `locale`: 1.5 in English, 1,5 in Spanish. Display only —
+ *  the speed itself stays the number, and the click hands `nextSpeed` that number. */
+export function formatSpeed(speed: number, locale: string): string {
+  return new Intl.NumberFormat(locale).format(speed);
+}

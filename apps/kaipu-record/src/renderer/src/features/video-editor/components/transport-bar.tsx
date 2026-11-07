@@ -12,9 +12,9 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { useTranslations } from "@kaipu/i18n";
+import { useLocale, useTranslations } from "@kaipu/i18n";
 import { uiArea } from "@renderer/lib/ui-area";
-import { nextSpeed } from "../playback-speed";
+import { formatSpeed, nextSpeed } from "../playback-speed";
 import { skipTarget, type LayoutEntry } from "../timeline";
 import { visibleCount, type TrackKey } from "../tracks";
 import { editShortcuts, SPLIT_SHORTCUT } from "./editor-toolbar";
@@ -108,6 +108,9 @@ export function TransportBar({
   onToggleFullscreen,
 }: TransportBarProps): React.JSX.Element {
   const t = useTranslations("videoEditor");
+  const locale = useLocale();
+  const speedText = formatSpeed(speed, locale);
+  const nextSpeedText = formatSpeed(nextSpeed(speed), locale);
   const shortcuts = editShortcuts();
   const tracksButtonRef = useRef<HTMLButtonElement | null>(null);
   const [tracksOpen, setTracksOpen] = useState(false);
@@ -226,11 +229,11 @@ export function TransportBar({
         <button
           type="button"
           className={styles.speedButton}
-          title={t("playbackSpeedTitle", { next: String(nextSpeed(speed)) })}
-          aria-label={t("playbackSpeedLabel", { speed: String(speed) })}
+          title={t("playbackSpeedTitle", { next: nextSpeedText })}
+          aria-label={t("playbackSpeedLabel", { speed: speedText })}
           onClick={() => onSpeedChange(nextSpeed(speed))}
         >
-          {speed}×
+          {speedText}×
         </button>
         <button
           type="button"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SPEED, nextSpeed, PREVIEW_SPEEDS } from "./playback-speed";
+import { DEFAULT_SPEED, formatSpeed, nextSpeed, PREVIEW_SPEEDS } from "./playback-speed";
 
 describe("preview playback speed", () => {
   it("offers 0.5x, 1x, 1.5x and 2x, and starts at 1x", () => {
@@ -16,5 +16,20 @@ describe("preview playback speed", () => {
 
   it("falls back to the step after 1x for a value outside the list", () => {
     expect(nextSpeed(3)).toBe(1.5);
+  });
+});
+
+describe("formatSpeed", () => {
+  it.each([
+    ["en", 0.5, "0.5"],
+    ["en", 1, "1"],
+    ["en", 1.5, "1.5"],
+    ["en", 2, "2"],
+    ["es", 0.5, "0,5"],
+    ["es", 1, "1"],
+    ["es", 1.5, "1,5"],
+    ["es", 2, "2"],
+  ])("writes %s %s as %s", (locale, speed, expected) => {
+    expect(formatSpeed(speed, locale)).toBe(expected);
   });
 });
