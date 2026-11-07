@@ -1,7 +1,7 @@
 import { mkdir, rm, stat, readdir } from "node:fs/promises";
 import path from "node:path";
 import { test, expect, type ElectronApplication, type Page } from "@playwright/test";
-import { dismissOnboarding, launchApp, RECORDING_ASSET_ID } from "../e2e/helpers/launch";
+import { launchApp, RECORDING_ASSET_ID } from "../e2e/helpers/launch";
 
 /*
  * Preview playback speed (NIW2-666): the transport bar at the editor's 1180 px floor and at
@@ -27,9 +27,24 @@ async function sizeWindow(
 for (const locale of ["en", "es"] as const) {
   test(`playback speed: transport bar at 1180 and 1440 in ${locale}`, async () => {
     await mkdir(OUT_DIR, { recursive: true });
+    for (const f of await readdir(OUT_DIR)) {
+      if (f.startsWith(`${locale}-`)) await rm(path.join(OUT_DIR, f));
+    }
     const { app, page, teardown } = await launchApp({ settings: { locale } });
     try {
-      await dismissOnboarding(page);
+      // The e2e helper only knows the English labels; this scenario also runs in Spanish.
+      const skip = page.getByRole("button", { name: /Skip setup|Omitir configuración/ });
+      if (
+        await skip.waitFor({ state: "visible", timeout: 10_000 }).then(
+          () => true,
+          () => false,
+        )
+      ) {
+        await skip.click();
+        await page
+          .getByRole("dialog", { name: /Onboarding|Introducción/ })
+          .waitFor({ state: "detached" });
+      }
       const gotIt = page.getByRole("button", { name: /Got it|Entendido/ });
       if (await gotIt.isVisible().catch(() => false)) await gotIt.click();
 
@@ -103,7 +118,3 @@ for (const locale of ["en", "es"] as const) {
     }
   });
 }
-
-test.beforeAll(async () => {
-  await rm(OUT_DIR, { recursive: true, force: true });
-});
