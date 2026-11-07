@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isAudible, type AudioEdits } from "./audio-edits";
 import { DEFAULT_SPEED } from "./playback-speed";
 import {
+  clipAtSource,
   entryAt,
   type LayoutEntry,
   layoutDuration,
@@ -141,6 +142,13 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
   // a garbage value, or the playhead visibly jumps to 100% for a frame.
   const lastValidTimeRef = useRef(0);
 
+  // The clip entry the <video> is playing (null on a slide, at the end, or before the
+  // first frame). Set by every transition that moves the video — seek, hand-off, drift
+  // snap — and refreshed by each frame/timeupdate. A playhead that jumped over a cut can
+  // no longer be traced back to its clip by source time (it may map into the next clip,
+  // or into deleted footage), so the clip it was in is remembered here.
+  const activeClipIdRef = useRef<string | null>(null);
+
   const seekVideoToSource = useCallback((sourceTime: number) => {
     const video = videoRef.current;
     if (!video) return;
@@ -153,6 +161,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
   // whatever it is, independent of source time.
   const enterSlide = useCallback((entry: LayoutEntry, offset: number) => {
     videoRef.current?.pause();
+    activeClipIdRef.current = null;
     slideRef.current = {
       itemId: entry.itemId,
       timelineStart: entry.timelineStart,
@@ -179,10 +188,12 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       const next = entryAt(layoutNow, timelineEnd + END_EPSILON);
       if (!next || next.timelineEnd <= timelineEnd + END_EPSILON) {
         exitSlide();
+        activeClipIdRef.current = null;
         playingRef.current = false;
         setPlaying(false);
         videoRef.current?.pause();
         const end = layoutDuration(layoutNow);
+        lastValidTimeRef.current = end;
         setTimelineTime(end);
         emitTime(end);
         return;
@@ -191,15 +202,62 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
         enterSlide(next, 0);
       } else {
         exitSlide();
+        activeClipIdRef.current = next.itemId;
         seekVideoToSource(next.sourceStart);
         // Coming off a slide the video was paused — resume it if we're still playing.
         const video = videoRef.current;
         if (video) applyRate(video);
         if (playingRef.current) void video?.play().catch(() => {});
       }
+      lastValidTimeRef.current = next.timelineStart;
       setTimelineTime(next.timelineStart);
+      emitTime(next.timelineStart);
     },
     [enterSlide, exitSlide, seekVideoToSource, emitTime, applyRate],
+  );
+
+  /**
+   * The clip the <video> is playing, remembered in `activeClipIdRef`. Normally the
+   * remembered one: a time past its cut maps to deleted footage or straight into a later
+   * clip, so the position alone cannot name the clip it just left. Only a video sitting
+   * before the remembered clip (or with nothing remembered) is resolved by position.
+   */
+  const resolveActiveClip = useCallback((video: HTMLVideoElement): LayoutEntry | undefined => {
+    const layoutNow = layoutRef.current;
+    const sourceT = video.currentTime;
+    const tracked = layoutNow.find(
+      (e) => e.kind === "clip" && e.itemId === activeClipIdRef.current,
+    );
+    const entry =
+      tracked && sourceT >= tracked.sourceStart - END_EPSILON
+        ? tracked
+        : clipAtSource(layoutNow, sourceT);
+    activeClipIdRef.current = entry?.itemId ?? null;
+    return entry;
+  }, []);
+
+  /**
+   * Hand off to the next entry once the <video> reaches the cut of the clip it is playing.
+   * Both clip clocks call this — the rAF loop every frame, `timeupdate` as the fallback
+   * (it keeps firing in a hidden window, where rAF stops). `timeupdate` alone fires only
+   * about every 250 ms, so playback ran past a cut by that long (500 ms at 2x): deleted
+   * footage played, and a slide or a short gap could be jumped over entirely.
+   *
+   * Idempotent: the hand-off moves the ref on (next clip, or null for a slide / the end),
+   * and it only fires while playing, so a second caller for the same cut finds nothing
+   * left to do. Returns true when it advanced; the caller must then leave the playhead
+   * to `advanceFrom`.
+   */
+  const handOffAtCut = useCallback(
+    (video: HTMLVideoElement): boolean => {
+      const entry = resolveActiveClip(video);
+      if (!entry || !playingRef.current || video.currentTime < entry.sourceEnd - END_EPSILON) {
+        return false;
+      }
+      advanceFrom(entry.timelineEnd);
+      return true;
+    },
+    [resolveActiveClip, advanceFrom],
   );
 
   // rAF loop feeds high-frequency listeners (playhead) without re-rendering React. On a
@@ -224,15 +282,19 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
           applyMute(video, mutedRef.current);
           applyRate(video);
         }
-        const mapped = video ? sourceToTimeline(layoutRef.current, video.currentTime) : null;
-        if (mapped !== null) lastValidTimeRef.current = mapped;
-        emitTime(lastValidTimeRef.current);
+        // A frame that finds the clip at its cut hands off right here (advanceFrom moves
+        // the playhead); otherwise it just reports where the video is.
+        if (!(video && handOffAtCut(video))) {
+          const mapped = video ? sourceToTimeline(layoutRef.current, video.currentTime) : null;
+          if (mapped !== null) lastValidTimeRef.current = mapped;
+          emitTime(lastValidTimeRef.current);
+        }
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, emitTime, advanceFrom, applyMute, applyRate]);
+  }, [playing, emitTime, advanceFrom, handOffAtCut, applyMute, applyRate]);
 
   // The video's `timeupdate` drives `timelineTime` state on clips; slides get no such
   // event, so update the state on a low-frequency interval while one is active (the rAF
@@ -275,6 +337,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       } else {
         if (slideRef.current) exitSlide();
         if (videoRef.current) applyRate(videoRef.current);
+        activeClipIdRef.current = hit.entry.itemId;
         seekVideoToSource(hit.sourceTime);
         // Setting currentTime on an already-playing <video> keeps it playing at the new
         // position, so a normal scrub needs no play() call. The ruler scrubber fires
@@ -308,6 +371,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       const video = videoRef.current;
       if (video) {
         applyRate(video);
+        resolveActiveClip(video); // know the clip from the first frame on, not the second
         void video.play().catch(() => {
           // The element refused to play (commonly an in-flight seek interrupting the
           // request). Never leave a stuck playing=true over a paused element — reset so
@@ -319,7 +383,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       }
     }
     setPlaying(true);
-  }, [enterSlide, exitSlide, applyRate]);
+  }, [enterSlide, exitSlide, applyRate, resolveActiveClip]);
 
   const pause = useCallback(() => {
     playingRef.current = false;
@@ -383,6 +447,8 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       internalSeekRef.current = false;
       return;
     }
+    // The fallback for a frame that never came (hidden window) or lost the race.
+    if (handOffAtCut(video)) return;
     const layoutNow = layoutRef.current;
     const sourceT = video.currentTime;
     const t = sourceToTimeline(layoutNow, sourceT);
@@ -395,6 +461,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
         (e) => e.kind === "clip" && e.sourceStart >= sourceT - END_EPSILON,
       );
       if (target) {
+        activeClipIdRef.current = target.itemId;
         seekVideoToSource(target.sourceStart);
         setTimelineTime(target.timelineStart);
       } else {
@@ -404,13 +471,8 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       return;
     }
 
-    const entry = entryAt(layoutNow, t);
-    if (entry && sourceT >= entry.sourceEnd - END_EPSILON) {
-      advanceFrom(entry.timelineEnd);
-      return;
-    }
     setTimelineTime(t);
-  }, [pause, seekVideoToSource, advanceFrom, applyMute]);
+  }, [pause, seekVideoToSource, handOffAtCut, applyMute]);
 
   const onVideoEnded = useCallback(() => {
     playingRef.current = false;
