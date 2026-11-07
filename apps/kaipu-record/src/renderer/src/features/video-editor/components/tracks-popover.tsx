@@ -58,7 +58,10 @@ export function TracksPopover({
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
   // Above the trigger (the transport bar sits at the bottom of the window), left edges
-  // aligned, clamped so the whole panel stays on screen.
+  // aligned, clamped so the whole panel stays on screen. The panel stays open across
+  // toggles and a toggle changes the footer's height, which moves the transport and the
+  // trigger with it: measured again whenever the hidden set changes (the layout has
+  // settled by the time this runs, in the same commit as the toggle).
   useLayoutEffect(() => {
     const rect = anchor.getBoundingClientRect();
     const height = menuRef.current?.offsetHeight ?? 0;
@@ -66,9 +69,10 @@ export function TracksPopover({
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
     const top = Math.max(8, Math.min(rect.top - 8 - height, window.innerHeight - height - 8));
     setPos({ left, top });
-  }, [anchor]);
+  }, [anchor, hidden]);
 
-  // Placed once, so any move of the page under it closes it instead of leaving it adrift.
+  // A resize moves the page under the panel in ways a toggle does not, so it closes the
+  // panel instead of leaving it adrift.
   useEffect(() => {
     window.addEventListener("resize", onClose);
     return () => window.removeEventListener("resize", onClose);

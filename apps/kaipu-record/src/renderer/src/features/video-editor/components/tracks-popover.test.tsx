@@ -108,6 +108,29 @@ describe("TracksPopover — toggling", () => {
   });
 });
 
+describe("TracksPopover — position", () => {
+  it("re-measures the trigger when a toggle moves it (the footer changes height with the lanes)", () => {
+    const anchor = document.createElement("button");
+    document.body.appendChild(anchor);
+    let top = 600;
+    anchor.getBoundingClientRect = () => ({ left: 40, top }) as DOMRect;
+    const props = {
+      anchor,
+      available: availableTracks({ hasCursorTrack: true, hasWebcam: false }),
+      onToggle: vi.fn(),
+      onClose: vi.fn(),
+    };
+    const { rerender } = render(<TracksPopover {...props} hidden={[]} />);
+    const menu = screen.getByRole("menu");
+    // jsdom has no layout: the panel is 0 px tall, so it sits 8 px above the trigger.
+    expect(menu.style.top).toBe("592px");
+    // Hiding a lane shortens the footer: the transport, and the trigger, move down 18 px.
+    top = 618;
+    rerender(<TracksPopover {...props} hidden={["zooms"]} />);
+    expect(menu.style.top).toBe("610px");
+  });
+});
+
 describe("TracksPopover — keyboard and dismissal", () => {
   it("focuses the first row that can be toggled when it opens", () => {
     setup();
