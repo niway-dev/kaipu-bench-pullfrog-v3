@@ -43,9 +43,11 @@ exactly this: hide from the timeline only, per user. The timeline v2 design (202
 4. **Cursor activity is a child of Zooms**: its marks draw inside the Zooms lane, under the
    blocks; the Activity row is removed. Hiding Zooms hides the marks too; the child checkbox is
    disabled, not changed, while the parent is off, so its stored value survives.
-5. **The trigger counts what this recording can show**: `Tracks n/m` is visible rows over
-   `availableTracks({ hasCursorTrack, hasWebcam })`. A lane the user turns on stays on, empty or
-   not.
+5. **The trigger counts what this recording can show**: `Tracks n/m` is the rows the timeline
+   draws over `availableTracks({ hasCursorTrack, hasWebcam })`. Cursor activity is not drawn while
+   Zooms is hidden, so it is not counted then (a take with a cursor track and Zooms hidden reads
+   `4/6`), although its stored value and its disabled checkbox stay as they were. A lane the
+   user turns on stays on, empty or not.
 6. **A selection is never invisible.** Selecting an item on a hidden lane (a zoom clicked on the
    preview, a mute reached through a shortcut) shows the lane first.
 7. **New lanes register in `availableTracks` and default to hidden** unless their PR argues

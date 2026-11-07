@@ -62,8 +62,8 @@ describe("visibleCount", () => {
     expect(visibleCount(withCursor, [])).toEqual({ shown: 6, total: 6 });
   });
 
-  it("reads 4/6 after hiding two lanes", () => {
-    expect(visibleCount(withCursor, ["zooms", "privacy"])).toEqual({ shown: 4, total: 6 });
+  it("reads 4/6 after hiding two independent lanes", () => {
+    expect(visibleCount(withCursor, ["annotations", "privacy"])).toEqual({ shown: 4, total: 6 });
   });
 
   it("reads 5/5 without a cursor track", () => {
@@ -75,9 +75,11 @@ describe("visibleCount", () => {
     expect(visibleCount(plain, ["webcam", "activity"])).toEqual({ shown: 5, total: 5 });
   });
 
-  it("counts the rows as the popover shows them: Cursor activity keeps its own stored state while Zooms is off", () => {
-    expect(visibleCount(withCursor, ["zooms"])).toEqual({ shown: 5, total: 6 });
+  it("counts the rows the timeline draws: Cursor activity is not shown while Zooms is hidden, whatever its stored value", () => {
+    // ADR 0050 decision 5: n is visible rows. Zooms off takes its marks with it.
+    expect(visibleCount(withCursor, ["zooms"])).toEqual({ shown: 4, total: 6 });
     expect(visibleCount(withCursor, ["zooms", "activity"])).toEqual({ shown: 4, total: 6 });
+    expect(visibleCount(withCursor, ["activity"])).toEqual({ shown: 5, total: 6 });
   });
 
   it("never counts Clips as hidden", () => {

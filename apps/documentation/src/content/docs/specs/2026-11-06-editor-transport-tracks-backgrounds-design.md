@@ -303,10 +303,11 @@ export function visibleCount(available: TrackKey[], hidden: TrackKey[]): { shown
 ```
 
 `activity` is a child: it appears only when `zooms` is visible and counts as its own row in `n/m`
-when the take has a cursor track (the mock shows `5/5` for Clips, Annotations, Zooms, Privacy,
-Audio with Cursor activity nested and not counted — the design counts rows the user can toggle
-independently, so Cursor activity is counted when it exists; the trigger would read `6/6` on a
-take with a cursor track). Open question: none; it is a count.
+when the take has a cursor track and it is drawn (the mock shows `5/5` for Clips, Annotations,
+Zooms, Privacy, Audio with Cursor activity nested and not counted — the design counts the rows
+the timeline draws, so Cursor activity is counted when it exists and Zooms is shown; the trigger
+reads `6/6` on a take with a cursor track, and `4/6` when only Zooms is hidden, because the marks
+go with their lane). Open question: none; it is a count.
 
 ### 3.2 Persistence
 

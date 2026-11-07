@@ -44,17 +44,15 @@ export function isTrackHidden(key: TrackKey, hidden: readonly TrackKey[]): boole
 }
 
 /**
- * The trigger's `n/m`: rows the user can toggle, over the rows this recording has. It
- * counts what the popover's checkboxes show, so Cursor activity keeps its stored state
- * while Zooms is off (its checkbox is disabled, not changed).
+ * The trigger's `n/m`: the rows the timeline draws, over the rows this recording has
+ * (ADR 0050 decision 5). Goes through `isTrackHidden`, so Cursor activity is not counted
+ * while Zooms is hidden even though its stored choice (and its checkbox) stays as it was.
  */
 export function visibleCount(
   available: readonly TrackKey[],
   hidden: readonly TrackKey[],
 ): { shown: number; total: number } {
-  const shown = available.filter(
-    (key) => ALWAYS_SHOWN.includes(key) || !hidden.includes(key),
-  ).length;
+  const shown = available.filter((key) => !isTrackHidden(key, hidden)).length;
   return { shown, total: available.length };
 }
 

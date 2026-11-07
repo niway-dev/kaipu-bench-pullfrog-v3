@@ -117,7 +117,13 @@ describe("TransportBar — Tracks trigger", () => {
   });
 
   it("reads 4/6 with two lanes hidden", () => {
-    renderBar({ tracks: tracksProps(["zooms", "privacy"]) });
+    renderBar({ tracks: tracksProps(["annotations", "privacy"]) });
+    expect(trigger()).toHaveTextContent("Tracks 4/6");
+    expect(trigger()).toHaveAccessibleName("Tracks, 4 of 6 shown");
+  });
+
+  it("reads 4/6, not 5/6, when only Zooms is hidden: its Cursor activity marks go with it", () => {
+    renderBar({ tracks: tracksProps(["zooms"]) });
     expect(trigger()).toHaveTextContent("Tracks 4/6");
     expect(trigger()).toHaveAccessibleName("Tracks, 4 of 6 shown");
   });
