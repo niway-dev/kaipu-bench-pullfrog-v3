@@ -394,3 +394,169 @@ describe("edit-driven muting (the scene's muted ranges reach the preview)", () =
     expect(video.muted).toBe(false);
   });
 });
+
+describe("usePreviewPlayback — playback speed (preview only)", () => {
+  it("starts at 1x, and a new mount starts at 1x again (nothing is remembered)", () => {
+    const first = renderHook(() => usePreviewPlayback(layout));
+    expect(first.result.current.speed).toBe(1);
+    act(() => first.result.current.setSpeed(2));
+    expect(first.result.current.speed).toBe(2);
+    first.unmount();
+
+    const reopened = renderHook(() => usePreviewPlayback(layout));
+    expect(reopened.result.current.speed).toBe(1);
+  });
+
+  it("sets the rate on the element, keeps the pitch, and makes it the rate a new source starts at", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makeVideo();
+    result.current.videoRef.current = video;
+
+    act(() => result.current.setSpeed(1.5));
+
+    expect(video.playbackRate).toBe(1.5);
+    // Loading a new src resets playbackRate to defaultPlaybackRate, so that follows too.
+    expect(video.defaultPlaybackRate).toBe(1.5);
+    expect(video.preservesPitch).toBe(true);
+  });
+
+  it("re-applies the rate when the element reports loaded metadata (the src changed)", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makeVideo();
+    result.current.videoRef.current = video;
+    act(() => result.current.setSpeed(2));
+
+    video.playbackRate = 1; // what a src change does to the element
+    act(() => result.current.onVideoLoadedMetadata());
+
+    expect(video.playbackRate).toBe(2);
+  });
+
+  it("applies a rate chosen before the element existed once its metadata lands", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    act(() => result.current.setSpeed(0.5));
+    const video = makeVideo();
+    result.current.videoRef.current = video;
+
+    act(() => result.current.onVideoLoadedMetadata());
+
+    expect(video.playbackRate).toBe(0.5);
+  });
+
+  it("restores the rate on the next frame if a src change reset it mid-playback", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makePlayableVideo();
+    result.current.videoRef.current = video;
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.play());
+
+    video.playbackRate = 1;
+    advance(50);
+
+    expect(video.playbackRate).toBe(2);
+  });
+
+  it("a slide at 2x holds duration / speed seconds of wall time", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.seek(5)); // start of the 3 s slide
+    act(() => result.current.play());
+
+    advance(1400); // 2.8 timeline seconds: still inside the slide
+    expect(result.current.activeSlideId).toBe("s1");
+    expect(result.current.timelineTime).toBeCloseTo(7.8, 1);
+
+    advance(200); // 1.6 s of wall time: the 3 s slide is over
+    expect(result.current.activeSlideId).toBeNull();
+  });
+
+  it("a slide at 0.5x holds twice as long", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    act(() => result.current.setSpeed(0.5));
+    act(() => result.current.seek(5));
+    act(() => result.current.play());
+
+    advance(5000); // 2.5 timeline seconds
+    expect(result.current.activeSlideId).toBe("s1");
+
+    advance(1200); // 6.2 s of wall time
+    expect(result.current.activeSlideId).toBeNull();
+  });
+
+  it("pause and resume at 2x do not burn or invent slide time", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.seek(5));
+    act(() => result.current.play());
+    advance(500); // 1 timeline second
+    act(() => result.current.pause());
+    advance(2000);
+    act(() => result.current.play());
+    advance(250); // 0.5 timeline second
+
+    expect(result.current.timelineTime).toBeCloseTo(6.5, 1);
+  });
+
+  it("changing speed mid-slide does not make the time jump", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    const times: number[] = [];
+    result.current.subscribeTime((t) => times.push(t));
+    act(() => result.current.seek(5));
+    act(() => result.current.play());
+    advance(1000); // 1 timeline second at 1x
+    expect(times.at(-1)).toBeCloseTo(6, 1);
+
+    act(() => result.current.setSpeed(2));
+    advance(250); // 0.5 timeline second at 2x -> 6.5, not (now - original anchor) * 2 = 7.5
+    expect(times.at(-1)).toBeCloseTo(6.5, 1);
+    expect(result.current.timelineTime).toBeCloseTo(6.5, 1);
+
+    act(() => result.current.setSpeed(0.5));
+    advance(500); // 0.25 timeline second at 0.5x
+    expect(times.at(-1)).toBeCloseTo(6.75, 1);
+  });
+
+  it("changing speed while paused on a slide keeps the consumed time", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    act(() => result.current.seek(6)); // 1 s into the slide, paused
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.play());
+    advance(250);
+
+    expect(result.current.timelineTime).toBeCloseTo(6.5, 1);
+  });
+
+  it("the rate survives entering a slide and leaving it back to a clip", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makePlayableVideo();
+    result.current.videoRef.current = video;
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.seek(7.9)); // 0.1 s left of the slide
+    act(() => result.current.play());
+
+    video.playbackRate = 1; // the element lost it while the slide held the screen
+    advance(100); // 0.2 timeline seconds: past the slide into clip b
+
+    expect(result.current.activeSlideId).toBeNull();
+    expect(video.playbackRate).toBe(2);
+    expect(result.current.speed).toBe(2);
+  });
+
+  it("the rate is set again when a scrub leaves a slide for a clip", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makePlayableVideo();
+    result.current.videoRef.current = video;
+    act(() => result.current.setSpeed(1.5));
+    act(() => result.current.seek(6)); // on the slide
+
+    video.playbackRate = 1;
+    act(() => result.current.seek(2)); // back onto clip a
+
+    expect(video.playbackRate).toBe(1.5);
+  });
+});

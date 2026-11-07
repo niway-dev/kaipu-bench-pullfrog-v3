@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isAudible, type AudioEdits } from "./audio-edits";
+import { DEFAULT_SPEED } from "./playback-speed";
 import {
   entryAt,
   type LayoutEntry,
@@ -13,6 +14,8 @@ export interface PreviewPlayback {
   playing: boolean;
   /** Whether the preview audio is silenced (preview-only; export always includes audio). */
   muted: boolean;
+  /** Preview playback rate (0.5, 1, 1.5, 2). View state: never saved, never exported. */
+  speed: number;
   duration: number;
   timelineTime: number;
   /** Slide entry under the playhead, else null — the page maps this to the image URL. */
@@ -22,9 +25,14 @@ export interface PreviewPlayback {
   toggle(): void;
   /** Toggle preview audio mute — does NOT affect the exported file. */
   toggleMute(): void;
+  /** Set the preview rate. Preview only — the exported file is always at 1x. */
+  setSpeed(speed: number): void;
   seek(t: number): void;
   onVideoTimeUpdate(): void;
   onVideoEnded(): void;
+  /** Wire to the <video>'s `loadedmetadata` event: a new `src` resets the element's rate,
+   *  so the chosen speed is applied again once the new source is ready. */
+  onVideoLoadedMetadata(): void;
   /** Wire to the <video>'s `play` event — keeps `playing` honest with the real element. */
   onVideoPlay(): void;
   /** Wire to the <video>'s `pause` event — so an element that pauses on its own (or a
@@ -39,7 +47,9 @@ const END_EPSILON = 0.02;
  * A slide has no media element, so its clock is wall time. We freeze the played offset
  * in `consumed` and, while playing, add the time since `anchorAt` — so pause/resume
  * never burns slide time (total on-screen time equals the slide's `duration` of PLAYING
- * time). `timelineStart`/`timelineEnd` mirror the slide's layout bounds and are refreshed
+ * time at 1x). At another preview speed the wall time scales: `consumed` and the running
+ * part are timeline seconds, `running = wall seconds × speed`, and a speed change
+ * re-anchors (folds the running part into `consumed`) so the time never jumps. `timelineStart`/`timelineEnd` mirror the slide's layout bounds and are refreshed
  * when the layout changes (e.g. a duration edit) so the boundary check stays correct.
  */
 interface ActiveSlide {
@@ -50,6 +60,13 @@ interface ActiveSlide {
   consumed: number;
   /** performance.now() when the current playing run started; null while paused. */
   anchorAt: number | null;
+}
+
+/** Timeline seconds a slide has played: the frozen part plus the running part, which is
+ *  wall time scaled by the preview speed. */
+function slideElapsed(slide: ActiveSlide, speed: number): number {
+  const running = slide.anchorAt !== null ? (performance.now() - slide.anchorAt) / 1000 : 0;
+  return slide.consumed + running * speed;
 }
 
 /**
@@ -70,6 +87,22 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
   mutedRef.current = muted;
+  // Preview speed. State for the button label, a ref for the rAF loop and the handlers.
+  const [speed, setSpeedState] = useState<number>(DEFAULT_SPEED);
+  const speedRef = useRef<number>(DEFAULT_SPEED);
+
+  /**
+   * Put the chosen rate on the element. Loading a new `src` resets `playbackRate` to
+   * `defaultPlaybackRate`, so both are set; `preservesPitch` keeps 2x from chipmunking.
+   * Cheap and idempotent: called on speed changes, on loadedmetadata, when a slide hands
+   * back to a clip, and per frame (writes only when the element disagrees).
+   */
+  const applyRate = useCallback((video: HTMLVideoElement) => {
+    const rate = speedRef.current;
+    if (video.defaultPlaybackRate !== rate) video.defaultPlaybackRate = rate;
+    if (video.playbackRate !== rate) video.playbackRate = rate;
+    if (video.preservesPitch !== true) video.preservesPitch = true;
+  }, []);
 
   /**
    * The element is muted when EITHER the user muted the preview OR the scene
@@ -160,11 +193,13 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
         exitSlide();
         seekVideoToSource(next.sourceStart);
         // Coming off a slide the video was paused — resume it if we're still playing.
-        if (playingRef.current) void videoRef.current?.play().catch(() => {});
+        const video = videoRef.current;
+        if (video) applyRate(video);
+        if (playingRef.current) void video?.play().catch(() => {});
       }
       setTimelineTime(next.timelineStart);
     },
-    [enterSlide, exitSlide, seekVideoToSource, emitTime],
+    [enterSlide, exitSlide, seekVideoToSource, emitTime, applyRate],
   );
 
   // rAF loop feeds high-frequency listeners (playhead) without re-rendering React. On a
@@ -176,8 +211,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
     const tick = () => {
       const slide = slideRef.current;
       if (slide) {
-        const running = slide.anchorAt !== null ? (performance.now() - slide.anchorAt) / 1000 : 0;
-        const t = slide.timelineStart + slide.consumed + running;
+        const t = slide.timelineStart + slideElapsed(slide, speedRef.current);
         if (t >= slide.timelineEnd - END_EPSILON) {
           advanceFrom(slide.timelineEnd);
         } else {
@@ -186,7 +220,10 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
         }
       } else {
         const video = videoRef.current;
-        if (video) applyMute(video, mutedRef.current);
+        if (video) {
+          applyMute(video, mutedRef.current);
+          applyRate(video);
+        }
         const mapped = video ? sourceToTimeline(layoutRef.current, video.currentTime) : null;
         if (mapped !== null) lastValidTimeRef.current = mapped;
         emitTime(lastValidTimeRef.current);
@@ -195,7 +232,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, emitTime, advanceFrom, applyMute]);
+  }, [playing, emitTime, advanceFrom, applyMute, applyRate]);
 
   // The video's `timeupdate` drives `timelineTime` state on clips; slides get no such
   // event, so update the state on a low-frequency interval while one is active (the rAF
@@ -205,8 +242,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
     const id = setInterval(() => {
       const slide = slideRef.current;
       if (!slide) return;
-      const running = slide.anchorAt !== null ? (performance.now() - slide.anchorAt) / 1000 : 0;
-      const t = slide.timelineStart + slide.consumed + running;
+      const t = slide.timelineStart + slideElapsed(slide, speedRef.current);
       setTimelineTime(Math.min(t, slide.timelineEnd));
     }, 250);
     return () => clearInterval(id);
@@ -238,6 +274,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
         enterSlide(hit.entry, clamped - hit.entry.timelineStart);
       } else {
         if (slideRef.current) exitSlide();
+        if (videoRef.current) applyRate(videoRef.current);
         seekVideoToSource(hit.sourceTime);
         // Setting currentTime on an already-playing <video> keeps it playing at the new
         // position, so a normal scrub needs no play() call. The ruler scrubber fires
@@ -252,7 +289,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       setTimelineTime(clamped);
       emitTime(clamped);
     },
-    [enterSlide, exitSlide, seekVideoToSource, emitTime],
+    [enterSlide, exitSlide, seekVideoToSource, emitTime, applyRate],
   );
 
   const play = useCallback(() => {
@@ -270,6 +307,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       if (slideRef.current) exitSlide();
       const video = videoRef.current;
       if (video) {
+        applyRate(video);
         void video.play().catch(() => {
           // The element refused to play (commonly an in-flight seek interrupting the
           // request). Never leave a stuck playing=true over a paused element — reset so
@@ -281,14 +319,14 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       }
     }
     setPlaying(true);
-  }, [enterSlide, exitSlide]);
+  }, [enterSlide, exitSlide, applyRate]);
 
   const pause = useCallback(() => {
     playingRef.current = false;
     const slide = slideRef.current;
     if (slide && slide.anchorAt !== null) {
       // Freeze the consumed offset so resuming does not burn slide time.
-      slide.consumed += (performance.now() - slide.anchorAt) / 1000;
+      slide.consumed = slideElapsed(slide, speedRef.current);
       slide.anchorAt = null;
     } else if (!slide) {
       videoRef.current?.pause();
@@ -303,6 +341,26 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
   const toggleMute = useCallback(() => {
     setMuted((prev) => !prev);
   }, []);
+
+  const setSpeed = useCallback(
+    (next: number) => {
+      // Re-anchor a running slide at the old speed first, so the time already played is
+      // kept and only what follows runs at the new one.
+      const slide = slideRef.current;
+      if (slide && slide.anchorAt !== null) {
+        slide.consumed = slideElapsed(slide, speedRef.current);
+        slide.anchorAt = performance.now();
+      }
+      speedRef.current = next;
+      setSpeedState(next);
+      if (videoRef.current) applyRate(videoRef.current);
+    },
+    [applyRate],
+  );
+
+  const onVideoLoadedMetadata = useCallback(() => {
+    if (videoRef.current) applyRate(videoRef.current);
+  }, [applyRate]);
 
   // Apply muted state imperatively: React's JSX `muted` attribute is only read during
   // initial mount and is not reflected back to the DOM property on updates. Setting
@@ -386,6 +444,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
     videoRef,
     playing,
     muted,
+    speed,
     duration,
     timelineTime,
     activeSlideId,
@@ -393,9 +452,11 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
     pause,
     toggle,
     toggleMute,
+    setSpeed,
     seek,
     onVideoTimeUpdate,
     onVideoEnded,
+    onVideoLoadedMetadata,
     onVideoPlay,
     onVideoPause,
     subscribeTime,
