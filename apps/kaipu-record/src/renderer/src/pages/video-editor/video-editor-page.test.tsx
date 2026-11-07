@@ -1510,7 +1510,7 @@ describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
     });
   });
 
-  describe("hiding every lane changes only the timeline (ADR 0050 decision 1)", () => {
+  describe("hiding every lane changes no scene and no export input (ADR 0050 decision 1)", () => {
     const HIDEABLE = TRACK_KEYS.filter((key) => key !== "clips");
 
     /** Open the saved edit with these lanes hidden, seek into the zoom, and export. */
@@ -1557,7 +1557,8 @@ describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
       expect(shown.preview.zoom).toEqual(expect.stringMatching(/scale\(/));
       expect(hidden.preview.zoom).toBe(shown.preview.zoom);
       expect(hidden.preview).toEqual(shown.preview);
-      // And the export takes the edit exactly as it was: nothing dropped with its lane.
+      // And the export is handed the same scene: nothing dropped with its lane. (Annotation
+      // stroke scale follows the live preview width, which this test does not pin.)
       expect(hidden.scene).toEqual(shown.scene);
       expect(hidden.scene).toMatchObject({
         overlays: [{ id: "o1" }],

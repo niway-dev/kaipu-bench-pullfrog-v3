@@ -1,6 +1,6 @@
 ---
 title: "ADR 0050: Track visibility is per-user view state; a hidden lane keeps its edits in the preview and the export"
-description: The video editor's Tracks popover shows or hides timeline lanes. Hiding is view state saved per user in the settings store, never in the scene; the preview and the export are unchanged by it. Clips cannot be hidden, Audio can, and Cursor activity is a child of Zooms drawn inside its lane. Amends ADR 0040's "Audio always shown" and parks its removedTracks model.
+description: The video editor's Tracks popover shows or hides timeline lanes. Hiding is view state saved per user in the settings store, never in the scene; the scene, the preview's content and the export plan are unchanged by it. Clips cannot be hidden, Audio can, and Cursor activity is a child of Zooms drawn inside its lane. Amends ADR 0040's "Audio always shown" and parks its removedTracks model.
 ---
 
 # ADR 0050: Track visibility is per-user view state; a hidden lane keeps its edits in the preview and the export
@@ -31,10 +31,17 @@ exactly this: hide from the timeline only, per user. The timeline v2 design (202
 
 ## Decision
 
-1. **Hiding a lane is view state.** It changes what the timeline draws and nothing else: the
-   preview, the export plan, the GIF plan and the session never read it. A hidden Zooms lane
-   still zooms; a hidden Privacy lane still blurs; a hidden Audio lane still mutes where a range
-   says so.
+1. **Hiding a lane is view state.** It never changes the scene, the plan or inputs handed to the
+   export, or what the preview draws: the preview, the export plan, the GIF plan and the session
+   never read it. A hidden Zooms lane still zooms; a hidden Privacy lane still blurs; a hidden
+   Audio lane still mutes where a range says so. What it does change is the timeline's height,
+   so a height-bound preview can grow and show a larger picture. The export scales annotation
+   stroke width, jitter, arrow heads and text by the video width over the preview's live width
+   (`previewWidth` in the page, `scale` in `export/overlay-raster.ts`; the same on `main`), so
+   those strokes follow the preview's size, as they do when the window is resized. The export
+   still matches what the user sees. Making that scale independent of the preview is a separate
+   follow-up (Linear: "Video editor: exported annotation stroke scale follows the live preview
+   width").
 2. **Saved per user**, in the app settings store as `editor.hiddenTracks: TrackKey[]`, like
    `exportQuality`. Not in the scene, not per recording. The parser drops `clips` and unknown
    keys and keeps `activity` as stored: Zooms shown with the marks off is a valid choice.
@@ -77,8 +84,10 @@ exactly this: hide from the timeline only, per user. The timeline v2 design (202
   `visibleCount`, all pure and tested.
 - `video-editor-page.tsx` filters `extraLanes` by key; `TimelineStrip` gains `showOverlays`;
   `ZoomLane` gains `marks`; `ActivityLane` is deleted.
-- `export-plan.ts`, the GIF plan and the preview take no new input; a test asserts the plan is
-  identical with every lane hidden.
+- `export-plan.ts`, the GIF plan and the preview take no new input; a test asserts the scene and
+  the plan are identical with every lane hidden. The exported annotation stroke scale still
+  follows the live preview width (decision 1), so it can differ when hiding lanes resizes a
+  height-bound preview.
 - `ui-map.ts` declares `editorVideo.tracksPopover { open }` and the catalog gets a state.
 - The timeline v2 spec, if resumed, must reopen this ADR before reintroducing `removedTracks`
   (see its section 8 note in the 2026-11-06 spec).
