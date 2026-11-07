@@ -1320,6 +1320,49 @@ describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
       .map((el) => el.textContent ?? "");
   const tracksTrigger = (): HTMLElement => screen.getByRole("button", { name: /^Tracks/ });
 
+  const EDITED = {
+    ...initialScene(30),
+    items: [{ id: "clip-1", kind: "clip" as const, sourceStart: 0, sourceEnd: 30 }],
+    overlays: [
+      {
+        id: "o1",
+        kind: "text" as const,
+        x: 0.4,
+        y: 0.4,
+        text: "still here",
+        size: 19,
+        color: "#000000",
+        start: 0,
+        end: 30,
+      },
+    ],
+    redactions: [
+      {
+        id: "r1",
+        kind: "cover" as const,
+        start: 0,
+        end: 30,
+        rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+        fill: "#18181b",
+        label: "",
+      },
+    ],
+    mutedRanges: [{ id: "m1", sourceStart: 3, sourceEnd: 5 }],
+    zoomSegments: [
+      {
+        id: "z1",
+        start: 1,
+        end: 10,
+        scale: 2,
+        mode: "fixed" as const,
+        anchor: { x: 0.25, y: 0.25 },
+        smoothing: 0,
+        origin: "manual" as const,
+        trigger: null,
+      },
+    ],
+  };
+
   it("counts the lanes this take can show: 5/5 without a cursor track or a camera", async () => {
     fakeSettings([]);
     renderEditor();
@@ -1392,49 +1435,82 @@ describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
     expect(writes).toEqual([]);
   });
 
+  describe("hiding a lane clears a selection that lives on it", () => {
+    const kinds: { lane: string; heading: string; select(footer: HTMLElement): void }[] = [
+      {
+        lane: "Privacy",
+        heading: "Cover region",
+        select: (footer) => fireEvent.click(footer.querySelector('[data-redaction-block="r1"]')!),
+      },
+      {
+        lane: "Zooms",
+        heading: "Zoom 1",
+        select: (footer) => fireEvent.click(footer.querySelector('[data-zoom-id="z1"]')!),
+      },
+      {
+        lane: "Audio",
+        heading: "Muted section 1",
+        select: (footer) => fireEvent.click(footer.querySelector('[data-mute-id="m1"]')!),
+      },
+      {
+        lane: "Annotations",
+        heading: "Text",
+        // The annotation's pill in its lane: a button with an icon and no text.
+        select: (footer) => fireEvent.pointerDown(footer.querySelector('button[class*="_pill_"]')!),
+      },
+    ];
+
+    it.each(kinds)(
+      "$lane: hiding it deselects the item on it, so Delete cannot remove it unseen",
+      async ({ lane, heading, select }) => {
+        window.electronAPI.loadVideoEditSession = vi.fn(async () => ({
+          sessionJson: serializeSession(EDITED),
+          assets: [],
+        }));
+        fakeSettings([]);
+        renderEditor();
+        const footer = await waitForEditorLoaded();
+        await waitFor(() => expect(laneLabels()).toContain(lane));
+        select(footer);
+        await screen.findByRole("heading", { name: heading });
+
+        fireEvent.click(tracksTrigger());
+        fireEvent.click(screen.getByRole("menuitemcheckbox", { name: lane }));
+        await waitFor(() => expect(laneLabels()).not.toContain(lane));
+        expect(screen.queryByRole("heading", { name: heading })).toBeNull();
+
+        // The page's Delete handler now has nothing selected: everything still exports.
+        fireEvent.keyDown(window, { key: "Delete" });
+        startExport.mockClear();
+        clickExportVideo();
+        await waitFor(() => expect(startExport).toHaveBeenCalledOnce());
+        const handed = (startExport.mock.calls[0] as unknown[])[0] as { scene: typeof EDITED };
+        expect(handed.scene.overlays).toHaveLength(1);
+        expect(handed.scene.redactions).toHaveLength(1);
+        expect(handed.scene.zoomSegments).toHaveLength(1);
+        expect(handed.scene.mutedRanges).toHaveLength(1);
+      },
+    );
+
+    it("leaves a selection on another lane alone", async () => {
+      window.electronAPI.loadVideoEditSession = vi.fn(async () => ({
+        sessionJson: serializeSession(EDITED),
+        assets: [],
+      }));
+      fakeSettings([]);
+      renderEditor();
+      const footer = await waitForEditorLoaded();
+      await waitFor(() => expect(laneLabels()).toContain("Privacy"));
+      fireEvent.click(footer.querySelector('[data-zoom-id="z1"]')!);
+      await screen.findByRole("heading", { name: "Zoom 1" });
+      fireEvent.click(tracksTrigger());
+      fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Privacy" }));
+      await waitFor(() => expect(laneLabels()).not.toContain("Privacy"));
+      expect(screen.getByRole("heading", { name: "Zoom 1" })).toBeInTheDocument();
+    });
+  });
+
   describe("hiding every lane changes only the timeline (ADR 0050 decision 1)", () => {
-    const EDITED = {
-      ...initialScene(30),
-      items: [{ id: "clip-1", kind: "clip" as const, sourceStart: 0, sourceEnd: 30 }],
-      overlays: [
-        {
-          id: "o1",
-          kind: "text" as const,
-          x: 0.4,
-          y: 0.4,
-          text: "still here",
-          size: 19,
-          color: "#000000",
-          start: 0,
-          end: 30,
-        },
-      ],
-      redactions: [
-        {
-          id: "r1",
-          kind: "cover" as const,
-          start: 0,
-          end: 30,
-          rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
-          fill: "#18181b",
-          label: "",
-        },
-      ],
-      mutedRanges: [{ id: "m1", sourceStart: 3, sourceEnd: 5 }],
-      zoomSegments: [
-        {
-          id: "z1",
-          start: 1,
-          end: 10,
-          scale: 2,
-          mode: "fixed" as const,
-          anchor: { x: 0.25, y: 0.25 },
-          smoothing: 0,
-          origin: "manual" as const,
-          trigger: null,
-        },
-      ],
-    };
     const HIDEABLE = TRACK_KEYS.filter((key) => key !== "clips");
 
     /** Open the saved edit with these lanes hidden, seek into the zoom, and export. */

@@ -156,6 +156,17 @@ describe("TracksPopover — keyboard and dismissal", () => {
     expect(onToggle.mock.calls).toEqual([["annotations"], ["annotations"]]);
   });
 
+  it("keeps Delete and Backspace to itself: the page would delete the selected clip, zoom or redaction", () => {
+    setup();
+    const reachedPage = vi.fn();
+    window.addEventListener("keydown", reachedPage);
+    for (const key of ["Delete", "Backspace"]) {
+      fireEvent.keyDown(screen.getByRole("menu"), { key });
+    }
+    window.removeEventListener("keydown", reachedPage);
+    expect(reachedPage).not.toHaveBeenCalled();
+  });
+
   it("closes on Escape and gives focus back to the trigger", () => {
     const { onClose, anchor } = setup();
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });

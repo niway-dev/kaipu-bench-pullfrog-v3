@@ -576,6 +576,21 @@ function VideoEditor({
     setCursorInspectorOpen(false);
     selectSelection(...args);
   }, [selectSelection, showTrack]);
+  // Hiding a lane clears a selection that lives on it: the item would stay selected on a
+  // lane nobody can see, and Delete (the page's key handler) would remove it unseen. The
+  // other direction (selecting on a hidden lane shows the lane) is `selectKind` above.
+  // Decided here, at the toggle, and not by watching `hiddenTracks`: that list reaches the
+  // page one round trip after `showTrack`, so a watcher would clear a selection that was
+  // just made on a lane that is about to be shown.
+  const selectedKind = selection.selection?.kind ?? null;
+  const toggleTrack = useCallback(
+    (key: TrackKey) => {
+      const lane = selectedKind === null ? null : trackForSelection(selectedKind);
+      if (lane === key && !isTrackHidden(key, hiddenTracks)) clearSelection();
+      trackVisibility.toggle(key);
+    },
+    [selectedKind, hiddenTracks, clearSelection, trackVisibility],
+  );
   const selectedItemId = selection.itemId;
   const selectedOverlayId = selection.overlayId;
   const setSelectedItemId = useCallback(
@@ -1545,7 +1560,7 @@ function VideoEditor({
             tracks={{
               available: availableTracks({ hasCursorTrack: cursorTrack !== null, hasWebcam }),
               hidden: hiddenTracks,
-              onToggle: trackVisibility.toggle,
+              onToggle: toggleTrack,
             }}
             onTogglePlay={playback.toggle}
             onToggleMute={playback.toggleMute}

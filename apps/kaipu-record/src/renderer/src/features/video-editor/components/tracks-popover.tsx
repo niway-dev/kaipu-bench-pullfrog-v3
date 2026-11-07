@@ -102,7 +102,7 @@ export function TracksPopover({
     ];
     const at = rows.indexOf(document.activeElement as HTMLElement);
     // Every key handled here stops here: the page's window handler would otherwise also
-    // clear the selection on Escape and toggle playback on Space.
+    // clear the selection on Escape, toggle playback on Space and delete on Delete.
     const handled = (): void => {
       event.preventDefault();
       event.stopPropagation();
@@ -126,6 +126,9 @@ export function TracksPopover({
     else if (event.key === "Enter" || event.key === " ") {
       handled();
       rows[at]?.click();
+    } else if (event.key === "Delete" || event.key === "Backspace") {
+      // The page deletes the selected clip, zoom or redaction on these: not from here.
+      handled();
     } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey) handled();
   };
 
