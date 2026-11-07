@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalRecording } from "@shared/types/library-storage";
 import { dismissToast, getToasts } from "@renderer/ui/toast-store";
 import { SESSION_BEFORE_WEBCAM } from "@renderer/features/video-editor/session-before-webcam.fixture";
+import { serializeSession } from "@renderer/features/video-editor/session";
+import { initialScene } from "@renderer/features/video-editor/scene";
+import { TRACK_KEYS } from "@renderer/features/video-editor/tracks";
 import { WEBCAM_DEFAULTS } from "@renderer/features/video-editor/webcam/webcam-model";
 import { setHeaderActionsElement } from "@renderer/features/workspaces/header-slot";
 import {
@@ -1387,5 +1390,100 @@ describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom" }));
     await screen.findByRole("heading", { name: "Zoom 1" });
     expect(writes).toEqual([]);
+  });
+
+  describe("hiding every lane changes only the timeline (ADR 0050 decision 1)", () => {
+    const EDITED = {
+      ...initialScene(30),
+      items: [{ id: "clip-1", kind: "clip" as const, sourceStart: 0, sourceEnd: 30 }],
+      overlays: [
+        {
+          id: "o1",
+          kind: "text" as const,
+          x: 0.4,
+          y: 0.4,
+          text: "still here",
+          size: 19,
+          color: "#000000",
+          start: 0,
+          end: 30,
+        },
+      ],
+      redactions: [
+        {
+          id: "r1",
+          kind: "cover" as const,
+          start: 0,
+          end: 30,
+          rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+          fill: "#18181b",
+          label: "",
+        },
+      ],
+      mutedRanges: [{ id: "m1", sourceStart: 3, sourceEnd: 5 }],
+      zoomSegments: [
+        {
+          id: "z1",
+          start: 1,
+          end: 10,
+          scale: 2,
+          mode: "fixed" as const,
+          anchor: { x: 0.25, y: 0.25 },
+          smoothing: 0,
+          origin: "manual" as const,
+          trigger: null,
+        },
+      ],
+    };
+    const HIDEABLE = TRACK_KEYS.filter((key) => key !== "clips");
+
+    /** Open the saved edit with these lanes hidden, seek into the zoom, and export. */
+    async function openAndExport(hidden: string[]) {
+      window.electronAPI.loadVideoEditSession = vi.fn(async () => ({
+        sessionJson: serializeSession(EDITED),
+        assets: [],
+      }));
+      fakeSettings(hidden);
+      startExport.mockClear();
+      renderEditor();
+      await waitForEditorLoaded();
+      await waitFor(() =>
+        expect(tracksTrigger()).toHaveTextContent(hidden.length ? /Tracks [1-9]\/5/ : "Tracks 5/5"),
+      );
+      const video = document.querySelector("video") as HTMLVideoElement;
+      video.currentTime = 4;
+      fireEvent(video, new Event("seeked"));
+      const preview = {
+        overlay: screen.queryByText("still here") !== null,
+        redaction: document.querySelector('[data-redaction-id="r1"]') !== null,
+        zoom: (
+          document.querySelector('[data-testid="redaction-layer"]')?.parentElement as HTMLElement
+        )?.style.transform,
+      };
+      clickExportVideo();
+      await waitFor(() => expect(startExport).toHaveBeenCalledOnce());
+      const handed = (startExport.mock.calls[0] as unknown[])[0] as { scene: unknown };
+      return { preview, scene: structuredClone(handed.scene) };
+    }
+
+    it("keeps the annotation, the redaction and the zoom in the preview, and hands the export the same scene", async () => {
+      const shown = await openAndExport([]);
+      cleanup();
+      const hidden = await openAndExport(HIDEABLE);
+      expect(laneLabels()).toEqual(["Clips"]);
+      // Drawn in the preview whatever the timeline shows.
+      expect(shown.preview.overlay).toBe(true);
+      expect(shown.preview.redaction).toBe(true);
+      expect(shown.preview.zoom).not.toBe("");
+      expect(hidden.preview).toEqual(shown.preview);
+      // And the export takes the edit exactly as it was: nothing dropped with its lane.
+      expect(hidden.scene).toEqual(shown.scene);
+      expect(hidden.scene).toMatchObject({
+        overlays: [{ id: "o1" }],
+        redactions: [{ id: "r1" }],
+        zoomSegments: [{ id: "z1" }],
+        mutedRanges: [{ id: "m1" }],
+      });
+    });
   });
 });

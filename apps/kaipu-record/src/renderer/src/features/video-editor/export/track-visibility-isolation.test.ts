@@ -2,15 +2,17 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { initialScene } from "../scene";
-import { TRACK_KEYS } from "../tracks";
 import { buildExportPlan, gifFrameSchedule, gifOutputSize, sliceExportPlan } from "./export-plan";
 import { editFingerprint } from "./export-reuse";
 
 /**
- * ADR 0050 decision 1: hiding a lane is view state. The export plan, the GIF plan and the
- * preview never read it, so what the Tracks popover hides cannot change a file. These tests
- * pin that from both sides: the plan carries every edit whatever the timeline draws, and
- * no module on the preview/export path can reach the setting.
+ * ADR 0050 decision 1: hiding a lane is view state. What these tests pin, honestly:
+ * the plan carries every edit in the scene, the plan builders are deterministic functions of
+ * the scene, and no module on the export or preview path imports the setting. They do not
+ * feed any visibility input to a builder (none takes one), and the static scan cannot see
+ * the page, the one module that does read `hiddenTracks`. That gap is closed at page level:
+ * "hiding every lane" in `pages/video-editor/video-editor-page.test.tsx` hides every lane
+ * and checks the preview still draws and the export is handed the same scene.
  */
 
 const FEATURE = resolve(__dirname, "..");
@@ -22,7 +24,7 @@ const sourcesIn = (dir: string): string[] =>
 const VISIBILITY_REFERENCE =
   /hiddenTracks|use-hidden-tracks|editor-settings|isTrackHidden|\/tracks["']/;
 
-describe("track visibility never reaches the export or the preview", () => {
+describe("track visibility is not imported by the export or the preview", () => {
   const scene = {
     ...initialScene(20),
     items: [{ id: "a", kind: "clip" as const, sourceStart: 0, sourceEnd: 20 }],
@@ -74,17 +76,19 @@ describe("track visibility never reaches the export or the preview", () => {
     expect(plan.overlayWindows.map((w) => w.overlayId)).toEqual(["o1"]);
   });
 
-  it("builds the same plan, slice, fingerprint and GIF schedule on every call: the inputs are the scene alone", () => {
-    // The builders take the scene (and a range, a size) and nothing about lanes, so the
-    // plan with every lane hidden is, by construction, the plan with none hidden.
-    expect(TRACK_KEYS.length).toBeGreaterThan(1);
+  it("is deterministic: the plan, its slice and the fingerprint depend on the scene's content alone", () => {
+    // A determinism check, not a visibility check: a clone of the scene gives the same
+    // result, and `buildExportPlan` declares a single parameter, the scene.
     expect(buildExportPlan(scene)).toEqual(buildExportPlan(structuredClone(scene)));
     expect(sliceExportPlan(buildExportPlan(scene), 1, 5)).toEqual(
-      sliceExportPlan(buildExportPlan(scene), 1, 5),
+      sliceExportPlan(buildExportPlan(structuredClone(scene)), 1, 5),
     );
     expect(editFingerprint(scene)).toBe(editFingerprint(structuredClone(scene)));
-    expect(gifFrameSchedule(4, 10)).toEqual(gifFrameSchedule(4, 10));
     expect(buildExportPlan.length).toBe(1);
+  });
+
+  it("keeps the GIF schedule and size a function of range, fps and dimensions", () => {
+    expect(gifFrameSchedule(4, 10)).toEqual(gifFrameSchedule(4, 10));
     expect(gifOutputSize.length).toBeGreaterThan(0);
   });
 
