@@ -5,15 +5,16 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { initialScene } from "../scene";
 import { serializeSession } from "../session";
-import { buildExportPlan, gifFrameSchedule, gifOutputSize, sliceExportPlan } from "./export-plan";
-import { editFingerprint } from "./export-reuse";
+import { buildExportPlan, gifFrameSchedule, sliceExportPlan } from "./export-plan";
 
 /**
  * NIW2-666: the preview playback speed is view state. The export file always plays at 1x
  * and the plan is a function of the scene alone. What these tests pin, honestly: no
- * plan builder takes a speed, none of the scene, the session or the plan carries one, and
- * no module on the export path imports the speed. The one module that does read it (the
- * page) is covered at page level: "hands the export the same scene at 1x and at 2x" in
+ * plan builder has a parameter a speed could travel in, none of the scene, the session or
+ * the plan carries one, and no module on the export path imports the speed. They do not
+ * re-prove that the planners are pure: calling a function twice and comparing the results
+ * cannot fail. The one module that does read the speed (the page) is covered at page
+ * level: "hands the export the same scene at 1x and at 2x" in
  * `pages/video-editor/video-editor-page.test.tsx`.
  */
 
@@ -140,16 +141,12 @@ describe("preview playback speed does not reach the export", () => {
     ],
   };
 
-  it("builds the same plan, slice and fingerprint whatever speed the preview is at", () => {
-    // The builders take the scene and nothing else, so there is nowhere to pass a speed;
-    // building "at 1x" and "at 2x" is the same call on the same scene, and must stay so.
-    const at1x = buildExportPlan(scene);
-    const at2x = buildExportPlan(structuredClone(scene));
-    expect(at2x).toEqual(at1x);
-    expect(sliceExportPlan(at2x, 1, 9)).toEqual(sliceExportPlan(at1x, 1, 9));
-    expect(editFingerprint(scene)).toBe(editFingerprint(structuredClone(scene)));
+  it("gives the plan builders no parameter a speed could travel in (signatures pinned by arity)", () => {
+    // scene | plan, start, end | duration, fps. A fourth argument for a speed fails here
+    // and forces the question of whether the export may know it.
     expect(buildExportPlan.length).toBe(1);
     expect(sliceExportPlan.length).toBe(3);
+    expect(gifFrameSchedule.length).toBe(2);
   });
 
   it("keeps the real timeline length: a 3 s slide stays 3 s in the plan", () => {
@@ -157,12 +154,6 @@ describe("preview playback speed does not reach the export", () => {
     expect(plan.totalDuration).toBe(8 + 3 + 8);
     const slide = plan.segments.find((segment) => segment.kind === "slide");
     expect(slide).toMatchObject({ timelineStart: 8, duration: 3 });
-  });
-
-  it("keeps the GIF schedule and size a function of range, fps and dimensions", () => {
-    expect(gifFrameSchedule(4, 10)).toEqual(gifFrameSchedule(4, 10));
-    expect(gifFrameSchedule.length).toBe(2);
-    expect(gifOutputSize.length).toBeGreaterThan(0);
   });
 
   it("has no speed in the scene, the saved session or the plan", () => {
