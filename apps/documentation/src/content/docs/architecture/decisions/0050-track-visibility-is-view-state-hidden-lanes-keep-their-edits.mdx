@@ -50,8 +50,12 @@ exactly this: hide from the timeline only, per user. The timeline v2 design (202
    user turns on stays on, empty or not.
 6. **A selection is never invisible.** Selecting an item on a hidden lane (a zoom clicked on the
    preview, a mute reached through a shortcut) shows the lane first.
-7. **New lanes register in `availableTracks` and default to hidden** unless their PR argues
-   otherwise, so a lane added later never costs the video height by default.
+7. **A new lane registers its key in `TRACK_KEYS` and in `availableTracks`.** With the stored
+   shape (a list of hidden keys) a new lane is shown by default for every existing user, because
+   nobody has hidden it. Defaulting a future lane to hidden needs a stored map of the lanes the
+   user has already seen, so "never seen" can be told apart from "shown"; that map is built when
+   the first lane that wants to start hidden arrives, not now. A key this build does not know is
+   drawn, never hidden: a lane with no popover row could not be turned back on.
 
 ## Alternatives rejected
 
@@ -92,5 +96,6 @@ exactly this: hide from the timeline only, per user. The timeline v2 design (202
   checkbox does.
 - Users ask for per-recording lane sets (for example a tutorial that always hides Privacy):
   move the key to the session as view data the export ignores.
-- A lane that is hidden by default under decision 7 turns out to be the one everybody opens
-  first: flip that lane's default, not the rule.
+- A new lane argues to start hidden (for example an Overlay or media-audio lane that would cost
+  the video height by default): add the stored map of known lanes from decision 7 and amend this
+  ADR then.

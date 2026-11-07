@@ -103,8 +103,11 @@ describe("isTrackHidden", () => {
     expect(isTrackHidden("activity", [])).toBe(false);
   });
 
-  it("treats a lane this build does not know as hidden (ADR 0050 decision 7)", () => {
-    expect(isTrackHidden("overlay" as never, [])).toBe(true);
+  it("shows a lane this build does not know: never hide what the user has no row to turn back on", () => {
+    expect(isTrackHidden("overlay" as never, [])).toBe(false);
+    expect(isTrackHidden("overlay" as never, ["zooms"])).toBe(false);
+    // And it counts as drawn when a take lists it.
+    expect(visibleCount(["clips", "overlay" as never], [])).toEqual({ shown: 2, total: 2 });
   });
 });
 

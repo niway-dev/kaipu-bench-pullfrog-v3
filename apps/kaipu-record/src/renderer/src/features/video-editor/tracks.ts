@@ -17,8 +17,9 @@ export { ALWAYS_SHOWN, TRACK_KEYS, parseHiddenTracks };
 export type { TrackKey };
 
 /**
- * The lanes a recording can show, in lane order. This is the one list a new lane registers
- * in (ADR 0050 decision 7): Activity needs a cursor track, Webcam needs a camera.
+ * The lanes a recording can show, in lane order. A new lane registers its key in
+ * `TRACK_KEYS` and here (ADR 0050 decision 7): Activity needs a cursor track, Webcam needs a
+ * camera.
  */
 export function availableTracks(input: {
   hasCursorTrack: boolean;
@@ -33,11 +34,11 @@ export function availableTracks(input: {
 
 /**
  * Whether a lane is drawn off: its own key is stored, Clips never, the marks while Zooms is
- * hidden (they draw inside its lane). A key this build does not know is hidden, so a lane
- * added later never takes the video's height until someone turns it on.
+ * hidden (they draw inside its lane). A key this build does not know is shown: the stored
+ * list only holds keys the popover offered, and a lane with no row there could never be
+ * turned back on.
  */
 export function isTrackHidden(key: TrackKey, hidden: readonly TrackKey[]): boolean {
-  if (!(TRACK_KEYS as readonly string[]).includes(key)) return true;
   if (ALWAYS_SHOWN.includes(key)) return false;
   if (key === "activity" && hidden.includes("zooms")) return true;
   return hidden.includes(key);

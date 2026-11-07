@@ -135,9 +135,11 @@ hasWebcam })`, tested for a take without camera and without cursor track.
     constants, reused, not copied); non-finite → 0; absent → the default.
 18. The GIF ignores the background → the GIF worker uses the same composer; a GIF frame test
     checks a corner pixel.
-19. A new lane added later eats the video's height → `availableTracks` is the one list a new lane
-    registers in, and a new lane is hidden by default unless its PR argues otherwise; test that
-    an unknown lane key defaults to hidden.
+19. A new lane added later eats the video's height → a new lane registers its key in `TRACK_KEYS`
+    and `availableTracks`; with the stored shape (a hidden list) it shows by default for existing
+    users. Defaulting a future lane to hidden needs a stored map of known lanes, which is built
+    when the first such lane arrives, not now. An unknown lane key is drawn, never hidden (a
+    lane without a popover row could not be turned back on); `tracks.test.ts` pins that.
 
 ## Acceptance criteria
 
@@ -478,7 +480,8 @@ The v2 spec is parked, not superseded. If it is picked up again:
   "remove" becomes a destructive edit with undo, and "hide" stays what this design makes it.
 - Its decision 9 (Activity inside Zooms) is done here.
 - Its "+ Add track" menu is the Tracks popover; new lanes (Overlay, media audio) register in
-  `availableTracks` and default to hidden (failure 19).
+  `TRACK_KEYS` and `availableTracks`; they show by default until a stored map of known lanes
+  exists (failure 19).
 
 ## 9. Sources
 
