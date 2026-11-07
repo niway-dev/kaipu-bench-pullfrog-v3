@@ -1532,8 +1532,12 @@ describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
       const preview = {
         overlay: screen.queryByText("still here") !== null,
         redaction: document.querySelector('[data-redaction-id="r1"]') !== null,
+        // The zoomed frame is the redaction layer's parent. A missing parent must fail the
+        // test, not read back as `undefined` on both sides and compare equal.
         zoom: (
-          document.querySelector('[data-testid="redaction-layer"]')?.parentElement as HTMLElement
+          document.querySelector('[data-testid="redaction-layer"]')?.parentElement as
+            | HTMLElement
+            | undefined
         )?.style.transform,
       };
       clickExportVideo();
@@ -1550,7 +1554,8 @@ describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
       // Drawn in the preview whatever the timeline shows.
       expect(shown.preview.overlay).toBe(true);
       expect(shown.preview.redaction).toBe(true);
-      expect(shown.preview.zoom).not.toBe("");
+      expect(shown.preview.zoom).toEqual(expect.stringMatching(/scale\(/));
+      expect(hidden.preview.zoom).toBe(shown.preview.zoom);
       expect(hidden.preview).toEqual(shown.preview);
       // And the export takes the edit exactly as it was: nothing dropped with its lane.
       expect(hidden.scene).toEqual(shown.scene);
