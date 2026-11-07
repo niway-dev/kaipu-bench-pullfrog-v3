@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { captureException } from "@renderer/features/analytics";
 import type { AppSettingsStore } from "@renderer/pages/settings/use-app-settings";
 import { ALWAYS_SHOWN, parseHiddenTracks, type TrackKey } from "./tracks";
 
@@ -27,10 +28,20 @@ export function useHiddenTracks({ settings, update }: AppSettingsStore): HiddenT
     latest.current = hidden;
   }, [hidden]);
 
+  // The rest of `editor`, read at write time through a ref so `write` (and the callbacks
+  // built on it) keep one identity while the store re-renders.
+  const editor = useRef(settings?.editor);
+  editor.current = settings?.editor;
+
   const write = useCallback(
     (next: TrackKey[]) => {
       latest.current = next;
-      void update({ editor: { hiddenTracks: next } });
+      // `settings:update` merges one level deep (`{ ...settings, ...patch }`), so a patch
+      // holding only `hiddenTracks` would replace the whole `editor` object and wipe any
+      // other field it gains: send the object whole.
+      update({ editor: { ...editor.current, hiddenTracks: next } }).catch((error: unknown) => {
+        captureException(error, { context: "editor-hidden-tracks-save" });
+      });
     },
     [update],
   );

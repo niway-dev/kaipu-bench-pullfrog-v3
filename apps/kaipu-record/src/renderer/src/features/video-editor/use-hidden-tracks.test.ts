@@ -1,7 +1,10 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { AppSettings } from "@shared/types";
 import { useHiddenTracks } from "./use-hidden-tracks";
+
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@renderer/features/analytics", () => ({ captureException }));
 
 const store = (hiddenTracks: unknown, update = vi.fn().mockResolvedValue(undefined)) => ({
   settings: { editor: { hiddenTracks } } as unknown as AppSettings,
@@ -50,5 +53,34 @@ describe("useHiddenTracks", () => {
     const { result } = renderHook(() => useHiddenTracks(store(["zooms", "activity"], update)));
     act(() => result.current.showTrack("zooms"));
     expect(update).toHaveBeenCalledWith({ editor: { hiddenTracks: ["activity"] } });
+  });
+
+  it("keeps the other fields of editor when it writes: the settings merge is shallow", () => {
+    const update = vi.fn().mockResolvedValue(undefined);
+    const settings = {
+      editor: { hiddenTracks: ["audio"], futureField: 7 },
+    } as unknown as AppSettings;
+    const { result } = renderHook(() => useHiddenTracks({ settings, update }));
+    act(() => result.current.toggle("zooms"));
+    expect(update).toHaveBeenLastCalledWith({
+      editor: { hiddenTracks: ["audio", "zooms"], futureField: 7 },
+    });
+    act(() => result.current.showTrack("audio"));
+    expect(update).toHaveBeenLastCalledWith({
+      editor: { hiddenTracks: ["zooms"], futureField: 7 },
+    });
+  });
+
+  it("reports a refused save instead of leaving an unhandled rejection", async () => {
+    captureException.mockClear();
+    const failure = new Error("settings:update refused");
+    const update = vi.fn().mockRejectedValue(failure);
+    const { result } = renderHook(() => useHiddenTracks(store([], update)));
+    act(() => result.current.toggle("zooms"));
+    await waitFor(() =>
+      expect(captureException).toHaveBeenCalledWith(failure, {
+        context: "editor-hidden-tracks-save",
+      }),
+    );
   });
 });
