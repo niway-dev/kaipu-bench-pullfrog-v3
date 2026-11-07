@@ -1252,7 +1252,7 @@
     "showTracks": "Mostrar pistas",
     "trackAlways": "Siempre",
     "trackCursorActivity": "Actividad del cursor",
-    "tracksHint": "Las pistas ocultas conservan sus ediciones. La vista previa crece hacia ese espacio.",
+    "tracksHint": "Las pistas ocultas conservan sus ediciones; solo salen de la línea de tiempo.",
     "rewind": "Retroceder",
     "forward": "Avanzar",
     "rewindTitle": "Retroceder 5 s · Mayús: corte anterior",

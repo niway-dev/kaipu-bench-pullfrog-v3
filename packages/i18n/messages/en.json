@@ -1252,7 +1252,7 @@
     "showTracks": "Show tracks",
     "trackAlways": "Always",
     "trackCursorActivity": "Cursor activity",
-    "tracksHint": "Hidden tracks keep their edits. The preview grows into the space.",
+    "tracksHint": "Hidden tracks keep their edits; they only leave the timeline.",
     "rewind": "Rewind",
     "forward": "Forward",
     "rewindTitle": "Back 5 s · Shift: previous cut",

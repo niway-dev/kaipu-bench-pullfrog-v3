@@ -326,7 +326,9 @@ through the existing settings hook, written on every toggle. Per user, not per r
   `showTrack(key)` first, so the selection is never invisible (failure 2).
 - The popover is a `ToolFlyout`-style menu anchored to the trigger: `role="menu"` with
   `menuitemcheckbox` rows, Esc closes, focus returns to the trigger. Footer copy: "Hidden tracks
-  keep their edits. The preview grows into the space."
+  keep their edits; they only leave the timeline." (the mock said "The preview grows into the
+  space."; measured at 1440 and 1180 px the picture is width-bound and does not grow, so the
+  shipped copy promises only what happens.)
 - i18n keys under `videoEditor`: `tracks`, `showTracks`, `trackAlways`, `trackCursorActivity`,
   `tracksHint`, in `en.json` and `es.json`.
 

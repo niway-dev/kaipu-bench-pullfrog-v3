@@ -70,7 +70,7 @@ describe("TracksPopover — rows", () => {
   it("says that hidden tracks keep their edits", () => {
     setup();
     expect(
-      screen.getByText("Hidden tracks keep their edits. The preview grows into the space."),
+      screen.getByText("Hidden tracks keep their edits; they only leave the timeline."),
     ).toBeInTheDocument();
   });
 });
