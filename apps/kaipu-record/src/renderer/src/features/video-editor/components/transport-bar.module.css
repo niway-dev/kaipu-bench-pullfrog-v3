@@ -120,9 +120,15 @@
     color var(--transition);
 }
 
-.tracksButton:hover {
+.tracksButton:hover:not(:disabled) {
   background: var(--bg-card-hover);
   color: var(--text-primary);
+}
+
+/* Fullscreen: the timeline footer is not drawn, so there is nothing to choose. */
+.tracksButton:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .tracksButtonOpen,

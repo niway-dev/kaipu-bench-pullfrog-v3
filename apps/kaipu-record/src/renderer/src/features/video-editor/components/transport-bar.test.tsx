@@ -13,8 +13,8 @@ const ITEMS: TrackItem[] = [
   { id: "b", kind: "clip", sourceStart: 20, sourceEnd: 25 },
 ];
 
-function renderBar(overrides: Partial<TransportBarProps> = {}): TransportBarProps {
-  const props: TransportBarProps = {
+function barProps(overrides: Partial<TransportBarProps> = {}): TransportBarProps {
+  return {
     layout: toLayout(ITEMS),
     playing: false,
     muted: false,
@@ -38,6 +38,10 @@ function renderBar(overrides: Partial<TransportBarProps> = {}): TransportBarProp
     onToggleFullscreen: vi.fn(),
     ...overrides,
   };
+}
+
+function renderBar(overrides: Partial<TransportBarProps> = {}): TransportBarProps {
+  const props = barProps(overrides);
   render(<TransportBar {...props} />);
   return props;
 }
@@ -150,6 +154,28 @@ describe("TransportBar — Tracks trigger", () => {
     renderBar();
     fireEvent.click(trigger());
     fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  // Only the stage <main> goes fullscreen, and the popover is portaled to <body>: in
+  // fullscreen the panel would be invisible while focus sat inside it (NIW2-665 review).
+  it("disables the trigger in fullscreen: the timeline footer is not drawn there", () => {
+    renderBar({ isFullscreen: true });
+    expect(trigger()).toBeDisabled();
+    fireEvent.click(trigger());
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("closes an open panel when fullscreen starts", () => {
+    const props = barProps();
+    const { rerender } = render(<TransportBar {...props} />);
+    fireEvent.click(trigger());
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    rerender(<TransportBar {...props} isFullscreen />);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger()).toHaveAttribute("aria-expanded", "false");
+    // Leaving fullscreen does not bring the panel back by itself.
+    rerender(<TransportBar {...props} isFullscreen={false} />);
     expect(screen.queryByRole("menu")).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Layers,
   Maximize2,
@@ -105,6 +105,12 @@ export function TransportBar({
   const tracksButtonRef = useRef<HTMLButtonElement | null>(null);
   const [tracksOpen, setTracksOpen] = useState(false);
   const closeTracks = useCallback(() => setTracksOpen(false), []);
+  // Only the stage goes fullscreen and the panel is portaled to <body>, so in fullscreen
+  // it would be invisible while focus sat inside it. The trigger is disabled there (the
+  // timeline footer is not drawn either), and a panel open when fullscreen starts closes.
+  useEffect(() => {
+    if (isFullscreen) setTracksOpen(false);
+  }, [isFullscreen]);
   const { shown, total } = visibleCount(tracks.available, tracks.hidden);
 
   return (
@@ -117,6 +123,7 @@ export function TransportBar({
           aria-label={t("tracksLabel", { shown, total })}
           aria-haspopup="menu"
           aria-expanded={tracksOpen}
+          disabled={isFullscreen}
           onClick={() => setTracksOpen((open) => !open)}
         >
           <Layers size={14} aria-hidden />
