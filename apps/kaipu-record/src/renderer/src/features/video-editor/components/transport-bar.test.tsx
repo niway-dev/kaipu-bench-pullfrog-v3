@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { toLayout } from "../timeline";
+import { availableTracks, type TrackKey } from "../tracks";
 import type { TrackItem } from "../scene";
 import { TransportBar, type TransportBarProps } from "./transport-bar";
 
@@ -22,6 +23,11 @@ function renderBar(overrides: Partial<TransportBarProps> = {}): TransportBarProp
     isFullscreen: false,
     zoomCount: null,
     privacyCount: 0,
+    tracks: {
+      available: availableTracks({ hasCursorTrack: true, hasWebcam: false }),
+      hidden: [],
+      onToggle: vi.fn(),
+    },
     onTogglePlay: vi.fn(),
     onToggleMute: vi.fn(),
     onSeek: vi.fn(),
@@ -45,7 +51,7 @@ describe("TransportBar — layout", () => {
   it("lists the controls left to right: Tracks, rewind, play, forward, split, delete, mute, fullscreen", () => {
     renderBar();
     expect(controlNames()).toEqual([
-      "Tracks",
+      "Tracks, 6 of 6 shown",
       "Rewind",
       "Play",
       "Forward",
@@ -87,15 +93,71 @@ describe("TransportBar — layout", () => {
   });
 });
 
-describe("TransportBar — Tracks placeholder", () => {
-  it("is a disabled button until the Tracks popover lands", () => {
+/** The Tracks trigger, whatever count it shows. */
+const trigger = (): HTMLElement => screen.getByRole("button", { name: /^Tracks/ });
+
+function tracksProps(hidden: TrackKey[], input = { hasCursorTrack: true, hasWebcam: false }) {
+  return { available: availableTracks(input), hidden, onToggle: vi.fn() };
+}
+
+describe("TransportBar — Tracks trigger", () => {
+  it("reads Tracks n/m: 6/6 for a take with a cursor track and no camera", () => {
     renderBar();
-    expect(screen.getByRole("button", { name: "Tracks" })).toBeDisabled();
+    expect(trigger()).toHaveTextContent("Tracks 6/6");
+    expect(trigger()).toBeEnabled();
   });
 
+  it("reads 5/5 without a cursor track", () => {
+    renderBar({ tracks: tracksProps([], { hasCursorTrack: false, hasWebcam: false }) });
+    expect(trigger()).toHaveTextContent("Tracks 5/5");
+  });
+
+  it("reads 4/6 with two lanes hidden", () => {
+    renderBar({ tracks: tracksProps(["zooms", "privacy"]) });
+    expect(trigger()).toHaveTextContent("Tracks 4/6");
+    expect(trigger()).toHaveAccessibleName("Tracks, 4 of 6 shown");
+  });
+
+  it("opens Show tracks on click and closes on a second click", () => {
+    renderBar();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger()).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(trigger());
+    expect(screen.getByRole("menu", { name: "Show tracks" })).toBeInTheDocument();
+    expect(trigger()).toHaveAttribute("aria-expanded", "true");
+    expect(trigger()).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.click(trigger());
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("hands a toggle to the page and keeps the panel open", () => {
+    const props = renderBar();
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Zooms" }));
+    expect(props.tracks.onToggle).toHaveBeenCalledWith("zooms");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("closes on Escape and returns focus to the trigger", () => {
+    renderBar();
+    fireEvent.click(trigger());
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger()).toHaveFocus();
+  });
+
+  it("closes on a click outside", () => {
+    renderBar();
+    fireEvent.click(trigger());
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+describe("TransportBar — left cluster", () => {
   it("sits in the left cluster with the zoom and privacy counts", () => {
     renderBar({ zoomCount: 4, privacyCount: 2 });
-    const left = screen.getByRole("button", { name: "Tracks" }).parentElement!;
+    const left = trigger().parentElement!;
     expect(within(left).getByText("4 zooms detected")).toBeInTheDocument();
     expect(within(left).getByText("2 private regions")).toBeInTheDocument();
   });

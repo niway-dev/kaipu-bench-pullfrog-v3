@@ -1265,3 +1265,127 @@ describe("VideoEditorPage — webcam track", () => {
     expect(screen.getByRole("group", { name: "Position" })).toBeInTheDocument();
   });
 });
+
+describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
+  type Settings = Awaited<ReturnType<typeof window.electronAPI.getSettings>>;
+  type Patch = Parameters<typeof window.electronAPI.updateSettings>[0];
+  let writes: Patch[];
+  let original: Pick<
+    typeof window.electronAPI,
+    "getSettings" | "updateSettings" | "onSettingsChanged"
+  >;
+
+  /** A settings store that remembers what the page writes and tells its subscribers. */
+  function fakeSettings(hiddenTracks: string[]): void {
+    const base = original.getSettings();
+    const listeners = new Set<(s: Settings) => void>();
+    let current: Settings | null = null;
+    const read = async (): Promise<Settings> => {
+      current ??= { ...(await base), editor: { hiddenTracks } } as unknown as Settings;
+      return current;
+    };
+    window.electronAPI.getSettings = read;
+    window.electronAPI.updateSettings = async (patch: Patch) => {
+      writes.push(patch);
+      current = { ...(await read()), ...patch } as Settings;
+      listeners.forEach((listener) => listener(current!));
+      return current;
+    };
+    window.electronAPI.onSettingsChanged = (cb) => {
+      listeners.add(cb as (s: Settings) => void);
+      return () => listeners.delete(cb as (s: Settings) => void);
+    };
+  }
+
+  beforeEach(() => {
+    writes = [];
+    original = {
+      getSettings: window.electronAPI.getSettings,
+      updateSettings: window.electronAPI.updateSettings,
+      onSettingsChanged: window.electronAPI.onSettingsChanged,
+    };
+    stubDecodedVideoSize(1280, 720);
+  });
+  afterEach(() => {
+    Object.assign(window.electronAPI, original);
+    stubDecodedVideoSize(0, 0);
+  });
+
+  const laneLabels = (): string[] =>
+    [...document.querySelectorAll("footer span")]
+      .filter((el) => el.querySelector("svg") && el.textContent)
+      .map((el) => el.textContent ?? "");
+  const tracksTrigger = (): HTMLElement => screen.getByRole("button", { name: /^Tracks/ });
+
+  it("counts the lanes this take can show: 5/5 without a cursor track or a camera", async () => {
+    fakeSettings([]);
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(tracksTrigger()).toHaveTextContent("Tracks 5/5");
+    expect(laneLabels()).toEqual(["Clips", "Zooms", "Privacy", "Audio"]);
+  });
+
+  it("has no Activity row any more", async () => {
+    fakeSettings([]);
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(laneLabels()).not.toContain("Activity");
+    expect(document.querySelector("[data-testid='activity-lane']")).toBeNull();
+  });
+
+  it("draws the stored choice: a hidden lane is not on the timeline and the trigger counts it", async () => {
+    fakeSettings(["zooms", "privacy"]);
+    renderEditor();
+    await waitForEditorLoaded();
+    await waitFor(() => expect(tracksTrigger()).toHaveTextContent("Tracks 3/5"));
+    expect(laneLabels()).toEqual(["Clips", "Audio"]);
+  });
+
+  it("unchecking Zooms in the popover hides the lane and saves editor.hiddenTracks", async () => {
+    fakeSettings([]);
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(tracksTrigger());
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Zooms" }));
+    await waitFor(() => expect(laneLabels()).toEqual(["Clips", "Privacy", "Audio"]));
+    expect(writes).toEqual([{ editor: { hiddenTracks: ["zooms"] } }]);
+    expect(tracksTrigger()).toHaveTextContent("Tracks 4/5");
+  });
+
+  it("selecting a zoom while Zooms is hidden shows the lane again, with the zoom selected", async () => {
+    fakeSettings(["zooms"]);
+    renderEditor();
+    await waitForEditorLoaded();
+    await waitFor(() => expect(laneLabels()).toEqual(["Clips", "Privacy", "Audio"]));
+
+    // The Zoom tool adds a manual zoom at the playhead and selects it.
+    fireEvent.click(screen.getByRole("button", { name: "Zoom" }));
+    await screen.findByRole("heading", { name: "Zoom 1" });
+
+    await waitFor(() => expect(laneLabels()).toContain("Zooms"));
+    expect(writes).toEqual([{ editor: { hiddenTracks: [] } }]);
+    expect(document.querySelector("[data-zoom-id]")).not.toBeNull();
+  });
+
+  it("adding a mute while Audio is hidden shows the Audio lane again", async () => {
+    fakeSettings(["audio"]);
+    renderEditor();
+    await waitForEditorLoaded();
+    await waitFor(() => expect(laneLabels()).not.toContain("Audio"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Mute a section/ }));
+
+    await waitFor(() => expect(laneLabels()).toContain("Audio"));
+    expect(writes).toEqual([{ editor: { hiddenTracks: [] } }]);
+  });
+
+  it("selecting something on a lane that is shown writes nothing", async () => {
+    fakeSettings(["privacy"]);
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom" }));
+    await screen.findByRole("heading", { name: "Zoom 1" });
+    expect(writes).toEqual([]);
+  });
+});

@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { generatePath, Navigate, useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "@shared/routes";
-import {
-  AudioLines,
-  MousePointerClick,
-  Shield,
-  Trash2,
-  TriangleAlert,
-  Webcam,
-  ZoomIn,
-} from "lucide-react";
+import { AudioLines, Shield, Trash2, TriangleAlert, Webcam, ZoomIn } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { parseCursorTrack, type CursorTrack } from "@shared/cursor-track";
 import type { WebcamTrackMeta } from "@shared/webcam-track";
@@ -64,7 +56,6 @@ import { activityMarks } from "@renderer/features/video-editor/zoom/detect-zoom-
 import { useZoomEditing } from "@renderer/features/video-editor/zoom/use-zoom-editing";
 import { seekTargetForSegment } from "@renderer/features/video-editor/zoom/select-seek";
 import { focusInspectorFirstControl } from "@renderer/features/video-editor/focus-inspector";
-import { ActivityLane } from "@renderer/features/video-editor/components/activity-lane";
 import { ZoomLane } from "@renderer/features/video-editor/components/zoom-lane";
 import { WebcamLane } from "@renderer/features/video-editor/components/webcam-lane";
 import { WebcamLayer } from "@renderer/features/video-editor/components/webcam-layer";
@@ -134,6 +125,13 @@ import {
 import { useSourceExports } from "@renderer/features/video-editor/export/use-source-exports";
 import { probeSource, type SourceProbe } from "@renderer/features/video-editor/export/probe-source";
 import { useAppSettings } from "@renderer/pages/settings/use-app-settings";
+import { useHiddenTracks } from "@renderer/features/video-editor/use-hidden-tracks";
+import {
+  availableTracks,
+  isTrackHidden,
+  trackForSelection,
+  type TrackKey,
+} from "@renderer/features/video-editor/tracks";
 import { formatSize } from "@renderer/features/library/format";
 import { VideoAnnotationLayer } from "@renderer/features/video-editor/annotations/video-annotation-layer";
 import {
@@ -540,7 +538,7 @@ function VideoEditor({
   // One camera simulation shared by the preview (useCameraPreview) and the export (doc 05).
   // Declared before any callback that closes over it (handleExport).
   const cameraPath = useCameraPath(scene.zoomSegments, cursorTrack, source.durationSeconds);
-  // Evidence for the Activity lane — depends only on the (immutable) track.
+  // Cursor activity: the marks drawn inside the Zooms lane — depend only on the (immutable) track.
   const activity = useMemo(
     () => (cursorTrack ? activityMarks(cursorTrack, source.durationSeconds) : []),
     [cursorTrack, source.durationSeconds],
@@ -557,16 +555,27 @@ function VideoEditor({
     source.durationSeconds,
     (webcamTrack?.startOffsetMs ?? 0) / 1000,
   );
+  // Per-user settings. `editor.hiddenTracks` is view state: it decides which lanes the
+  // timeline draws and is read nowhere else (ADR 0050); the export sheet reads the rest.
+  const appSettings = useAppSettings();
+  const trackVisibility = useHiddenTracks(appSettings);
+  const { hidden: hiddenTracks, showTrack } = trackVisibility;
   const selection = useEditorSelection();
   // `select` / `clear` are stable (useCallback, no deps); the `selection` object itself
   // is rebuilt every render, so never put it in a dependency array.
   const { select: selectSelection, clear: clearSelection } = selection;
   // Selecting anything, like picking a tool (handleToolChange), hands the inspector back
   // from the cursor settings to that thing.
+  // Selecting an item on a hidden lane shows that lane first, so a selection is never
+  // invisible (a zoom clicked on the preview, a mute added from the rail). Every kind of
+  // selection goes through here, so no caller has to remember.
   const selectKind = useCallback((...args: Parameters<typeof selectSelection>) => {
+    const [kind, id] = args;
+    const lane = id === null ? null : trackForSelection(kind);
+    if (lane) showTrack(lane);
     setCursorInspectorOpen(false);
     selectSelection(...args);
-  }, [selectSelection]);
+  }, [selectSelection, showTrack]);
   const selectedItemId = selection.itemId;
   const selectedOverlayId = selection.overlayId;
   const setSelectedItemId = useCallback(
@@ -739,7 +748,6 @@ function VideoEditor({
   // memoized — the box can resize between renders) and hands off to the export
   // hook, which owns the whole worker/writer pipeline. `markClean` runs before
   // navigating so `useBlocker` doesn't intercept this programmatic navigation.
-  const appSettings = useAppSettings();
   // NIW2-218: frame rate + audio layout for the preset estimates and bitrates. Probed once
   // per source; until it resolves the presets assume 30 fps with audio (conservative).
   const [sourceProbe, setSourceProbe] = useState<SourceProbe | null>(null);
@@ -1534,6 +1542,11 @@ function VideoEditor({
               cursorTrack || zooms.visibleZooms.length > 0 ? zooms.visibleZooms.length : null
             }
             privacyCount={redactionEdits.visibleRedactions.length}
+            tracks={{
+              available: availableTracks({ hasCursorTrack: cursorTrack !== null, hasWebcam }),
+              hidden: hiddenTracks,
+              onToggle: trackVisibility.toggle,
+            }}
             onTogglePlay={playback.toggle}
             onToggleMute={playback.toggleMute}
             onSeek={playback.seek}
@@ -1711,20 +1724,11 @@ function VideoEditor({
           slideUrlFor={(assetId) => assetStoreRef.current.get(assetId)?.url ?? null}
           onSlideDuration={handleSlideDuration}
           overlays={scene.overlays}
+          showOverlays={!isTrackHidden("annotations", hiddenTracks)}
           selectedOverlayId={selectedOverlayId}
           onSelectOverlay={setSelectedOverlayId}
           onWindowChange={handleWindowChange}
           extraLanes={[
-            ...(cursorTrack
-              ? [
-                  {
-                    key: "activity",
-                    label: t("laneActivity"),
-                    icon: MousePointerClick,
-                    node: <ActivityLane marks={activity} layout={layout} />,
-                  },
-                ]
-              : []),
             {
               key: "zooms",
               label: t("laneZooms"),
@@ -1737,6 +1741,8 @@ function VideoEditor({
                   onSelect={handleSelectZoom}
                   onEdgeDrag={zooms.edgeDrag}
                   hasTrack={cursorTrack !== null}
+                  marks={activity}
+                  showMarks={cursorTrack !== null && !isTrackHidden("activity", hiddenTracks)}
                 />
               ),
             },
@@ -1796,7 +1802,7 @@ function VideoEditor({
                 />
               ),
             },
-          ]}
+          ].filter((lane) => !isTrackHidden(lane.key as TrackKey, hiddenTracks))}
         />
       </footer>
       {blocker.state === "blocked" && (
