@@ -394,3 +394,426 @@ describe("edit-driven muting (the scene's muted ranges reach the preview)", () =
     expect(video.muted).toBe(false);
   });
 });
+
+describe("usePreviewPlayback — playback speed (preview only)", () => {
+  it("starts at 1x, and a new mount starts at 1x again (nothing is remembered)", () => {
+    const first = renderHook(() => usePreviewPlayback(layout));
+    expect(first.result.current.speed).toBe(1);
+    act(() => first.result.current.setSpeed(2));
+    expect(first.result.current.speed).toBe(2);
+    first.unmount();
+
+    const reopened = renderHook(() => usePreviewPlayback(layout));
+    expect(reopened.result.current.speed).toBe(1);
+  });
+
+  it("sets the rate on the element, keeps the pitch, and makes it the rate a new source starts at", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makeVideo();
+    result.current.videoRef.current = video;
+
+    act(() => result.current.setSpeed(1.5));
+
+    expect(video.playbackRate).toBe(1.5);
+    // Loading a new src resets playbackRate to defaultPlaybackRate, so that follows too.
+    expect(video.defaultPlaybackRate).toBe(1.5);
+    expect(video.preservesPitch).toBe(true);
+  });
+
+  it("re-applies the rate when the element reports loaded metadata (the src changed)", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makeVideo();
+    result.current.videoRef.current = video;
+    act(() => result.current.setSpeed(2));
+
+    video.playbackRate = 1; // what a src change does to the element
+    act(() => result.current.onVideoLoadedMetadata());
+
+    expect(video.playbackRate).toBe(2);
+  });
+
+  it("applies a rate chosen before the element existed once its metadata lands", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    act(() => result.current.setSpeed(0.5));
+    const video = makeVideo();
+    result.current.videoRef.current = video;
+
+    act(() => result.current.onVideoLoadedMetadata());
+
+    expect(video.playbackRate).toBe(0.5);
+  });
+
+  it("restores the rate on the next frame if a src change reset it mid-playback", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makePlayableVideo();
+    result.current.videoRef.current = video;
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.play());
+
+    video.playbackRate = 1;
+    advance(50);
+
+    expect(video.playbackRate).toBe(2);
+  });
+
+  it("a slide at 2x holds duration / speed seconds of wall time", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.seek(5)); // start of the 3 s slide
+    act(() => result.current.play());
+
+    advance(1400); // 2.8 timeline seconds: still inside the slide
+    expect(result.current.activeSlideId).toBe("s1");
+    expect(result.current.timelineTime).toBeCloseTo(7.8, 1);
+
+    advance(200); // 1.6 s of wall time: the 3 s slide is over
+    expect(result.current.activeSlideId).toBeNull();
+  });
+
+  it("a slide at 0.5x holds twice as long", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    act(() => result.current.setSpeed(0.5));
+    act(() => result.current.seek(5));
+    act(() => result.current.play());
+
+    advance(5000); // 2.5 timeline seconds
+    expect(result.current.activeSlideId).toBe("s1");
+
+    advance(1200); // 6.2 s of wall time
+    expect(result.current.activeSlideId).toBeNull();
+  });
+
+  it("pause and resume at 2x do not burn or invent slide time", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.seek(5));
+    act(() => result.current.play());
+    advance(500); // 1 timeline second
+    act(() => result.current.pause());
+    advance(2000);
+    act(() => result.current.play());
+    advance(250); // 0.5 timeline second
+
+    expect(result.current.timelineTime).toBeCloseTo(6.5, 1);
+  });
+
+  it("changing speed mid-slide does not make the time jump", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    const times: number[] = [];
+    result.current.subscribeTime((t) => times.push(t));
+    act(() => result.current.seek(5));
+    act(() => result.current.play());
+    advance(1000); // 1 timeline second at 1x
+    expect(times.at(-1)).toBeCloseTo(6, 1);
+
+    act(() => result.current.setSpeed(2));
+    advance(250); // 0.5 timeline second at 2x -> 6.5, not (now - original anchor) * 2 = 7.5
+    expect(times.at(-1)).toBeCloseTo(6.5, 1);
+    expect(result.current.timelineTime).toBeCloseTo(6.5, 1);
+
+    act(() => result.current.setSpeed(0.5));
+    advance(500); // 0.25 timeline second at 0.5x
+    expect(times.at(-1)).toBeCloseTo(6.75, 1);
+  });
+
+  it("changing speed while paused on a slide keeps the consumed time", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    result.current.videoRef.current = makeVideo();
+    act(() => result.current.seek(6)); // 1 s into the slide, paused
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.play());
+    advance(250);
+
+    expect(result.current.timelineTime).toBeCloseTo(6.5, 1);
+  });
+
+  it("the rate survives entering a slide and leaving it back to a clip", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makePlayableVideo();
+    result.current.videoRef.current = video;
+    act(() => result.current.setSpeed(2));
+    act(() => result.current.seek(7.9)); // 0.1 s left of the slide
+    act(() => result.current.play());
+
+    video.playbackRate = 1; // the element lost it while the slide held the screen
+    advance(100); // 0.2 timeline seconds: past the slide into clip b
+
+    expect(result.current.activeSlideId).toBeNull();
+    expect(video.playbackRate).toBe(2);
+    expect(result.current.speed).toBe(2);
+  });
+
+  it("the rate is set again when a scrub leaves a slide for a clip", () => {
+    const { result } = renderHook(() => usePreviewPlayback(layout));
+    const video = makePlayableVideo();
+    result.current.videoRef.current = video;
+    act(() => result.current.setSpeed(1.5));
+    act(() => result.current.seek(6)); // on the slide
+
+    video.playbackRate = 1;
+    act(() => result.current.seek(2)); // back onto clip a
+
+    expect(video.playbackRate).toBe(1.5);
+  });
+});
+
+/** A fake <video> that records every seek the hook makes (each assignment to `currentTime`)
+ *  and lets a test move the playback position WITHOUT counting it as a seek: `playTo` stands
+ *  in for the decoder advancing between two animation frames. */
+function makeSeekRecordingVideo() {
+  let position = 0;
+  const seeks: number[] = [];
+  const video = {
+    get currentTime() {
+      return position;
+    },
+    set currentTime(value: number) {
+      position = value;
+      seeks.push(value);
+    },
+    paused: true,
+    muted: false,
+    play: vi.fn(() => {
+      video.paused = false;
+      return Promise.resolve();
+    }),
+    pause: vi.fn(() => {
+      video.paused = true;
+    }),
+  };
+  return {
+    video: video as unknown as HTMLVideoElement,
+    seeks,
+    playTo(t: number) {
+      position = t;
+    },
+  };
+}
+
+/** One animation frame of the fake rAF (it ticks every 16 ms). */
+const frame = (): void => advance(17);
+
+function setupCutRig(items: TrackItem[], speed: number) {
+  const cutLayout = toLayout(items);
+  const hook = renderHook(() => usePreviewPlayback(cutLayout));
+  const rig = makeSeekRecordingVideo();
+  hook.result.current.videoRef.current = rig.video;
+  act(() => hook.result.current.setSpeed(speed));
+  return { ...hook, ...rig };
+}
+
+// clip a (source 0-5) → 3 s slide → clip b. The slide sits at timeline 5-8.
+const GAP_THEN_SLIDE = [clip("a", 0, 5), slide("s1", 3), clip("b", 20, 25)];
+const CONTIGUOUS_THEN_SLIDE = [clip("a", 0, 5), slide("s1", 3), clip("b", 5, 10)];
+// clip a, deleted footage (source 5-20), clip b — no slide between them.
+const GAP_NO_SLIDE = [clip("a", 0, 5), clip("b", 20, 25)];
+
+describe.each([0.5, 1, 1.5, 2])(
+  "usePreviewPlayback — a clip's cut is caught per frame, at %sx",
+  (speed) => {
+    // `timeupdate` fires about every 250 ms, so playback runs past a cut by up to 250 ms
+    // (500 ms at 2x) before anything reacts. The rAF loop must notice the cut itself.
+    const slideWallMs = (3 / speed) * 1000;
+
+    it("enters the slide instead of skipping it when currentTime jumps over the cut between two frames (source gap)", () => {
+      const { result, video, seeks, playTo } = setupCutRig(GAP_THEN_SLIDE, speed);
+      act(() => result.current.play());
+      playTo(4.8);
+      frame();
+      expect(result.current.activeSlideId).toBeNull();
+
+      playTo(5.3); // 0.5 s in one go, and NO timeupdate in between
+
+      frame();
+      expect(result.current.activeSlideId).toBe("s1");
+      expect(video.paused).toBe(true);
+      expect(result.current.timelineTime).toBe(5);
+      expect(seeks).toEqual([]); // the slide holds the screen; the video is not sought
+
+      // The slide still holds duration / speed seconds of wall time, then clip b starts.
+      advance(slideWallMs - 200);
+      expect(result.current.activeSlideId).toBe("s1");
+      advance(400);
+      expect(result.current.activeSlideId).toBeNull();
+      expect(seeks).toEqual([20]);
+    });
+
+    it("enters the slide instead of skipping it when clip b is contiguous in source", () => {
+      const { result, video, seeks, playTo } = setupCutRig(CONTIGUOUS_THEN_SLIDE, speed);
+      act(() => result.current.play());
+      playTo(4.8);
+      frame();
+
+      playTo(5.3); // sourceToTimeline maps this straight into clip b (timeline 8.3)
+
+      frame();
+      expect(result.current.activeSlideId).toBe("s1");
+      expect(video.paused).toBe(true);
+      expect(result.current.timelineTime).toBe(5);
+
+      advance(slideWallMs + 200);
+      expect(result.current.activeSlideId).toBeNull();
+      expect(seeks).toEqual([5]);
+    });
+
+    it("snaps to the next clip within one frame of crossing a cut with deleted footage after it", () => {
+      const { result, video, seeks, playTo } = setupCutRig(GAP_NO_SLIDE, speed);
+      const oneFrameOfPlayback = speed / 60;
+      act(() => result.current.play());
+      playTo(4.9);
+      frame();
+      expect(seeks).toEqual([]);
+
+      playTo(5 + oneFrameOfPlayback); // the worst case now: one frame of deleted footage played
+
+      frame();
+      expect(seeks).toEqual([20]);
+      expect(video.currentTime).toBe(20);
+      expect(result.current.timelineTime).toBe(5); // clip b's timelineStart
+
+      // Further frames play clip b; the hand-off must not fire again.
+      playTo(20 + oneFrameOfPlayback);
+      frame();
+      frame();
+      expect(seeks).toEqual([20]);
+    });
+
+    it("pauses at the layout end when the last clip reaches its cut", () => {
+      const { result, video, seeks, playTo } = setupCutRig(GAP_THEN_SLIDE, speed);
+      act(() => result.current.seek(8)); // start of the last clip, b (source 20)
+      act(() => result.current.play());
+      playTo(24.5);
+      frame();
+      expect(result.current.playing).toBe(true);
+
+      playTo(24.99);
+
+      frame();
+      expect(result.current.playing).toBe(false);
+      expect(result.current.timelineTime).toBe(13); // the layout end, never past it
+      expect(result.current.activeSlideId).toBeNull();
+      expect(video.pause).toHaveBeenCalled();
+      expect(seeks).toEqual([20]); // only seek(8): nothing is sought past the end
+    });
+  },
+);
+
+describe("usePreviewPlayback — cut detection across seeks, pauses and timeupdate", () => {
+  it("catches the cut after pausing and resuming inside the clip", () => {
+    const { result, playTo } = setupCutRig(GAP_THEN_SLIDE, 2);
+    act(() => result.current.play());
+    playTo(4.5);
+    frame();
+    act(() => result.current.pause());
+    advance(2000);
+    act(() => result.current.play());
+
+    playTo(5.3);
+    frame();
+
+    expect(result.current.activeSlideId).toBe("s1");
+  });
+
+  it("catches the cut of a clip entered by a seek into its middle", () => {
+    const { result, seeks, playTo } = setupCutRig(GAP_THEN_SLIDE, 2);
+    act(() => result.current.seek(2)); // middle of clip a
+    act(() => result.current.play());
+    playTo(4.8);
+    frame();
+
+    playTo(5.3);
+    frame();
+
+    expect(seeks).toEqual([2]);
+    expect(result.current.activeSlideId).toBe("s1");
+  });
+
+  it("does not hand off from the old clip when a seek moves playback into another clip", () => {
+    const { result, seeks, playTo } = setupCutRig(GAP_THEN_SLIDE, 1);
+    act(() => result.current.play());
+    playTo(4.5);
+    frame();
+
+    act(() => result.current.seek(10)); // timeline 10 is 2 s into clip b: source 22
+    frame();
+    frame();
+
+    expect(seeks).toEqual([22]);
+    expect(result.current.activeSlideId).toBeNull();
+    expect(result.current.playing).toBe(true);
+  });
+
+  it("the timeupdate fallback also enters the slide when it first sees a time past the cut", () => {
+    const { result, video, playTo } = setupCutRig(GAP_THEN_SLIDE, 2);
+    act(() => result.current.play());
+    playTo(4.8);
+    act(() => result.current.onVideoTimeUpdate());
+    expect(result.current.activeSlideId).toBeNull();
+
+    playTo(5.3); // 250 ms later, 0.5 s of source at 2x
+
+    act(() => result.current.onVideoTimeUpdate());
+    expect(result.current.activeSlideId).toBe("s1");
+    expect(video.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it("a timeupdate right after a frame's hand-off into a clip does not advance twice", () => {
+    const { result, seeks, playTo } = setupCutRig(GAP_NO_SLIDE, 2);
+    act(() => result.current.play());
+    playTo(5.03);
+    frame();
+    expect(seeks).toEqual([20]);
+
+    act(() => result.current.onVideoTimeUpdate()); // the seek's own timeupdate
+    playTo(20.03);
+    act(() => result.current.onVideoTimeUpdate()); // the next ordinary one
+
+    expect(seeks).toEqual([20]);
+    expect(result.current.timelineTime).toBeCloseTo(5.03, 2);
+  });
+
+  it("a timeupdate right after a frame's hand-off into a slide does not enter it twice", () => {
+    const { result, video, playTo } = setupCutRig(GAP_THEN_SLIDE, 2);
+    act(() => result.current.play());
+    playTo(5.3);
+    frame();
+    expect(result.current.activeSlideId).toBe("s1");
+
+    act(() => result.current.onVideoTimeUpdate()); // the video still reads 5.3, past the cut
+
+    expect(video.pause).toHaveBeenCalledTimes(1); // enterSlide ran once
+    expect(result.current.timelineTime).toBe(5);
+  });
+
+  it("a frame right after a timeupdate's hand-off does not advance twice", () => {
+    const { result, video, playTo } = setupCutRig(GAP_THEN_SLIDE, 2);
+    act(() => result.current.play());
+    playTo(5.3);
+    act(() => result.current.onVideoTimeUpdate()); // beats the frame to the cut
+
+    frame();
+    frame();
+
+    expect(video.pause).toHaveBeenCalledTimes(1);
+    expect(result.current.activeSlideId).toBe("s1");
+  });
+
+  it("does not hand off again after the last clip ended playback", () => {
+    const { result, video, playTo } = setupCutRig(GAP_THEN_SLIDE, 1);
+    act(() => result.current.seek(8));
+    act(() => result.current.play());
+    playTo(24.99);
+    frame();
+    expect(result.current.playing).toBe(false);
+    (video.pause as ReturnType<typeof vi.fn>).mockClear();
+
+    act(() => result.current.onVideoTimeUpdate()); // a stray timeupdate after the stop
+
+    expect(video.pause).not.toHaveBeenCalled();
+    expect(result.current.timelineTime).toBe(13);
+  });
+});
